@@ -26,6 +26,7 @@ export function Footer(meta = {}) {
           <ul>
             <li><a href="#/">首页</a></li>
             <li><a href="#/gallery">非遗名录</a></li>
+            <li><a href="#/inheritors">传承人</a></li>
             <li><a href="#/simulator">技艺体验</a></li>
             <li><a href="#/about">关于本站</a></li>
           </ul>

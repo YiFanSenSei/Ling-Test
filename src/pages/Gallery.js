@@ -5,7 +5,7 @@
  * 筛选条件同步到 URL，保证可分享、可前进后退（「想去哪就去哪」档位）。
  */
 
-import { queryProjects, getMeta, esc, num } from '../data.js';
+import { queryProjects, getMeta, detectCategoryTerm, esc, num } from '../data.js';
 import { ProjectCard, EmptyState, Pagination, SectionTitle } from '../components/ui.js';
 import { navigate, currentPath } from '../router.js';
 
@@ -46,6 +46,27 @@ export async function GalleryPage() {
   const regions = (meta.byRegion || []).map(r => r.region);
 
   const hasFilter = q || category || region || batch;
+
+  // 用户搜的若是「戏曲」「音乐」这类**门类级**的词，子串检索帮不上忙——
+  // 「戏曲」会捞出皮影戏、木偶戏、傩戏，结果数和「戏」字出现次数成正比。
+  // 与其给一堆无关结果，不如直接告诉他这其实是一个门类，并给出入口。
+  const catHint = detectCategoryTerm(q);
+  const hintBlock = (catHint && !category && result.total > 0) ? `
+    <div class="result-hint">
+      <p>
+        「${esc(q)}」是一个<strong>门类</strong>，不是项目名称。上面的结果只是名称里
+        恰好含这个字的部分项目，并非该门类的全部。
+        要看完整的「${esc(catHint)}」，请使用门类筛选：
+      </p>
+      <p>
+        <a class="btn btn-primary btn-sm" href="#${buildPath({ q, category: catHint, region, batch })}">
+          只看「${esc(catHint)}」（${num((meta.byCategory || {})[catHint] || 0)} 条）
+        </a>
+        <a class="btn btn-ghost btn-sm" href="#${buildPath({ category: catHint, region, batch })}">
+          该门类全部，不计关键词
+        </a>
+      </p>
+    </div>` : '';
 
   /* ---- 筛选栏 ---- */
   const filters = `
@@ -140,6 +161,8 @@ export async function GalleryPage() {
       </div>
 
       ${body}
+
+      ${hintBlock}
     </div>
   </section>`;
 }

@@ -13,11 +13,13 @@
  *   六、批次年表 —— 五批时间轴
  */
 
-import { getMeta, getFeatured, getProjects, num, esc, categoryGlyph, batchLabel } from '../data.js';
+import { getMeta, getFeatured, getProjects, getInheritorStats, num, esc, categoryGlyph, batchLabel } from '../data.js';
 import { ProjectCard, SectionTitle } from '../components/ui.js';
 
 export async function HomePage() {
-  const [meta, featured] = await Promise.all([getMeta(), getFeatured()]);
+  const [meta, featured, inhStats] = await Promise.all([
+    getMeta(), getFeatured(), getInheritorStats(),
+  ]);
   const projects = await getProjects();
   const official = meta.official || {};
   const byCategory = meta.byCategory || {};
@@ -85,6 +87,7 @@ export async function HomePage() {
 
         <div class="hero-actions">
           <a class="btn btn-primary btn-lg" href="#/gallery">进入名录</a>
+          <a class="btn btn-ghost btn-lg" href="#/inheritors">寻访匠人</a>
           <a class="btn btn-ghost btn-lg" href="#/simulator">体验技艺</a>
         </div>
 
@@ -155,6 +158,13 @@ export async function HomePage() {
           <div class="stat-num">${num(official.totalArtisans || 3998)}<em>位</em></div>
           <div class="stat-label">国家级代表性传承人</div>
           <div class="stat-note">含已认定批次</div>
+        </div>
+        <div class="stat stat-link">
+          <a href="#/inheritors">
+            <div class="stat-num">${num(inhStats.total)}<em>位</em></div>
+            <div class="stat-label">本站已建档传承人</div>
+            <div class="stat-note">可逐人查阅 →</div>
+          </a>
         </div>
       </div>
 

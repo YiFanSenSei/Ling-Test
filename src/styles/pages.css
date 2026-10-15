@@ -635,6 +635,25 @@
 .result-filtered { color: var(--gold); margin-left: 4px; }
 .result-page { font-variant-numeric: tabular-nums; }
 
+/* 门类级关键词提示：与其给一堆沾边的结果，不如把真正该去的入口递到手边 */
+.result-hint {
+  margin-top: var(--sp-7);
+  padding: var(--sp-5) var(--sp-5);
+  background: var(--paper-light);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--gold);
+  border-radius: var(--radius);
+  max-width: 780px;
+}
+.result-hint p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.85;
+  color: var(--ink-soft);
+}
+.result-hint p + p { margin-top: var(--sp-4); }
+.result-hint strong { color: var(--ink); font-weight: 500; }
+
 /* ==========================================================================
    项目档案页
    ========================================================================== */
@@ -834,6 +853,15 @@
   font-weight: 500;
   letter-spacing: 0.06em;
   color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+/* 从项目页点进传承人档案：悬停时用朱砂下划线暗示可点 */
+a.inheritor-name:hover {
+  color: var(--cinnabar);
+  border-bottom-color: var(--cinnabar-wash);
 }
 
 .inheritor-gender,
@@ -1970,6 +1998,354 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   }
 }
 
+/* ==========================================================================
+   传承人 · 名录页与档案页
+   --------------------------------------------------------------------------
+   主题二点名要有「匠人故事专题」。项目名录回答「有什么手艺」，
+   传承人名录回答「谁在做」——后者才是「匠心」二字的落点。
+   ========================================================================== */
+
+/* ---------- 名录页：统计条 ---------- */
+.inh-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid var(--rule);
+  background: var(--paper-light);
+  margin: var(--sp-6) 0 var(--sp-7);
+}
+
+.inh-stat {
+  padding: var(--sp-5) var(--sp-4);
+  text-align: center;
+  border-right: 1px solid var(--rule);
+}
+.inh-stat:last-child { border-right: none; }
+
+.inh-stat-num {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.inh-stat-label {
+  display: block;
+  margin-top: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+}
+
+/* ---------- 名录页：传承人卡片网格 ---------- */
+.inh-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1px;
+  background: var(--rule);       /* 用背景色透出 1px 细线，比 border 更干净 */
+  border: 1px solid var(--rule);
+  margin-bottom: var(--sp-6);
+}
+
+.inh-card {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--paper-light);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--dur-fast) var(--ease);
+}
+.inh-card:hover { background: var(--paper); }
+
+/* 头像徽记：姓名首字，朱砂描边 */
+.inh-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+}
+.inh-avatar::after {
+  /* 内层细框，做出「印」的双边感 */
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px solid var(--cinnabar-wash);
+}
+.inh-avatar-glyph {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-serif);
+  font-size: var(--fs-lg);
+  color: var(--cinnabar);
+  line-height: 1;
+}
+
+.inh-main { min-width: 0; }
+
+.inh-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5em;
+}
+
+.inh-name {
+  font-family: var(--font-serif);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+
+.inh-gender,
+.inh-birth {
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+}
+.inh-birth.is-unknown { color: var(--ink-ghost); }
+
+.inh-project {
+  display: block;
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inh-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75em;
+  margin-top: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+}
+.inh-meta .inh-cat { color: var(--azurite); }
+.inh-meta .inh-unit {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 16em;
+}
+
+.inh-code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* 紧凑网格：档案页的「同门」推荐 */
+.inh-grid-compact {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  margin-top: var(--sp-4);
+}
+
+.result-filtered {
+  color: var(--cinnabar);
+  font-size: var(--fs-sm);
+}
+
+.result-note {
+  margin: var(--sp-6) 0 var(--sp-8);
+  padding: var(--sp-4) var(--sp-5);
+  border-left: 2px solid var(--gold);
+  background: var(--paper-light);
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+  line-height: var(--lh-normal);
+}
+
+/* ---------- 分页条 ---------- */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-7);
+}
+
+.pager-btn {
+  min-width: 40px;
+  height: 38px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--rule);
+  background: var(--paper-light);
+  color: var(--ink-soft);
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease);
+}
+.pager-btn:hover:not(:disabled):not(.is-active) {
+  border-color: var(--cinnabar);
+  color: var(--cinnabar);
+}
+.pager-btn.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper-light);
+  font-weight: 600;
+}
+.pager-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.pager-gap {
+  color: var(--ink-ghost);
+  padding: 0 2px;
+}
+
+/* ---------- 档案页 ---------- */
+.page-head-tight { padding-bottom: var(--sp-4); }
+
+.inh-detail { padding-top: var(--sp-5); }
+
+.inh-hero {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: var(--sp-6);
+  align-items: center;
+  padding-bottom: var(--sp-6);
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--sp-7);
+}
+
+.inh-hero-avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 140px;
+  height: 140px;
+  border: 1px solid var(--rule);
+  background: var(--paper-light);
+}
+
+.inh-hero-pattern {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0.5;
+}
+.inh-hero-pattern svg { width: 100%; height: 100%; }
+
+.inh-hero-glyph {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-serif);
+  font-size: 3.5rem;
+  color: var(--cinnabar);
+  line-height: 1;
+}
+
+.inh-hero-cat {
+  font-size: var(--fs-xs);
+  color: var(--cinnabar);
+  letter-spacing: var(--ls-wide);
+  margin-bottom: var(--sp-2);
+}
+
+.inh-hero-name {
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 4.5vw, var(--fs-3xl));
+  font-weight: 600;
+  color: var(--ink);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+}
+
+.inh-hero-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1em;
+  margin-top: var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--ink-faint);
+}
+
+.inh-hero-project {
+  margin-top: var(--sp-4);
+  font-size: var(--fs-md);
+  color: var(--ink-soft);
+}
+.inh-hero-project a {
+  color: var(--cinnabar);
+  text-decoration: none;
+  border-bottom: 1px solid var(--cinnabar-wash);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.inh-hero-project a:hover { border-bottom-color: var(--cinnabar); }
+
+/* 两栏布局（复用项目页的 aside 规则，只补必要差异） */
+.inh-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--sp-8);
+  align-items: start;
+}
+
+.empty-note {
+  grid-column: 1 / -1;
+  padding: var(--sp-8) var(--sp-5);
+  text-align: center;
+  color: var(--ink-faint);
+  background: var(--paper-light);
+  font-size: var(--fs-sm);
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 1100px) {
+  .inh-detail-layout { grid-template-columns: minmax(0, 1fr) 260px; gap: var(--sp-6); }
+}
+
+@media (max-width: 900px) {
+  .inh-detail-layout { grid-template-columns: 1fr; }
+  .inh-stats { grid-template-columns: repeat(2, 1fr); }
+  .inh-stat:nth-child(2) { border-right: none; }
+  .inh-stat:nth-child(1),
+  .inh-stat:nth-child(2) { border-bottom: 1px solid var(--rule); }
+  .inh-hero { grid-template-columns: 100px 1fr; gap: var(--sp-4); }
+  .inh-hero-avatar { width: 100px; height: 100px; }
+  .inh-hero-glyph { font-size: 2.5rem; }
+}
+
+@media (max-width: 720px) {
+  .inh-grid,
+  .inh-grid-compact { grid-template-columns: 1fr; }
+  .inh-card {
+    grid-template-columns: 44px 1fr;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+  }
+  .inh-avatar { width: 44px; height: 44px; }
+  /* 编号在窄屏另起一行，避免和姓名挤在一起 */
+  .inh-code {
+    grid-column: 2 / -1;
+    margin-top: calc(var(--sp-2) * -1);
+  }
+  .inh-meta .inh-unit { max-width: 100%; }
+  .pager-btn { min-width: 34px; height: 34px; padding: 0 var(--sp-2); }
+  .inh-hero { grid-template-columns: 1fr; gap: var(--sp-4); }
+}
+
+@media (max-width: 480px) {
+  .inh-stat-num { font-size: var(--fs-xl); }
+  .inh-stats { grid-template-columns: 1fr 1fr; }
+}
+
 /* 触摸设备：纹样常显 */
 @media (hover: none) {
   .cat-card .cat-glyph { color: var(--cinnabar); }
@@ -1983,7 +2359,12 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 
 /* 打印 */
 @media print {
-  .site-header, .site-footer, .sim-hint, .sim-tabs-bar, .filters, .hero-scroll { display: none; }
+  .site-header, .site-footer, .sim-hint, .sim-tabs-bar, .filters, .hero-scroll,
+  .pager, .inh-stats { display: none; }
   .sim-canvas-wrap, .about-table-wrap { box-shadow: none; }
+  /* 传承人卡片与网格线在纸上无意义，去掉底纹只留文字 */
+  .inh-grid { background: none; border: none; grid-template-columns: 1fr 1fr; }
+  .inh-card { border: 1px solid var(--rule); }
+  .inh-card::after { display: none; }
   body { background: #fff; }
 }

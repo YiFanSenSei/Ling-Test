@@ -28,6 +28,8 @@ export async function ProjectPage(id) {
   ].filter(([, v]) => v);
 
   /* ---- 传承人 ---- */
+  // 每位传承人都链到本站自己的档案页——把人从「项目表格里的一行」
+  // 变成「可以点进去的人」。linkId 由数据层按 项目id-序号 生成。
   const inheritors = Array.isArray(detail.inheritors) ? detail.inheritors : [];
   const inheritorCards = inheritors.length ? `
     <ol class="inheritor-list">
@@ -36,7 +38,7 @@ export async function ProjectPage(id) {
           <span class="inheritor-idx" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span>
           <div class="inheritor-main">
             <div class="inheritor-head">
-              <strong class="inheritor-name">${esc(p.name || '—')}</strong>
+              <a class="inheritor-name" href="#/inheritor/${esc(detail.id)}-${i}">${esc(p.name || '—')}</a>
               ${p.gender ? `<span class="inheritor-gender">${esc(p.gender)}</span>` : ''}
               ${p.birth ? `<span class="inheritor-birth">${esc(birthYear(p.birth))} 年生</span>` : ''}
             </div>
@@ -46,16 +48,15 @@ export async function ProjectPage(id) {
               ${p.unit ? `<span>${esc(p.unit)}</span>` : ''}
             </div>
           </div>
-          ${p.detailUrl ? `
-          <a class="inheritor-link" href="${esc(p.detailUrl)}" target="_blank" rel="noopener noreferrer"
-             title="在中国非物质文化遗产网查看该传承人档案">
-            官网档案 ↗
-          </a>` : ''}
+          <a class="inheritor-link" href="#/inheritor/${esc(detail.id)}-${i}">
+            查看档案 →
+          </a>
         </li>`).join('')}
     </ol>
 
     <p class="inheritor-note">
-      以上为国家级代表性传承人，数据来自中国非物质文化遗产网。点击「官网档案」可跳转至官方页面查看完整履历。
+      以上为国家级代表性传承人，数据来自中国非物质文化遗产网。
+      点击姓名可进入本站为每位传承人建立的档案页。
       ${inheritors.some(p => p.birth) ? `<br>可见传承人年龄跨度：${
         Math.min(...inheritors.filter(p => p.birth).map(p => Number(birthYear(p.birth))))
       } 年生 — ${

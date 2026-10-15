@@ -29,6 +29,8 @@ const PAGES = [
   { key: 'home', hash: '#/' },
   { key: 'gallery', hash: '#/gallery' },
   { key: 'project', hash: '#/project/13978' },
+  { key: 'inheritors', hash: '#/inheritors' },
+  { key: 'inheritor', hash: '#/inheritor/13978-0' },
   { key: 'simulator', hash: '#/simulator' },
   { key: 'about', hash: '#/about' },
 ];

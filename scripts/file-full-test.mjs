@@ -103,10 +103,16 @@ async function main() {
     ['筛选', '#/gallery?category=%E4%BC%A0%E7%BB%9F%E7%BE%8E%E6%9C%AF', `String(document.querySelectorAll('.pcard').length)`],
     ['搜索', '#/gallery?q=%E8%8B%8F%E7%BB%A3', `String(document.querySelectorAll('.pcard').length)`],
     ['档案', '#/project/13978', `document.querySelector('.project-title')?.textContent.trim()`],
-    ['传承人', '#/project/13978', `String(document.querySelectorAll('.inheritor').length)`],
+    ['项目传承人', '#/project/13978', `String(document.querySelectorAll('.inheritor').length)`],
+    ['传承人名录', '#/inheritors', `document.querySelector('.result-count')?.textContent.trim().replace(/\\s+/g,'')`],
+    ['传承人卡', '#/inheritors', `String(document.querySelectorAll('.inh-card').length)`],
+    ['传承人档案', '#/inheritor/13978-0', `document.querySelector('.inh-hero-name')?.textContent.trim()`],
+    ['档案-同门', '#/inheritor/13978-0', `String(document.querySelectorAll('.inh-grid-compact .inh-card').length)`],
+    ['传承人检索', '#/inheritors?q=%E5%A7%9A', `String(document.querySelectorAll('.inh-card').length)`],
     ['体验', '#/simulator', `document.querySelectorAll('.sim-tab').length`],
     ['关于', '#/about', `document.querySelectorAll('.about-block').length`],
     ['404', '#/no-such-page', `document.querySelector('.empty-state h3, .notfound h1')?.textContent.trim()`],
+    ['404-传承人', '#/inheritor/999-99', `document.querySelector('.empty-state h3, .notfound h1')?.textContent.trim()`],
   ];
 
   const results = [];

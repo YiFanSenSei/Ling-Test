@@ -7,12 +7,15 @@
  * 第三方资源声明、无障碍与适配说明。
  */
 
-import { getMeta, getProjects, num, esc } from '../data.js';
+import { getMeta, getProjects, getDetails, getInheritorStats, num, esc } from '../data.js';
 import { SectionTitle } from '../components/ui.js';
 
 export async function AboutPage() {
-  const [meta, projects] = await Promise.all([getMeta(), getProjects()]);
+  const [meta, projects, details, inhStats] = await Promise.all([
+    getMeta(), getProjects(), getDetails(), getInheritorStats(),
+  ]);
   const official = meta.official || {};
+  const detailCount = Object.keys(details.details || {}).length;
 
   return `
   <section class="page-head">
@@ -22,7 +25,7 @@ export async function AboutPage() {
         <span aria-hidden="true">/</span>
         <span aria-current="page">关于本站</span>
       </nav>
-      ${SectionTitle({ num: '肆', title: '关于本站', sub: '作品说明、数据来源与技术声明。' })}
+      ${SectionTitle({ num: '伍', title: '关于本站', sub: '作品说明、数据来源与技术声明。' })}
     </div>
   </section>
 
@@ -42,7 +45,9 @@ export async function AboutPage() {
             全站内容取自中国非物质文化遗产网公开信息，共收录
             <strong>${num(projects.length)} 条</strong>按申报地区拆分的子项记录，
             覆盖十大门类、${num(meta.byRegion?.length || 34)} 个省级行政区与五批公布年表。
-            其中 16 个项目建立了完整详情页，含官方项目介绍与历代国家级代表性传承人档案。
+            其中 <strong>${num(detailCount)} 个项目</strong>建立了完整详情页，
+            含官方项目介绍与国家级代表性传承人档案；
+            站内另为 <strong>${num(inhStats.total)} 位传承人</strong>建立了可检索、可逐人翻阅的独立档案页。
           </p>
           <p>
             此外，本站把三门手艺做成了可交互的体验：
@@ -79,7 +84,7 @@ export async function AboutPage() {
                 <tr>
                   <th scope="row">国家级代表性传承人</th>
                   <td>${num(official.totalArtisans || 3998)} 位</td>
-                  <td>16 个项目已展开</td>
+                  <td>${num(inhStats.total)} 位已建档</td>
                 </tr>
                 <tr>
                   <th scope="row">列入联合国教科文组织名录</th>
@@ -113,6 +118,19 @@ export async function AboutPage() {
             抓取过程中剔除了接口中混入的其他目录数据（如「第一批国家传统工艺振兴目录」等
             共 383 条），其详情页标题不属于国家级非遗名录体系，已通过项目编号格式与详情页标题双重校验。
           </p>
+
+          <div class="about-callout">
+            <h3>关于传承人档案中的空缺</h3>
+            <p>
+              本站为 <strong>${num(inhStats.total)} 位</strong>国家级代表性传承人建立了档案页，
+              其中 ${num(inhStats.withCode)} 位有官方编号、${num(inhStats.withBirth)} 位有明确出生日期。
+            </p>
+            <p>
+              其余的空缺<strong>不是抓取遗漏</strong>：中国非物质文化遗产网在第五批（2021 年公布）
+              传承人的公开表格中，本身就没有标注编号与出生日期。本站照实留空并显示为「—」，
+              不作任何推测性填补——档案的价值在于可信，而不在于看起来完整。
+            </p>
+          </div>
         </article>
 
         <article class="about-block" id="about-tech">

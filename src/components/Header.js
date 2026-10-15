@@ -10,8 +10,9 @@ import { currentPath, navigate } from '../router.js';
 const NAV_ITEMS = [
   { path: '/',             label: '首页',   num: '壹' },
   { path: '/gallery',      label: '名录',   num: '贰' },
-  { path: '/simulator',    label: '技艺',   num: '叁' },
-  { path: '/about',        label: '关于',   num: '肆' },
+  { path: '/inheritors',   label: '传承人', num: '叁', also: '/inheritor/' },
+  { path: '/simulator',    label: '技艺',   num: '肆' },
+  { path: '/about',        label: '关于',   num: '伍' },
 ];
 
 export function Header() {
@@ -65,11 +66,16 @@ export function initHeader() {
   const drawer = document.getElementById('site-nav-drawer');
 
   // 高亮当前路由
+  // ⚠️ 不能只用 path.startsWith(target)：'/inheritors' 的详情页路径是
+  //    '/inheritor/123'（单数、无 s），前缀匹配不上，会导致进入传承人档案后
+  //    导航栏失去高亮。因此每个条目可额外声明 also 前缀。
   const markActive = () => {
     const path = currentPath();
     document.querySelectorAll('[data-nav]').forEach(a => {
       const target = a.getAttribute('data-nav');
-      const active = target === '/' ? path === '/' : path.startsWith(target);
+      const item = NAV_ITEMS.find(it => it.path === target);
+      const extra = item && item.also ? path.startsWith(item.also) : false;
+      const active = target === '/' ? path === '/' : (path.startsWith(target) || extra);
       a.classList.toggle('is-active', active);
       if (active) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');

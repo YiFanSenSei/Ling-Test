@@ -25,7 +25,7 @@ export async function SimulatorPage() {
         <span aria-current="page">技艺体验</span>
       </nav>
       ${SectionTitle({
-        num: '叁',
+        num: '肆',
         title: '技艺体验',
         sub: '选一门手艺，亲手做一遍。这里的每一道工序，都按真实技艺的规则实现。',
       })}

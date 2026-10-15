@@ -20,6 +20,7 @@ import { EmptyState } from './components/ui.js';
 import { HomePage } from './pages/Home.js';
 import { GalleryPage, initGallery } from './pages/Gallery.js';
 import { ProjectPage } from './pages/Project.js';
+import { InheritorsPage, initInheritors, InheritorPage } from './pages/Inheritors.js';
 import { SimulatorPage, initSimulator } from './pages/Simulator.js';
 import { AboutPage, initAbout } from './pages/About.js';
 
@@ -77,6 +78,22 @@ route('/project/:id', async ({ params }) => {
 route('/simulator', async () => {
   const html = await SimulatorPage();
   await render(html, { title: '技艺体验', init: initSimulator });
+});
+
+route('/inheritors', async () => {
+  const { html, init } = await InheritorsPage();
+  await render(html, { title: '传承人', init });
+});
+
+route('/inheritor/:id', async ({ params }) => {
+  const { html, title, notFound } = await InheritorPage(params.id);
+  if (notFound) {
+    await render(EmptyState('未收录此传承人',
+      '这位传承人的档案暂未收录。你可以返回传承人名录浏览，或查阅中国非物质文化遗产网。',
+      '<p style="margin-top:1.5rem"><a class="btn btn-primary" href="#/inheritors">返回传承人名录</a></p>'), { title: '未收录' });
+    return;
+  }
+  await render(html, { title });
 });
 
 route('/about', async () => {

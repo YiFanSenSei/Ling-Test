@@ -307,6 +307,20 @@ a.page-btn:hover { border-color: var(--cinnabar); color: var(--cinnabar); backgr
   color: var(--ink-ghost);
 }
 
+/* 可点击的数据格：整格是链接，悬停时用朱砂提示可进入 */
+.stat-link { padding: 0; }
+.stat-link a {
+  display: block;
+  padding: var(--sp-5) var(--sp-4);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--dur) var(--ease);
+}
+.stat-link a:hover { background: var(--cinnabar-wash); }
+.stat-link a:hover .stat-num { color: var(--cinnabar); }
+.stat-link a:hover .stat-note { color: var(--cinnabar); }
+.stat-link .stat-num { transition: color var(--dur) var(--ease); }
+
 /* ---------------- 分隔装饰：云纹细线 ---------------- */
 
 .divider {
