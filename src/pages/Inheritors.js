@@ -96,9 +96,9 @@ export async function InheritorsPage() {
       <div class="filter-row">
         <span class="filter-label">门类</span>
         <div class="filter-chips" id="inh-category">
-          <button type="button" class="chip is-active" data-category="">全部</button>
+          <button type="button" class="tag tag-btn is-active" data-category="">全部</button>
           ${CATEGORIES.map(c => `
-            <button type="button" class="chip" data-category="${esc(c)}">${esc(c)}</button>
+            <button type="button" class="tag tag-btn" data-category="${esc(c)}">${esc(c)}</button>
           `).join('')}
         </div>
       </div>
@@ -106,9 +106,9 @@ export async function InheritorsPage() {
       <div class="filter-row">
         <span class="filter-label">排序</span>
         <div class="filter-chips" id="inh-sort">
-          <button type="button" class="chip is-active" data-sort="birth">按出生年份</button>
-          <button type="button" class="chip" data-sort="name">按姓氏</button>
-          <button type="button" class="chip" data-sort="default">按项目归集</button>
+          <button type="button" class="tag tag-btn is-active" data-sort="birth">按出生年份</button>
+          <button type="button" class="tag tag-btn" data-sort="name">按姓氏</button>
+          <button type="button" class="tag tag-btn" data-sort="default">按项目归集</button>
         </div>
       </div>
     </form>
@@ -199,6 +199,10 @@ export function initInheritors() {
   const pagerEl = document.getElementById('inh-pager');
   const formEl = document.getElementById('inh-filters');
   if (!listEl) return;
+  // 这几个控件在列表页里总是存在（由 InheritorsPage 渲染），
+  // 但取不到时直接跳过绑定，避免再次出现「无守卫即解引用」。
+  const catEl = document.getElementById('inh-category');
+  const sortEl = document.getElementById('inh-sort');
 
   async function refresh() {
     const res = await queryInheritors({ ...state, pageSize: PAGE_SIZE });
@@ -230,55 +234,7 @@ export function initInheritors() {
     }
   }
 
-  // 搜索
-  if (formEl) {
-    formEl.addEventListener('submit', e => {
-      e.preventDefault();
-      const input = document.getElementById('inh-q');
-      state.q = input ? input.value : '';
-      state.page = 1;
-      refresh();
-    });
-  }
-
-  // 门类
-  const catEl = document.getElementById('inh-category');
-  if (catEl) {
-    catEl.addEventListener('click', e => {
-      const btn = e.target.closest('[data-category]');
-      if (!btn) return;
-      catEl.querySelectorAll('.chip').forEach(c => c.classList.remove('is-active'));
-      btn.classList.add('is-active');
-      state.category = btn.dataset.category;
-      state.page = 1;
-      refresh();
-    });
-  }
-
-  // 排序
-  const sortEl = document.getElementById('inh-sort');
-  if (sortEl) {
-    sortEl.addEventListener('click', e => {
-      const btn = e.target.closest('[data-sort]');
-      if (!btn) return;
-      sortEl.querySelectorAll('.chip').forEach(c => c.classList.remove('is-active'));
-      btn.classList.add('is-active');
-      state.sort = btn.dataset.sort;
-      state.page = 1;
-      refresh();
-    });
-  }
-
-  // 分页（事件委托：分页条每次刷新都会重建）
-  if (pagerEl) {
-    pagerEl.addEventListener('click', e => {
-      const btn = e.target.closest('[data-page]');
-      if (!btn || btn.disabled) return;
-      state.page = Number(btn.dataset.page);
-      refresh();
-      listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  }
+  // 监听器在文件末尾统一绑定（具名函数，便于 dispose 时摘除）
 
   // 从 URL 恢复筛选状态（支持直接分享带筛选的链接）
   const hash = window.location.hash;
@@ -291,14 +247,62 @@ export function initInheritors() {
     state.page = Number(params.get('page') || 1);
     const input = document.getElementById('inh-q');
     if (input) input.value = state.q;
-    if (catEl) catEl.querySelectorAll('.chip').forEach(c => {
+    if (catEl) catEl.querySelectorAll('[data-category]').forEach(c => {
       c.classList.toggle('is-active', c.dataset.category === state.category);
     });
-    if (sortEl) sortEl.querySelectorAll('.chip').forEach(c => {
+    if (sortEl) sortEl.querySelectorAll('[data-sort]').forEach(c => {
       c.classList.toggle('is-active', c.dataset.sort === state.sort);
     });
     if (state.q || state.category || state.sort !== 'birth' || state.page > 1) refresh();
   }
+
+  // 返回清理函数（约定见 main.js）。
+  // 这些监听器都挂在本次渲染出来的元素上，会随 innerHTML 替换而消失，
+  // 但显式摘除可保证将来把它们挪到 document/window 上时不会悄悄泄漏。
+  const onFormSubmit = /** @type {EventListener} */ (e) => {
+    e.preventDefault();
+    const input = document.getElementById('inh-q');
+    state.q = input ? input.value : '';
+    state.page = 1;
+    refresh();
+  };
+  const onCatClick = e => {
+    const btn = e.target.closest('[data-category]');
+    if (!btn) return;
+    catEl.querySelectorAll('[data-category]').forEach(c => c.classList.remove('is-active'));
+    btn.classList.add('is-active');
+    state.category = btn.dataset.category;
+    state.page = 1;
+    refresh();
+  };
+  const onSortClick = e => {
+    const btn = e.target.closest('[data-sort]');
+    if (!btn) return;
+    sortEl.querySelectorAll('[data-sort]').forEach(c => c.classList.remove('is-active'));
+    btn.classList.add('is-active');
+    state.sort = btn.dataset.sort;
+    state.page = 1;
+    refresh();
+  };
+  const onPagerClick = e => {
+    const btn = e.target.closest('[data-page]');
+    if (!btn || btn.disabled) return;
+    state.page = Number(btn.dataset.page);
+    refresh();
+    listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  if (formEl) { formEl.removeEventListener('submit', onFormSubmit); formEl.addEventListener('submit', onFormSubmit); }
+  if (catEl) { catEl.removeEventListener('click', onCatClick); catEl.addEventListener('click', onCatClick); }
+  if (sortEl) { sortEl.removeEventListener('click', onSortClick); sortEl.addEventListener('click', onSortClick); }
+  if (pagerEl) { pagerEl.removeEventListener('click', onPagerClick); pagerEl.addEventListener('click', onPagerClick); }
+
+  return () => {
+    if (formEl) formEl.removeEventListener('submit', onFormSubmit);
+    if (catEl) catEl.removeEventListener('click', onCatClick);
+    if (sortEl) sortEl.removeEventListener('click', onSortClick);
+    if (pagerEl) pagerEl.removeEventListener('click', onPagerClick);
+  };
 }
 
 /* ============================================================

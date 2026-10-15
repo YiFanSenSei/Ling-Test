@@ -74,7 +74,18 @@ function resolve(path) {
     const m = path.match(r.regex);
     if (m) {
       const params = {};
-      r.paramNames.forEach((name, i) => { params[name] = decodeURIComponent(m[i + 1]); });
+      // 与上方解析查询串一样必须容错：地址栏里的畸形转义
+      //（如 #/project/%E0%A4%A）会让 decodeURIComponent 抛 URIError，
+      // 而这里是在 render() 之前执行的，一旦抛出整个路由就死掉，
+      // 用户看到的是一个永远停在上一页的白屏。宁可把原始串当参数。
+      r.paramNames.forEach((name, i) => {
+        const rawVal = m[i + 1];
+        try {
+          params[name] = decodeURIComponent(rawVal);
+        } catch {
+          params[name] = rawVal;
+        }
+      });
       return { handler: r.handler, params, path };
     }
   }

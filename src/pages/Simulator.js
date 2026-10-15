@@ -393,9 +393,23 @@ export function initSimulator() {
   });
 
   /* ---- 各模拟器 ---- */
-  try { initEmbroidery(); } catch (e) { console.error('苏绣模拟器初始化失败', e); }
-  try { initPaper(); } catch (e) { console.error('宣纸模拟器初始化失败', e); }
-  try { initMortise(); } catch (e) { console.error('榫卯模拟器初始化失败', e); }
+  // 三个模拟器返回 { redraw, dispose } 对象（它们对外是「实例」），
+  // 而页面初始化函数的约定是**返回一个清理函数**。
+  // 这里由 initSimulator 做适配，把三个 dispose 收成一个函数交回 main.js。
+  //
+  // ⚠️ 这个二层约定容易被改错：如果哪天把 sim 的返回值直接 return 出去，
+  //    main.js 拿到的是 object 而非 function，typeof 判断为 false，
+  //    清理会静默失效——而页面看上去一切正常。因此这里坚持显式适配。
+  const disposers = [];
+  const initOne = (label, fn) => {
+    try {
+      const inst = fn();
+      if (inst && typeof inst.dispose === 'function') disposers.push(inst.dispose);
+    } catch (e) { console.error(`${label}初始化失败`, e); }
+  };
+  initOne('苏绣模拟器', initEmbroidery);
+  initOne('宣纸模拟器', initPaper);
+  initOne('榫卯模拟器', initMortise);
 
   /* ---- URL 参数直达某个模拟器：/simulator?tool=paper ---- */
   const hash = window.location.hash;
@@ -405,4 +419,10 @@ export function initSimulator() {
     requestAnimationFrame(() => document.getElementById(`panel-${m[1]}`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
+
+  return () => {
+    for (const d of disposers) {
+      try { d(); } catch (e) { console.error('模拟器清理失败', e); }
+    }
+  };
 }

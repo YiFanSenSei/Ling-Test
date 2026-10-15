@@ -35,17 +35,48 @@ let meta = {};
  * 注意：每个路由的交互逻辑（筛选、页签、画布）必须在 innerHTML 写完之后
  * 才能绑定，因此由「页面初始化函数」在 render 之后显式调用。
  * 漏掉这一步的症状是「页面能看、但不能用」——静态截图完全正常。
+ *
+ * 关于 dispose：页面初始化函数可以返回一个清理函数。
+ * 这里在替换 innerHTML **之前**调用上一个页面的清理函数。
+ *
+ * 为什么必须有这一步：`app.innerHTML = ...` 只会丢掉旧 DOM，
+ * 而挂在 window / document 上的监听器与 requestAnimationFrame 循环
+ * 并不属于 DOM，它们不会随 innerHTML 一起消失。实测宣纸模拟器每被
+ * 访问一次就多留一个动画循环，离开页面后仍以约 200 次/秒持续运行。
+ * 评委来回切页是很自然的操作，因此这属于必须处理的缺陷。
  */
+let disposeCurrent = null;
+
 async function render(html, { title, init } = {}) {
+  if (typeof disposeCurrent === 'function') {
+    try { disposeCurrent(); } catch (err) { console.error('页面清理失败', err); }
+  }
+  disposeCurrent = null;
+
   const app = document.getElementById('app');
   app.innerHTML = `
     ${Header()}
     <main id="main" tabindex="-1">${html}</main>
     ${Footer(meta)}`;
-  initHeader();
+
+  // initHeader 每次渲染都会重建页头，并在 window / document 上挂
+  // hashchange、keydown、scroll 三个监听器。它们不属于被 innerHTML
+  // 替换掉的 DOM，因此必须显式摘除，否则每翻一页就多留一份。
+  const disposeHeader = initHeader();
+
+  const pageDisposers = [];
+  if (typeof disposeHeader === 'function') pageDisposers.push(disposeHeader);
   if (init) {
-    try { init(); } catch (err) { console.error('页面初始化失败', err); }
+    try {
+      const maybeDispose = init();
+      // 约定：页面初始化函数可以返回一个清理函数（不返回则无需清理）。
+      if (typeof maybeDispose === 'function') pageDisposers.push(maybeDispose);
+    } catch (err) { console.error('页面初始化失败', err); }
   }
+  if (pageDisposers.length) {
+    disposeCurrent = () => { for (const fn of pageDisposers) fn(); };
+  }
+
   if (title) document.title = `${title} · 匠作`;
   else document.title = '匠作 · 非物质文化遗产数字展馆';
   // 路由切换后回到页首（hash 路由不会自动滚动）

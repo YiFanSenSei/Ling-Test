@@ -167,13 +167,20 @@ export async function GalleryPage() {
   </section>`;
 }
 
-/** 绑定筛选表单：提交后跳转到带参数的路径 */
+/**
+ * 绑定筛选表单：提交后跳转到带参数的路径。
+ *
+ * 返回清理函数（约定见 main.js）。表单监听器挂在被替换的 DOM 上，
+ * 理论上会随 innerHTML 一起消失，但显式摘除可以避免将来把监听器
+ * 挪到 document 上时悄悄泄漏。
+ */
 export function initGallery() {
   const form = document.getElementById('gallery-filters');
-  if (!form) return;
+  if (!form) return undefined;
   const input = form.querySelector('#f-q');
+  if (!input) return undefined;
 
-  form.addEventListener('submit', e => {
+  const onSubmit = e => {
     e.preventDefault();
     const params = parseQuery();
     const next = {};
@@ -181,6 +188,11 @@ export function initGallery() {
     if (params.category) next.category = params.category;
     if (params.region) next.region = params.region;
     if (params.batch) next.batch = params.batch;
+    // 改关键词应当从第 1 页重新开始，而不是沿用旧页码——
+    // 否则在第 5 页改搜索词会停在一个可能并不存在的结果页上。
     navigate(buildPath(next));
-  });
+  };
+
+  form.addEventListener('submit', onSubmit);
+  return () => form.removeEventListener('submit', onSubmit);
 }

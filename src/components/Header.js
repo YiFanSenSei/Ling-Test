@@ -59,11 +59,18 @@ export function Header() {
   </div>`;
 }
 
-/** 绑定导航交互：当前项高亮 + 移动端抽屉 + 滚动收缩 */
+/**
+ * 绑定导航交互：当前项高亮 + 移动端抽屉 + 滚动收缩
+ *
+ * 返回清理函数。页头每次路由切换都会重建，而这里挂的 hashchange /
+ * keydown / scroll 监听器都在 window 与 document 上——它们不属于被替换掉的
+ * DOM，不摘就会每渲染一次多留一份，于是同一次滚动会触发越来越多次回调。
+ */
 export function initHeader() {
   const header = document.getElementById('site-header');
   const toggle = document.getElementById('nav-toggle');
   const drawer = document.getElementById('site-nav-drawer');
+  const cleanups = [];
 
   // 高亮当前路由
   // ⚠️ 不能只用 path.startsWith(target)：'/inheritors' 的详情页路径是
@@ -83,32 +90,44 @@ export function initHeader() {
   };
   markActive();
   window.addEventListener('hashchange', markActive);
+  cleanups.push(() => window.removeEventListener('hashchange', markActive));
 
   // 移动端抽屉
   if (toggle && drawer) {
-    toggle.addEventListener('click', () => {
+    const closeDrawer = () => {
+      toggle.setAttribute('aria-expanded', 'false');
+      drawer.hidden = true;
+      document.body.classList.remove('nav-open');
+    };
+
+    const onToggle = () => {
       const open = toggle.getAttribute('aria-expanded') === 'true';
       toggle.setAttribute('aria-expanded', String(!open));
       drawer.hidden = open;
       document.body.classList.toggle('nav-open', !open);
-    });
+    };
+    toggle.addEventListener('click', onToggle);
+    cleanups.push(() => toggle.removeEventListener('click', onToggle));
+
     // 点击链接后自动关闭
+    const linkHandlers = [];
     drawer.querySelectorAll('a').forEach(a => {
-      a.addEventListener('click', () => {
-        toggle.setAttribute('aria-expanded', 'false');
-        drawer.hidden = true;
-        document.body.classList.remove('nav-open');
-      });
+      a.addEventListener('click', closeDrawer);
+      linkHandlers.push([a, closeDrawer]);
     });
+    cleanups.push(() => {
+      for (const [a, h] of linkHandlers) a.removeEventListener('click', h);
+    });
+
     // Esc 关闭
-    document.addEventListener('keydown', e => {
+    const onKeydown = e => {
       if (e.key === 'Escape' && !drawer.hidden) {
-        toggle.setAttribute('aria-expanded', 'false');
-        drawer.hidden = true;
-        document.body.classList.remove('nav-open');
+        closeDrawer();
         toggle.focus();
       }
-    });
+    };
+    document.addEventListener('keydown', onKeydown);
+    cleanups.push(() => document.removeEventListener('keydown', onKeydown));
   }
 
   // 滚动时给页头加投影
@@ -116,5 +135,11 @@ export function initHeader() {
     const onScroll = () => header.classList.toggle('is-scrolled', window.scrollY > 12);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
+    cleanups.push(() => window.removeEventListener('scroll', onScroll));
   }
+
+  // 抽屉关闭时清掉可能残留的 body 类，避免导航后页面锁定滚动
+  cleanups.push(() => document.body.classList.remove('nav-open'));
+
+  return () => { for (const fn of cleanups) fn(); };
 }

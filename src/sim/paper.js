@@ -27,7 +27,7 @@ export function initPaper() {
 
   /** 沉积网格：记录帘面上每个格子的纤维量 */
   const COLS = 60, ROWS = 42;
-  let deposit = [];
+  let deposit = null;      // 惰性初始化：见 fitCanvas()
   let swingHistory = [];   // 荡帘速度记录，用于评价匀度
   let liftProgress = 0;    // 出水进度 0–1
 
@@ -41,7 +41,11 @@ export function initPaper() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     canvas.dataset.w = String(w);
     canvas.dataset.h = String(h);
-    resetDeposit();
+    // 仅首次布局时初始化浆料网格。
+    // ⚠️ 不能在每次 resize 里调 resetDeposit()：那会把用户已经捞好的
+    //    纸浆全部清空。移动端地址栏收起/展开都会触发 resize，
+    //    用户只是滚动了一下，成品就没了。
+    if (!deposit) resetDeposit();
     redraw();
   }
 
@@ -399,7 +403,14 @@ export function initPaper() {
 
   /* ---------- 动画循环 ---------- */
   let lastT = performance.now();
+  let rafId = 0;
+  let alive = true;
+
   function loop(t) {
+    // 离开页面后不再续帧：否则这个循环会一直跑下去，
+    // 每访问一次本页就多留一个循环（实测约 200 次/秒）。
+    if (!alive) return;
+
     const dt = Math.min(0.05, (t - lastT) / 1000);
     lastT = t;
 
@@ -416,7 +427,7 @@ export function initPaper() {
     }
 
     redraw();
-    requestAnimationFrame(loop);
+    rafId = requestAnimationFrame(loop);
   }
 
   /* ---------- 控件 ---------- */
@@ -454,11 +465,24 @@ export function initPaper() {
 
   /* ---------- 启动 ---------- */
   fitCanvas();
-  window.addEventListener('resize', fitCanvas);
-  window.addEventListener('sim:activate', e => {
+  const onActivate = e => {
     if (e.detail.key === 'paper') requestAnimationFrame(fitCanvas);
-  });
-  requestAnimationFrame(loop);
+  };
+  window.addEventListener('resize', fitCanvas);
+  window.addEventListener('sim:activate', onActivate);
+  rafId = requestAnimationFrame(loop);
 
-  return { redraw };
+  // 返回清理函数：路由离开本页时由 main.js 调用。
+  // 必须同时停掉动画循环并摘掉 window 上的监听器——
+  // 它们都不属于被 innerHTML 替换掉的 DOM，不会自动消失。
+  return {
+    redraw,
+    dispose() {
+      alive = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+      window.removeEventListener('resize', fitCanvas);
+      window.removeEventListener('sim:activate', onActivate);
+    },
+  };
 }

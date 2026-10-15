@@ -49,6 +49,11 @@ export function initMortise() {
   let pos = { x: 0, y: 0 };
   let seated = false;
   let showSolution = false;
+  let placed = false;   // 是否已初始化过位置（区分首次布局与 resize）
+  let lastW = 0;        // 上一次布局的尺寸，用于按比例缩放位置
+  let lastH = 0;
+  let alive = true;     // 页面是否还在（离开后定时器不应再改状态）
+  let autoTimer = 0;    // 「自动演示」的 900ms 定时器 id
 
   function fitCanvas() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -60,18 +65,45 @@ export function initMortise() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     canvas.dataset.w = String(w);
     canvas.dataset.h = String(h);
-    resetPos();
+    repinToCanvas();
     redraw();
   }
 
   const W = () => Number(canvas.dataset.w) || 900;
   const H = () => Number(canvas.dataset.h) || 640;
 
+  /**
+   * 依据当前画布尺寸把构件重新摆放。
+   *
+   * ⚠️ 这里刻意**不**调 resetPos()：resize 只应改变画面尺寸，不该抹掉
+   *    用户已经拖好甚至已经咬合的状态。移动端地址栏收起/展开、
+   *    窗口拉伸都会触发 resize，用户只是滚动了一下，成果就没了。
+   *    只有「重新开始」按钮与首次布局才应当调用 resetPos()。
+   */
+  function repinToCanvas() {
+    if (seated) {
+      // 已咬合的构件跟着目标位走，保持「装好了」的状态
+      pos = { x: 0, y: 0 };
+      rotation = 0;
+      return;
+    }
+    if (!placed) return;      // 还没初始化过，交给 resetPos()
+    // 按尺寸比例缩放偏移量，保持相对位置不变
+    const kx = W() / (lastW || W());
+    const ky = H() / (lastH || H());
+    pos = { x: pos.x * kx, y: pos.y * ky };
+    lastW = W();
+    lastH = H();
+  }
+
   function resetPos() {
     pos = { x: W() * 0.3, y: H() * 0.06 };
     rotation = 0;
     seated = false;
     showSolution = false;
+    placed = true;
+    lastW = W();
+    lastH = H();
   }
 
   /* ---------- 木纹绘制 ---------- */
@@ -476,7 +508,13 @@ export function initMortise() {
     showSolution = true;
     rotation = 0;
     redraw();
-    setTimeout(() => {
+    // 存下 id：这个定时器会在页面被清掉之后才触发，
+    // 届时它操作的是一张已经脱离文档的 canvas，且会把用户
+    // 离开前的工作状态改掉。dispose() 里必须能取消它。
+    if (autoTimer) clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => {
+      autoTimer = 0;
+      if (!alive) return;
       pos = { x: 0, y: 0 };
       showSolution = false;
       checkSeat();
@@ -486,10 +524,24 @@ export function initMortise() {
 
   /* ---------- 启动 ---------- */
   fitCanvas();
-  window.addEventListener('resize', fitCanvas);
-  window.addEventListener('sim:activate', e => {
+  // 首次布局必须摆放构件：fitCanvas 走 repinToCanvas，
+  // 而初次 placed 为 false，那里会直接返回。
+  resetPos();
+  redraw();
+  const onActivate = e => {
     if (e.detail.key === 'mortise') requestAnimationFrame(fitCanvas);
-  });
+  };
+  window.addEventListener('resize', fitCanvas);
+  window.addEventListener('sim:activate', onActivate);
 
-  return { redraw };
+  return {
+    redraw,
+    dispose() {
+      alive = false;
+      if (autoTimer) clearTimeout(autoTimer);
+      autoTimer = 0;
+      window.removeEventListener('resize', fitCanvas);
+      window.removeEventListener('sim:activate', onActivate);
+    },
+  };
 }

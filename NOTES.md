@@ -85,18 +85,60 @@ cd jiangzuo
 
 ```powershell
 & $node scripts/fetch-data.mjs      # 全量项目列表 → public/data/{projects,meta}.json
-& $node scripts/fetch-details.mjs   # 16 个核心项目详情 → public/data/details.json
+& $node scripts/fetch-details.mjs --dry-run   # 先预演：打印关键词命中，不打官方站
+& $node scripts/fetch-details.mjs   # 150 个项目详情 + 379 位传承人 → public/data/details.json
 ```
 
 抓取要点见 `scripts/fetch-data.mjs` 顶部注释（伪静态分页、tid 筛选无效、目录归属判定）。
+
+`fetch-details.mjs` 的关键字数组 `CORE_PROJECTS` 用「项目名称关键词 + 优先地区」定位项目，
+**扩充详情页只需编辑这个数组**，不需要新写工程。两点必须注意：
+
+1. `--dry-run` 先跑。它会打印每个关键词命中了哪些候选、以及 `prefer` 是否落空。
+2. `prefer` 是**三字段联合匹配**（`province` / `unit` / `name`）。早期只匹配前两者，
+   而非遗项目名常把地区写进括号——「皮影戏（华县皮影戏）」的 province 是
+   「陕西省渭南市华州区」，不含「华县」二字，于是 prefer 落空并静默退化成取第一个候选，
+   抓到一个语义上错误的地区版本，且从输出里完全看不出来。现已加 `preferMissed` 告警，
+   一旦出现必须修正关键词或 prefer，不要带着告警抓取。
+
+## 测试脚本
+
+| 脚本 | 作用 |
+|---|---|
+| `scripts/file-full-test.mjs` | **最重要**。以 `file://` 走全部路由 + 真实鼠标拖拽（16 项断言） |
+| `scripts/leak-test.mjs` | 导航往返后统计残留 rAF 循环（应恒为 0 次/秒） |
+| `scripts/adapt-test.cjs` | 5 规格 × 7 页面 = 35 组合的横向溢出检测 |
+| `scripts/search-test.mjs` | 逐词核对检索命中数（防止同义词改坏精确词） |
+| `scripts/audit.mjs` | 五类敏感信息扫描（公开仓库前必跑） |
+
+`file-full-test.mjs` 与 `leak-test.mjs` 都需要 **Chrome CDP**，同样受沙箱命名管道限制。
+`leak-test.mjs` 的存在理由：资源泄漏在单次访问里完全看不出来——页面正常、动画正常，
+只有反复进出后才会累积。修 `dispose` 相关代码后**必须**跑它。
+
+## 页面清理契约（dispose）
+
+`main.js` 的 `render()` 会在渲染新页面前调用上一页的清理函数。约定：
+
+- `initHeader()` 返回清理函数（它往 window/document 上挂了 hashchange/keydown/scroll）
+- 页面 `init()` 可返回清理函数，也可以什么都不返回
+- 模拟器 `init*()` 返回 `{ redraw, dispose }` **对象**，由 `Simulator.js` 的 `initOne`
+  适配成函数再交给 `main.js`
+
+> ⚠️ 这个二层契约很容易被改错：如果把模拟器的返回值直接从 `initSimulator` 返回出去，
+> `main.js` 拿到的是 object 而非 function，`typeof` 判断为 false，**清理会静默失效**，
+> 而页面看上去一切正常。改这里之后务必跑 `leak-test.mjs`。
+>
+> 另：`app.innerHTML` 只替换 DOM。挂在 `window`/`document` 上的监听器与
+> `requestAnimationFrame` 循环**不属于 DOM**，不会随之消失，必须显式摘除。
 
 ## 架构要点
 
 | 文件 | 作用 |
 |---|---|
 | `src/router.js` | 极简 hash 路由。**不用 History API**——`file://` 下 pushState 会 404 |
-| `src/data.js` | 数据层，全部同步读已打包的 JSON。`esc()` 负责 HTML 转义 |
+| `src/data.js` | 数据层，全部同步读已打包的 JSON。`esc()` 负责 HTML 转义。含同义词检索扩展 |
 | `src/components/ui.js` | `categoryPattern()` 为十大门类各生成一套 SVG 几何纹样（零图片请求） |
+| `src/pages/Inheritors.js` | 传承人名录页与档案页（379 位，可检索、可排序、可逐人翻阅） |
 | `src/sim/*.js` | 三个 Canvas 模拟器，无任何图形库，全部手绘 |
 
 **设计原则：零外部请求**。底纹、噪点、纹样、木纹、丝线光泽全部程序化生成，

@@ -33,6 +33,15 @@ export function initEmbroidery() {
 
   /** 已绣的针脚记录：[{x1,y1,x2,y2,color,type,r}] */
   let stitches = [];
+  /**
+   * 针脚数上限。
+   *
+   * 密度拉满（22）时 step 只有 11.8px，一次长拖拽就能落上千针；
+   * 而撤销只允许退回 60 针，两者不对称会导致内存只增不减。
+   * 这里给一个远高于正常手绣量的上限（正常绣满整幅约 300–600 针），
+   * 达到后停止累加——画面已经密到看不出差别，继续记录只会拖慢重绘。
+   */
+  const MAX_STITCHES = 4000;
   let drawing = false;
   let last = null;
   /** 打籽绣与锁针的节流：记录上一次落点距离 */
@@ -271,6 +280,7 @@ export function initEmbroidery() {
     const jitterL = 0.92 + Math.random() * 0.16;
 
     for (let d = 0; d + step <= dist; d += step) {
+      if (stitches.length >= MAX_STITCHES) break;   // 保护：见 MAX_STITCHES 注释
       const x1 = from.x + Math.cos(ang + jitterA) * d;
       const y1 = from.y + Math.sin(ang + jitterA) * d;
       const len = step * (stitch === 'satin' ? 1.9 : 0.86) * jitterL;
@@ -385,10 +395,19 @@ export function initEmbroidery() {
 
   /* ---------- 启动 ---------- */
   fitCanvas();
-  window.addEventListener('resize', fitCanvas);
-  window.addEventListener('sim:activate', e => {
+  const onActivate = e => {
     if (e.detail.key === 'embroidery') requestAnimationFrame(fitCanvas);
-  });
+  };
+  window.addEventListener('resize', fitCanvas);
+  window.addEventListener('sim:activate', onActivate);
 
-  return { redraw };
+  // 本模拟器没有常驻动画循环（只在交互时重绘），
+  // 但 window 上的监听器仍须摘掉——否则每访问一次就多留一份。
+  return {
+    redraw,
+    dispose() {
+      window.removeEventListener('resize', fitCanvas);
+      window.removeEventListener('sim:activate', onActivate);
+    },
+  };
 }
