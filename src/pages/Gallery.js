@@ -142,7 +142,7 @@ export async function GalleryPage() {
       ${SectionTitle({
         num: '贰',
         title: '非遗名录',
-        sub: `收录国家级非物质文化遗产代表性项目按申报地区拆分的 ${num(3614)} 条子项记录，可按门类、批次、地区检索。`,
+        sub: `收录国家级非物质文化遗产代表性项目按申报地区拆分的 ${num(result.total)} 条子项记录，可按门类、批次、地区检索。`,
       })}
     </div>
   </section>
