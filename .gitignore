@@ -1,0 +1,18 @@
+# 依赖与构建产物
+node_modules/
+dist/
+
+# 本机测试截图（数十 MB，且含本机渲染结果）
+_shots/
+
+# 提交用的压缩包（含个人信息，绝不入库）
+_submit/
+
+# 临时文件与日志
+*.log
+*.tmp
+*.bak
+
+# 操作系统杂项
+.DS_Store
+Thumbs.db

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>匠作 · 非物质文化遗产数字展馆</title>
+  <meta name="description" content="匠作——以中国非物质文化遗产国家级代表性项目为内容，构建数字展馆与技艺互动体验。数据来自中国非物质文化遗产网（文化和旅游部主管）。">
+
+  <!-- 界面规格声明（比赛要求：1920/1440/720 三选一并在作品中标注） -->
+  <meta name="design-spec" content="1440">
+  <meta name="author" content="匠作团队">
+
+  <!-- 预连接数据源（作品注明数据出处） -->
+  <link rel="preconnect" href="https://www.ihchina.cn">
+
+  <!-- 站点图标：内联 SVG，朱砂方印「匠」字，零请求 -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='3' fill='%23B23A2E'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='%23F5F1E8' font-family='serif'%3E%E5%8C%A0%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+  <a class="skip-link" href="#main">跳转到主要内容</a>
+
+  <div id="app">
+    <div id="app-loading" style="min-height:100vh;display:grid;place-items:center;color:#8A8279;font-family:serif;letter-spacing:.2em">
+      展馆开启中……
+    </div>
+  </div>
+
+  <noscript>
+    <div style="padding:3rem;text-align:center;font-family:serif">
+      <p>本展馆需要启用 JavaScript 才能浏览。</p>
+    </div>
+  </noscript>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
