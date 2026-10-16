@@ -126,8 +126,8 @@ async function main() {
 
   console.log(`\n=== 移动端触摸实测：${DEVICE.label} ===\n`);
 
-  /** 真实触摸拖拽：按住 → 分步移动 → 抬起 */
-  const touchDrag = async (from, to, steps = 12, holdMs = 30) => {
+  /** 真实触摸拖拽：按住 → 分步移动 → 抬起。onStep 用于在拖拽中途采样 */
+  const touchDrag = async (from, to, steps = 12, holdMs = 30, onStep) => {
     await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: from.x, y: from.y, id: 1 }] });
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
@@ -136,6 +136,7 @@ async function main() {
         touchPoints: [{ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t, id: 1 }],
       });
       await sleep(holdMs);
+      if (onStep) await onStep(i);
     }
     await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await sleep(250);
@@ -206,28 +207,65 @@ async function main() {
   check('宣纸：手指拖拽能荡帘并评分', evenScore > 0, `匀度 ${even || '（空）'}`);
   await shot('2-paper-touch');
 
-  /* ---------- 3. 榫卯：手指能不能把构件装到位 ----------------------------- */
+  /* ---------- 3. 榫卯：手指能不能把构件沿轴推到位 ------------------------- */
   console.log('\n[3] 榫卯 · 燕尾榫');
   await evalJS(`location.hash = "#/simulator?tool=mortise"`);
   await sleep(1800);
   const mor = await rectOf('#canvas-mortise');
   console.log(`  画布 ${Math.round(mor.w)}×${Math.round(mor.h)} CSS px`);
 
-  // 构件初始偏移是 (0.3W, 0.06H)，相对目标位。要装进去就得反向拖同样距离。
-  const seatDx = -mor.w * 0.30;
-  const seatDy = -mor.h * 0.06;
+  /**
+   * 这一版榫卯只有一个自由度：抓住构件、沿轴向推。
+   * 构件在屏幕上的位置与轴向都随 t 与视角变化，所以向页面要，不写死比例坐标——
+   * 写死的那种一改取景就悄悄失效，而测试还会「通过」。
+   *
+   * 画布位置必须和构件位置在同一次求值里读回来：分开读的话，中间只要页面
+   * 滚动过一次，拿到的就是过期坐标，按下会落空（表现为「拖不动」而不是报错）。
+   */
+  const grip = async () => JSON.parse(await evalJS(`(() => {
+    const c = document.getElementById('canvas-mortise');
+    if (!c || !c.mortiseHandle) return 'null';
+    const r = c.getBoundingClientRect();
+    return JSON.stringify({ ...c.mortiseHandle(), left: r.left, top: r.top });
+  })()`) || 'null');
+
   const morSig0 = await canvasSig('#canvas-mortise');
-  await touchDrag(
-    { x: mor.x + mor.w * 0.62, y: mor.y + mor.h * 0.42 },
-    { x: mor.x + mor.w * 0.62 + seatDx, y: mor.y + mor.h * 0.42 + seatDy },
-    16, 35
-  );
+  const g0 = await grip();
+  if (g0) {
+    const need = g0.travel * g0.axLen * 1.15;   // 推到底所需的屏幕距离，多给 15% 余量
+    await touchDrag(
+      { x: g0.left + g0.x, y: g0.top + g0.y },
+      { x: g0.left + g0.x - g0.ax * need, y: g0.top + g0.y - g0.ay * need },
+      16, 35
+    );
+  }
   const morSig1 = await canvasSig('#canvas-mortise');
   check('榫卯：手指拖拽能移动构件', morSig0 !== morSig1);
   const jState = await evalJS(`document.getElementById('joint-state')?.textContent?.trim() || ''`);
   const jProg = await evalJS(`document.getElementById('joint-progress')?.style?.width || '0%'`);
   check('榫卯：手指能把构件装到位', /咬合/.test(jState), `状态「${jState}」完成度 ${jProg}`);
   await shot('3-mortise-touch');
+
+  // 咬合之后试「往上提」：燕尾的槽是梯形，提不动
+  let liftPeak = 0, liftState = '';
+  const g1 = await grip();
+  if (g1) {
+    await touchDrag(
+      { x: g1.left + g1.x, y: g1.top + g1.y },
+      { x: g1.left + g1.x, y: g1.top + g1.y - 120 },
+      10, 30,
+      async () => {                                  // 中途采样：松手会回弹，抬完再看就晚了
+        const g = await grip();
+        if (g && g.lift > liftPeak) {
+          liftPeak = g.lift;
+          liftState = await evalJS(`document.getElementById('joint-state')?.textContent?.trim() || ''`);
+        }
+      }
+    );
+  }
+  check('榫卯：咬合后提不动（燕尾防脱）',
+    /提不动/.test(liftState) && liftPeak > 0.5 && liftPeak <= 6,
+    `提拉峰值 ${liftPeak.toFixed(1)}，状态「${liftState}」`);
 
   /* ---------- 4. 触摸陷阱：画布会不会「困住」页面滚动 -------------------- */
   console.log('\n[4] 滚动行为');

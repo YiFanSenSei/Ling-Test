@@ -285,20 +285,21 @@ export async function SimulatorPage() {
       <!-- ═══ 榫卯 ═══ -->
       <div class="sim-panel" id="panel-mortise" role="tabpanel" aria-labelledby="tab-mortise" hidden>
         <div class="sim-intro">
-          <h2>榫卯 · 燕尾与直角</h2>
+          <h2>榫卯 · 三维拼合</h2>
           <p>
             不用一根钉子，只靠木构件自身的凸凹咬合，就能立起一座经历数百年地震而不倒的木塔。
-            榫卯是中国木构建筑与家具的骨架。这个模拟器让你亲手把两块木头拼合起来。
+            榫卯是中国木构建筑与家具的骨架。这个模拟器把构件做成了立体的——母件沿剖切面切开，
+            卯眼的腔体露在外面；拖动木件沿轴向推入，看它是怎么被咬住的。
           </p>
         </div>
 
         <div class="sim-stage">
           <div class="sim-canvas-wrap">
             <canvas id="canvas-mortise" width="900" height="640"
-                    aria-label="榫卯拼合画布，拖动木构件完成咬合"></canvas>
+                    aria-label="榫卯拼合画布，拖动木件沿轴向推入卯眼，拖动空白处旋转视角"></canvas>
             <div class="sim-hint" id="hint-mortise">
               <span class="sim-hint-icon" aria-hidden="true">✦</span>
-              <span>拖动右侧构件，让它与左侧构件咬合</span>
+              <span>拖动木件沿轴向推进 · 拖动空白处旋转视角</span>
             </div>
           </div>
 
@@ -308,23 +309,33 @@ export async function SimulatorPage() {
               <div class="tool-options" role="radiogroup" aria-label="选择榫卯类型">
                 <button class="tool-opt is-active" role="radio" aria-checked="true" data-joint="dovetail">
                   <span class="tool-opt-name">燕尾榫</span>
-                  <span class="tool-opt-desc">梯形互锁，越拉越紧。用于抽屉、箱柜的转角</span>
+                  <span class="tool-opt-desc">槽口窄、槽底宽的梯形槽。只能沿轴向滑入，插到底后提不动</span>
                 </button>
                 <button class="tool-opt" role="radio" aria-checked="false" data-joint="mortise">
                   <span class="tool-opt-name">直榫</span>
-                  <span class="tool-opt-desc">方榫穿卯，最基础的连接。用于桌椅、梁柱</span>
+                  <span class="tool-opt-desc">方槽直榫，能滑进去也能提出来。它不防脱，靠胶与摩擦</span>
                 </button>
                 <button class="tool-opt" role="radio" aria-checked="false" data-joint="miter">
                   <span class="tool-opt-name">格肩榫</span>
-                  <span class="tool-opt-desc">45 度对角相交，外观平整无痕。用于画框、桌面</span>
+                  <span class="tool-opt-desc">外角 45 度格肩，内藏暗榫。用于画框、桌面的转角</span>
                 </button>
               </div>
             </div>
 
             <div class="tool-group">
+              <h3 class="tool-title">视角</h3>
+              <div class="tool-options tool-options-inline" role="radiogroup" aria-label="选择视角">
+                <button class="tool-chip is-active" role="radio" aria-checked="true" data-view="iso">等轴测</button>
+                <button class="tool-chip" role="radio" aria-checked="false" data-view="front">正视</button>
+                <button class="tool-chip" role="radio" aria-checked="false" data-view="axis">端视</button>
+                <button class="tool-chip" role="radio" aria-checked="false" data-view="high">俯视</button>
+              </div>
+              <p class="tool-note">也可以在画布空白处按住拖动，自由旋转</p>
+            </div>
+
+            <div class="tool-group">
               <h3 class="tool-title">操作</h3>
               <div class="tool-actions tool-actions-block">
-                <button class="btn btn-ghost btn-sm" id="rotate-mortise">旋转 90°</button>
                 <button class="btn btn-ghost btn-sm" id="reset-mortise">归位</button>
                 <button class="btn btn-ghost btn-sm" id="auto-mortise">查看正确接法</button>
                 <button class="btn btn-primary btn-sm" id="save-mortise">保存作品</button>
@@ -332,12 +343,12 @@ export async function SimulatorPage() {
             </div>
 
             <div class="joint-status" id="joint-status">
-              <p class="joint-state" id="joint-state">未咬合</p>
-              <p class="joint-tip" id="joint-tip">拖动木块靠近，观察榫头与卯眼是否对齐。</p>
+              <p class="joint-state" id="joint-state">未插入</p>
+              <p class="joint-tip" id="joint-tip">抓住木件，沿榫卯的轴向推进去。拖空白处可以转视角。</p>
             </div>
 
             <div class="tool-group">
-              <h3 class="tool-title">完成度</h3>
+              <h3 class="tool-title">插入深度</h3>
               <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
                    aria-valuenow="0" id="joint-progress-bar">
                 <span id="joint-progress" style="width:0%"></span>

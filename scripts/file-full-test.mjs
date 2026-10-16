@@ -223,6 +223,55 @@ async function main() {
   `);
   results.push(['图纸切换', switchState]);
 
+  // 榫卯：必须能沿轴向真的推进去、并且真的咬合。
+  // 这一条是「拖到某处会突变」那次反馈的回归点——旧版落位靠瞬移收场，
+  // 而旧测试只数了面板个数，从没覆盖「推进」这件事，所以漏了过去。
+  // 构件在屏幕上的位置与轴向都随 t 与视角变化，因此向页面要，不写死坐标。
+  await evalJS(`location.hash = '#/simulator?tool=mortise'; return true;`);
+  await sleep(1500);
+  await evalJS(`
+    const c = document.getElementById('canvas-mortise');
+    if (c) c.scrollIntoView({ block: 'center', behavior: 'instant' });
+    return true;
+  `);
+  await sleep(800);
+
+  const morGrip = await evalJS(`
+    const c = document.getElementById('canvas-mortise');
+    if (!c || !c.mortiseHandle) return null;
+    const g = c.mortiseHandle();
+    const r = c.getBoundingClientRect();
+    return JSON.stringify({ ...g, left: r.left, top: r.top });
+  `);
+
+  let morResult = '拿不到构件位置';
+  if (morGrip && morGrip.startsWith('{')) {
+    const g = JSON.parse(morGrip);
+    const need = g.travel * g.axLen * 1.15;   // 推到底所需的屏幕距离，多给 15% 余量
+    const from = { x: g.left + g.x, y: g.top + g.y };
+    const to = { x: from.x - g.ax * need, y: from.y - g.ay * need };
+    await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1, pointerType: 'mouse' });
+    let drift = 0;
+    for (let i = 1; i <= 18; i++) {
+      const k = i / 18;
+      await send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: from.x + (to.x - from.x) * k,
+        y: from.y + (to.y - from.y) * k,
+        button: 'left', buttons: 1, pointerType: 'mouse',
+      });
+      await sleep(30);
+      // 沿轴推的时候量一次侧向位移：推就该是推，不该顺手把构件提起来
+      if (i === 18) drift = await evalJS(`const c = document.getElementById('canvas-mortise'); return c.mortiseHandle().lift;`);
+    }
+    await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1, pointerType: 'mouse' });
+    await sleep(600);
+    const state = await evalJS(`return document.getElementById('joint-state')?.textContent.trim() || '';`);
+    const prog = await evalJS(`return document.getElementById('joint-progress')?.style.width || '0%';`);
+    morResult = `${state} 完成度 ${prog} 沿轴推时侧向位移 ${Number(drift).toFixed(2)}`;
+  }
+  results.push(['榫卯咬合', morResult]);
+
   console.log('=== file:// 下功能验证（模拟评委双击打开）===\n');
   for (const [label, val] of results) {
     console.log(`  ${label.padEnd(8, '　')} → ${val}`);
