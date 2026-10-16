@@ -37,9 +37,12 @@ export async function HomePage() {
       <span class="cat-count">${num(byCategory[name] || 0)} <em>项</em></span>
     </a>`).join('');
 
-  /* ---- 精选馆藏（8 个）---- */
+  /* ---- 精选馆藏（8 个）----
+   * 不再覆写 region：卡片现在优先显示申报地区或单位（精确到市/县），
+   * 比省级更能说明这一件是「谁家的」。
+   */
   const featuredCards = featured.slice(0, 8)
-    .map(p => ProjectCard({ ...p, region: p.provinces?.[0] || '' }))
+    .map(p => ProjectCard(p))
     .join('');
 
   /* ---- 批次年表 ---- */

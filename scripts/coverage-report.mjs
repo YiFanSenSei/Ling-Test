@@ -74,9 +74,30 @@ for (const c of cats) {
  * 于是每加一条详情都像是在把首屏撑大。
  */
 const bytes = Buffer.byteLength(JSON.stringify(detailsFile), 'utf-8');
-const projectsBytes = Buffer.byteLength(await readFile('public/data/projects.json'), 'utf-8');
-const metaBytes = Buffer.byteLength(await readFile('public/data/meta.json'), 'utf-8');
 const shardCount = Math.ceil(projects.length / 200);
+
+/* ⚠️ 首屏体积必须「量」而不是「估」。
+ *
+ * 早先这里写的是 `projects.json + meta + 固定 1.3 MB`，那个常数是按未压缩的
+ * 源码体积拍的。改用压缩构建后产物实际只有 1.66 MB，估算却仍报 2.75 MB，
+ * 凭空多出一兆多——报告里的数字一旦和产物对不上，就没人敢信了。
+ * 现在 dist/index.html 存在就直读，没构建过才退回报「内联数据下界」。
+ */
+const INLINE = ['projects', 'meta', 'detail-index', 'featured', 'inheritor-stats'];
+let inlineBytes = 0;
+for (const n of INLINE) {
+  try {
+    inlineBytes += Buffer.byteLength(await readFile(`public/data/${n}.json`), 'utf-8');
+  } catch { /* 该文件可能尚未生成 */ }
+}
+
+let firstScreen;
+try {
+  const html = await readFile('dist/index.html');
+  firstScreen = `${(html.length / 1048576).toFixed(2)} MB（dist/index.html 实测）`;
+} catch {
+  firstScreen = `≥ ${(inlineBytes / 1048576).toFixed(2)} MB（尚未构建，仅内联数据下界）`;
+}
 
 console.log(`\n【体积（方案 B：详情分片按需加载）】`);
 console.log(`  details.json 现值    ${(bytes / 1048576).toFixed(2)} MB（${num(Object.keys(details).length)} 条，单条均 ${(bytes / Math.max(1, Object.keys(details).length) / 1024).toFixed(2)} KB）`);
@@ -85,9 +106,10 @@ if (missing.length) {
   const per = bytes / Math.max(1, Object.keys(details).length);
   console.log(`  全量补录后预估      ≈ ${(per * projects.length / 1048576).toFixed(1)} MB`);
 }
-console.log(`  首屏 index.html      ≈ ${((projectsBytes + metaBytes) / 1048576 + 1.3).toFixed(2)} MB（与补录进度无关，恒定）`);
+console.log(`  首屏 index.html      ${firstScreen}（与补录进度无关，恒定）`);
+console.log(`    其中内联数据       ${(inlineBytes / 1048576).toFixed(2)} MB（${INLINE.join(' / ')}）`);
 console.log(`  分片合计             ≈ ${(bytes / 1048576).toFixed(1)} MB，${shardCount} 片 × 200 条（点进项目才注入）`);
-console.log(`  压缩包（zip）        ≈ ${(((bytes + projectsBytes + metaBytes) / 1048576) * 0.25).toFixed(1)} MB（按文本 4:1 粗估）`);
+console.log(`  压缩包（zip）        ≈ ${(((bytes + inlineBytes) / 1048576) * 0.25).toFixed(1)} MB（按文本 4:1 粗估）`);
 
 if (missing.length) {
   console.log(`\n【尚未抓取的前 10 条】`);

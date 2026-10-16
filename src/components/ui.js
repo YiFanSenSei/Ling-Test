@@ -36,20 +36,45 @@ export function categoryPattern(category, seed = 0) {
   return `<svg viewBox="0 0 68 68" aria-hidden="true" focusable="false">${shapes[kind] || shapes.grid}</svg>`;
 }
 
-/** 项目卡片 */
-export function ProjectCard(p, { showRegion = true } = {}) {
+/**
+ * 项目卡片。
+ *
+ * ⚠️ 地区显示的是「申报地区或单位」(unit，精确到市/县)，不是省级的 region。
+ *
+ * 起因：苗族古歌由贵州省台江县、黄平县两地申报，两条记录同名、同批次、
+ * 同属贵州省——用 region 渲染出来就是两张一模一样的卡片，看起来像重复数据。
+ * 换成 unit 后「贵州省台江县」「贵州省黄平县」立刻分得开。
+ * 这个修正早先只做在了详情页的「同一项目的其他申报地区」那一节，
+ * 卡片漏掉了，于是列表仍是重复观感。
+ *
+ * 名字特别长的申报单位（如「中国社会科学院《格萨（斯）尔》办公室」）
+ * 用 CSS 省略号截断，完整值放在 title 里，避免把卡片撑成不同高度。
+ *
+ * ⚠️ variantCount > 1 时压一枚「同项目 N 处申报」徽标。
+ *    数据来自构建期索引（见 src/data.js 的 withVariantCount）——
+ *    它把「为什么列表里有好几张同名卡片」直接写在卡片上，
+ *    而不是让读者自己猜是不是抓重了。
+ */
+export function ProjectCard(p, { showRegion = true, showVariantBadge = true } = {}) {
   const glyph = categoryGlyph(p.category);
+  const where = p.unit || p.region || '';
+  const variants = Number(p.variantCount) || 1;
   return `
   <a class="pcard" href="#/project/${esc(p.id)}" aria-label="${esc(p.name)}">
     <div class="pcard-media" data-category="${esc(p.category)}">
       ${categoryPattern(p.category)}
       <span class="pcard-glyph" aria-hidden="true">${glyph}</span>
+      ${showVariantBadge && variants > 1
+        ? `<span class="pcard-variant" title="该项目共 ${variants} 条申报记录，点击查看其他地区">同项目 ${variants} 处申报</span>`
+        : ''}
     </div>
     <div class="pcard-body">
       <h3 class="pcard-name">${esc(p.name)}</h3>
       <p class="pcard-meta">
         <span class="pcard-cat">${esc(p.category || '—')}</span>
-        ${showRegion && p.region ? `<span class="pcard-sep">·</span><span>${esc(p.region)}</span>` : ''}
+        ${showRegion && where
+          ? `<span class="pcard-sep">·</span><span class="pcard-region" title="${esc(where)}">${esc(where)}</span>`
+          : ''}
       </p>
       <p class="pcard-sub">
         ${p.batch ? esc(batchLabel(p.batch)) : ''}

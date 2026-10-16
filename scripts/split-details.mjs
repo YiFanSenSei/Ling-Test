@@ -201,6 +201,59 @@ if (featuredMissed.length) {
 await writeFile(join(DATA, 'featured.json'),
   `${JSON.stringify({ ids: featuredIds }, null, 2)}\n`, 'utf8');
 
+/* ---------------- 共用简介 / 多申报项目 ----------------
+ *
+ * 官网为「一个项目」只写一份简介。多申报地区的记录（苗族古歌由台江、黄平、
+ * 花垣三地申报就是典型）在官网上各自成页，但正文是同一份。
+ *
+ * 实测（全量 3614 条）：去掉首行「申报地区或单位：…」并忽略空白后，有 200 组、
+ * 共 482 条（13.3%）的正文逐字相同，且**全部落在同一个项目号前缀内**，
+ * 跨项目重复 0 组。
+ * 也就是说这不是抓取错误，是官方登记方式本身。
+ *
+ * 但前端原样铺开，读者连点两页就会以为站点在复读——「苗族古歌有三四个」
+ * 就是这么来的。所以在这里算好两件事交给展示层：
+ *   introShared[id] = { count, index }  本条正文与同项目另外 count-1 条完全相同
+ *   prefixCount[前缀] = n               该前缀（= 一个项目）下的申报记录数，只记 n>1
+ * 两者都写进会被内联的 detail-index.json，量级只有几百条，体积可控。
+ */
+
+/** 去掉首行申报地区、去掉全部空白后的正文——用作「是否同一份简介」的指纹 */
+const introBody = t => String(t || '')
+  .replace(/^申报地区或单位：\S+\s*/, '')
+  .replace(/\s+/g, '')
+  .trim();
+
+const bodyGroups = new Map();
+for (const id of ids) {
+  const body = introBody(details[id].intro);
+  if (body.length < 60) continue;   // 过短的片段不参与，避免把「暂无介绍」判成同一份
+  const g = bodyGroups.get(body);
+  if (g) g.push(id); else bodyGroups.set(body, [id]);
+}
+
+const introShared = {};
+let sharedGroups = 0;
+let sharedRecords = 0;
+for (const group of bodyGroups.values()) {
+  if (group.length < 2) continue;
+  sharedGroups += 1;
+  sharedRecords += group.length;
+  group.forEach((id, i) => { introShared[id] = { count: group.length, index: i }; });
+}
+
+/** 项目号前缀（Ⅶ-018_01_320500 → Ⅶ-018）。前缀即项目身份，见 src/data.js 的说明。 */
+const prefixOf = no => (String(no || '').match(/^([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+-\d+)/) || [, ''])[1];
+
+const prefixCountAll = {};
+for (const p of projects) {
+  const k = prefixOf(p.projectNo);
+  if (k) prefixCountAll[k] = (prefixCountAll[k] || 0) + 1;
+}
+/** 只保留多申报的前缀——单条项目的徽标永远不显示，存进去纯属浪费首屏体积 */
+const prefixCount = {};
+for (const [k, n] of Object.entries(prefixCountAll)) if (n > 1) prefixCount[k] = n;
+
 /* ---------------- 索引 ---------------- */
 
 const index = {
@@ -211,6 +264,8 @@ const index = {
   shardSize: SHARD_SIZE,
   shardCount,
   ids,
+  introShared,
+  prefixCount,
 };
 await writeFile(join(DATA, 'detail-index.json'),
   `${JSON.stringify(index)}\n`, 'utf8');
@@ -226,6 +281,8 @@ console.log('【详情分片】');
 console.log(`  名录 ${projects.length} 条 / 有详情 ${ids.length} 条${missing ? ` / 缺 ${missing} 条` : ''}`);
 console.log(`  其中有正文 ${withIntro} 条（${(withIntro / ids.length * 100).toFixed(1)}%）`);
 console.log(`  分片 ${shardCount} 片 × ${SHARD_SIZE} 条，单片 ${(minShard / 1024).toFixed(0)}–${(maxShard / 1024).toFixed(0)} KB，合计 ${mb(shardBytes)} MB`);
+console.log(`  共用简介 ${sharedGroups} 组 / ${sharedRecords} 条（${(sharedRecords / ids.length * 100).toFixed(1)}%）——同项目多申报地区沿用官网同一份正文`);
+console.log(`  多申报项目 ${Object.keys(prefixCount).length} 个（前缀下有 2 条以上记录）`);
 console.log(`  传承人 ${inheritorStats.total} 位（${inheritorStats.projects} 个项目，有编号 ${withCode}、有出生日期 ${withBirth}）`);
 console.log(`  传承人索引 ${(Buffer.byteLength(inheritorJs) / 1024).toFixed(0)} KB`);
 console.log(`  精选馆藏 ${featuredIds.length} 项：${featuredIds.map(i => byId.get(i).name).join('、')}`);

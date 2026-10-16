@@ -175,6 +175,36 @@
   opacity: 0.8;
 }
 
+/* 申报地区或单位——精确到市/县，比省级更能区分同项目的多条记录。
+ * 申报单位偶尔很长（「中国社会科学院《格萨（斯）尔》办公室」），
+ * 用省略号截断而不是换行，否则同一栅格里的卡片会被撑成不同高度。 */
+.pcard-region {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 「同项目 N 处申报」徽标 —— 压在卡片图区右上角，不挤占文字行。
+ * 它的作用是解释「为什么列表里有好几张同名卡片」，
+ * 免得读者把「一个项目多地申报」误读成抓重了。 */
+.pcard-variant {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-2);
+  z-index: 1;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+  color: var(--azurite);
+  background: var(--paper-light);
+  border: 1px solid var(--azurite-soft);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
 /* ---------------- 卡片栅格 ---------------- */
 
 .card-grid {

@@ -6,7 +6,7 @@
  * 还必须有本站自己的组织：档案卡、传承人时间轴、技艺要点、相关项目。
  */
 
-import { getProjectDetail, getSiblings, getProjectVariants, getProjects, getDetailCoverage, esc, num, batchLabel, birthYear, categoryGlyph } from '../data.js';
+import { getProjectDetail, getSiblings, getProjectVariants, getProjects, getDetailCoverage, getSharedIntro, esc, num, batchLabel, birthYear, categoryGlyph } from '../data.js';
 import { categoryPattern } from '../components/ui.js';
 
 export async function ProjectPage(id) {
@@ -146,8 +146,26 @@ export async function ProjectPage(id) {
    * 本身没有可转录的正文」——那句是在只抓了 151 个项目的情况下写下的，是错的。
    * 覆盖率从数据派生，不写死。
    */
-  const [allProjects, coverage] = await Promise.all([getProjects(), getDetailCoverage()]);
+  const [allProjects, coverage, shared] = await Promise.all([
+    getProjects(), getDetailCoverage(), getSharedIntro(id),
+  ]);
   const totalRecords = (allProjects || []).length;
+
+  /* ---- 正文是否与同项目其他申报地区共用 ----
+   *
+   * 官网为「一个项目」只写一份简介，多申报地区的页面挂的是同一份文字
+   * （全量 3614 条里有 482 条如此，且全部同属一个项目号前缀）。
+   * 不说明的话，读者从名录连点两条同名记录，会以为站点在复读；
+   * 说明白了，它反而成了一条关于「国家级非遗按申报地区登记」的知识点——
+   * 这正是本站在官网之上补出来的那层组织。
+   */
+  const sharedNote = (shared && shared.count > 1 && paragraphs.length) ? `
+    <p class="intro-shared">
+      这份介绍是中国非物质文化遗产网为项目 <code>${esc(prefix)}</code>「${esc(baseName)}」
+      统一撰写的，同项目另有 ${num(shared.count - 1)} 处申报地区沿用同一份文字。
+      本页是其中「${esc(detail.unit || detail.region || '—')}」的申报记录，
+      其他地区的版本见下方<strong>同一项目的其他申报地区</strong>。
+    </p>` : '';
 
   const emptyIntro = detail.noDetail
     ? `
@@ -225,7 +243,7 @@ export async function ProjectPage(id) {
           <section class="project-section">
             <h2 class="ps-title"><span class="ps-mark">项目介绍</span></h2>
             ${paragraphs.length
-              ? paragraphs.map(t => `<p class="project-text">${esc(t)}</p>`).join('')
+              ? sharedNote + paragraphs.map(t => `<p class="project-text">${esc(t)}</p>`).join('')
               : emptyIntro}
           </section>
 

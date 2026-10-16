@@ -92,6 +92,44 @@ export async function getDetailCoverage() {
   };
 }
 
+/**
+ * 该条正文是否与同项目的其他申报地区共用。
+ *
+ * 官网为「一个项目」只写一份简介，多申报地区的页面挂的是同一份文本——
+ * 全量实测有 200 组、共 482 条（13.3%）如此，且全部同属一个项目号前缀。
+ * 展示层据此在正文前说明一句，免得读者连点两页以为站点在复读。
+ *
+ * @returns {Promise<{count:number, index:number}|null>} count 为同组条数（含本条）
+ */
+export async function getSharedIntro(id) {
+  const idx = await getDetailIndex();
+  return (idx.introShared || {})[String(id)] || null;
+}
+
+/**
+ * 项目号前缀 → 该前缀下的申报记录数（只含 2 条以上的前缀，构建期算好）。
+ *
+ * 用于名录卡片上的「同项目 N 处申报」徽标：一眼说明为什么列表里
+ * 会出现好几张同名卡片，而不是让读者以为是重复数据。
+ */
+let _prefixCounts = null;
+export async function getProjectPrefixCounts() {
+  if (!_prefixCounts) {
+    const idx = await getDetailIndex();
+    _prefixCounts = idx.prefixCount || {};
+  }
+  return _prefixCounts;
+}
+
+/** 给项目补上 variantCount（同项目申报记录数），卡片据此决定是否显示徽标 */
+async function withVariantCount(list) {
+  const counts = await getProjectPrefixCounts();
+  return list.map(p => ({
+    ...p,
+    variantCount: counts[projectCodePrefix(p.projectNo)] || 1,
+  }));
+}
+
 /** 注入第 k 片（同一片并发只注入一次） */
 function loadShard(k) {
   if (_shardPromises.has(k)) return _shardPromises.get(k);
@@ -289,7 +327,7 @@ export async function queryProjects({
   const start = (safePage - 1) * pageSize;
 
   return {
-    items: list.slice(start, start + pageSize),
+    items: await withVariantCount(list.slice(start, start + pageSize)),
     total,
     page: safePage,
     pageSize,
@@ -310,7 +348,8 @@ export async function queryProjects({
 export async function getFeatured() {
   const [projects, feat] = await Promise.all([getProjects(), getFeaturedIds()]);
   const byId = new Map(projects.map(p => [String(p.id), p]));
-  return (feat.ids || []).map(id => byId.get(String(id))).filter(Boolean);
+  const picked = (feat.ids || []).map(id => byId.get(String(id))).filter(Boolean);
+  return withVariantCount(picked);
 }
 
 /**

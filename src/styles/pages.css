@@ -808,6 +808,31 @@
   font-size: var(--fs-sm);
 }
 
+/* 「这份介绍是官网为整个项目统一撰写的」说明——正文之前的定性。
+ *
+ * 起因：多申报地区的记录在官网上挂的是同一份正文（全量 3614 条里 478 条如此）。
+ * 不加这句，读者从名录连点两条同名记录会以为站点在复读；
+ * 加了之后它变成一条关于「国家级非遗按申报地区登记」的知识点。
+ * 用朱砂极淡底色 + 左侧竖线，与正文的纸色区分开，又不抢「项目介绍」标题。 */
+.intro-shared {
+  margin-bottom: var(--sp-5);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--cinnabar-wash);
+  border-left: 3px solid var(--cinnabar);
+  font-size: var(--fs-sm);
+  line-height: 1.9;
+  color: var(--ink-soft);
+  max-width: var(--maxw-text);
+}
+
+.intro-shared code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+  padding: 1px 5px;
+  background: var(--paper-light);
+  color: var(--ink);
+}
+
 /* 传承人列表 */
 .inheritor-list {
   display: grid;
