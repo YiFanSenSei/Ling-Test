@@ -10,6 +10,8 @@
  * 比贴图更轻，也比纯色更真实。
  */
 
+import { downloadWork } from './export.js';
+
 const JOINT_SPEC = {
   dovetail: {
     name: '燕尾榫',
@@ -501,6 +503,17 @@ export function initMortise() {
     checkSeat();
     redraw();
     if (hint) hint.classList.remove('is-hidden');
+  });
+
+  document.getElementById('save-mortise')?.addEventListener('click', () => {
+    // 导出为 PNG：带上当前榫卯类型与咬合状态
+    const label = document.querySelector('[data-joint].is-active .tool-opt-name')
+      ?.textContent.trim() || '榫卯';
+    const state = document.getElementById('joint-state')?.textContent.trim() || '';
+    downloadWork(canvas, {
+      title: `榫卯 · ${label}`,
+      note: `匠作 · 非物质文化遗产数字展馆${state ? `　${state}` : ''}`,
+    });
   });
 
   document.getElementById('auto-mortise')?.addEventListener('click', () => {

@@ -1473,6 +1473,20 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   color: var(--ink-ghost);
 }
 
+/**
+ * 图纸模式下被接管的工具面板。
+ * 线色与针脚密度由图纸决定，这里置灰并禁用交互——
+ * 否则用户改了滑块却看不到任何变化，会以为程序坏了。
+ */
+.tool-group.is-locked {
+  opacity: 0.45;
+}
+
+.tool-group.is-locked button,
+.tool-group.is-locked input {
+  cursor: not-allowed;
+}
+
 .tool-actions {
   display: flex;
   flex-wrap: wrap;

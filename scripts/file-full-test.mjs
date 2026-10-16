@@ -202,6 +202,27 @@ async function main() {
   }
   results.push(['苏绣拖拽', stitch]);
 
+  // 图纸模式：默认就该是一幅可跟随的图纸，而不是一张空白画布。
+  // 这是「苏绣像画板」那次反馈的直接回归点——底稿必须真的参与落针，
+  // 所以这里查的是「目标格数」，而不是画布上有没有东西。
+  const gridState = await evalJS(`
+    const covered = document.getElementById('emb-covered')?.textContent.trim() || '?';
+    const note = document.getElementById('template-note')?.textContent.trim().slice(0, 14) || '?';
+    const locked = document.querySelectorAll('[data-lock="template"].is-locked').length;
+    return covered + ' | ' + note + ' | 锁定 ' + locked + ' 个面板';
+  `);
+  results.push(['图纸模式', gridState]);
+
+  // 换图纸要重置进度并换掉目标格数；切自由绣要把线色与密度面板解锁
+  const switchState = await evalJS(`
+    document.querySelector('[data-template="lotus"]').click();
+    const lotus = document.getElementById('emb-covered')?.textContent.trim();
+    document.querySelector('[data-template="free"]').click();
+    const free = document.querySelectorAll('[data-lock="template"].is-locked').length;
+    return '莲花 ' + lotus + ' | 自由绣锁定 ' + free + ' 个';
+  `);
+  results.push(['图纸切换', switchState]);
+
   console.log('=== file:// 下功能验证（模拟评委双击打开）===\n');
   for (const [label, val] of results) {
     console.log(`  ${label.padEnd(8, '　')} → ${val}`);

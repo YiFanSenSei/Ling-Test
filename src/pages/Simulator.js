@@ -40,7 +40,7 @@ export async function SimulatorPage() {
                 aria-controls="panel-embroidery" id="tab-embroidery" data-sim="embroidery">
           <span class="sim-tab-idx">01</span>
           <span class="sim-tab-name">苏绣</span>
-          <span class="sim-tab-desc">平针 · 打籽</span>
+          <span class="sim-tab-desc">梅花 · 莲花</span>
         </button>
         <button class="sim-tab" role="tab" aria-selected="false"
                 aria-controls="panel-paper" id="tab-paper" data-sim="paper" tabindex="-1">
@@ -64,11 +64,11 @@ export async function SimulatorPage() {
       <!-- ═══ 苏绣 ═══ -->
       <div class="sim-panel is-active" id="panel-embroidery" role="tabpanel" aria-labelledby="tab-embroidery">
         <div class="sim-intro">
-          <h2>苏绣 · 平针与打籽</h2>
+          <h2>苏绣 · 按图落针</h2>
           <p>
             苏绣以「平、齐、细、密、匀、顺、和、光」八字著称。两千多年来，
             苏州的绣娘用一根针把丝线劈成极细的股，一针一针地把光影绣进绸缎里。
-            这个模拟器还原了其中两种最基础的针法。
+            这里备了四幅图纸——挑一幅，照着格子把线色与针法绣对，绣满即成作品。
           </p>
         </div>
 
@@ -78,15 +78,31 @@ export async function SimulatorPage() {
                     aria-label="苏绣刺绣画布，用鼠标拖动即可绣制"></canvas>
             <div class="sim-hint" id="hint-embroidery">
               <span class="sim-hint-icon" aria-hidden="true">✦</span>
-              <span>在绣布上按住并拖动，开始刺绣</span>
+              <span>按住并拖动，沿图纸格子落针</span>
             </div>
           </div>
 
           <aside class="sim-tools">
             <div class="tool-group">
+              <h3 class="tool-title">图纸</h3>
+              <div class="tool-options tool-options-inline" role="radiogroup" aria-label="选择图纸">
+                <button class="tool-chip is-active" role="radio" aria-checked="true" data-template="plum">梅花</button>
+                <button class="tool-chip" role="radio" aria-checked="false" data-template="lotus">莲花</button>
+                <button class="tool-chip" role="radio" aria-checked="false" data-template="butterfly">蝴蝶</button>
+                <button class="tool-chip" role="radio" aria-checked="false" data-template="bamboo">竹子</button>
+                <button class="tool-chip" role="radio" aria-checked="false" data-template="free">自由绣</button>
+              </div>
+              <p class="tool-note" id="template-note">五瓣梅花：花瓣用齐针铺满，花心打籽成蕊</p>
+            </div>
+
+            <div class="tool-group">
               <h3 class="tool-title">针法</h3>
               <div class="tool-options" role="radiogroup" aria-label="选择针法">
-                <button class="tool-opt is-active" role="radio" aria-checked="true" data-stitch="flat">
+                <button class="tool-opt is-active" role="radio" aria-checked="true" data-stitch="satin">
+                  <span class="tool-opt-name">齐针（缎面）</span>
+                  <span class="tool-opt-desc">紧密排列覆盖底料，光泽如缎。图纸里的大块面用它</span>
+                </button>
+                <button class="tool-opt" role="radio" aria-checked="false" data-stitch="flat">
                   <span class="tool-opt-name">平针</span>
                   <span class="tool-opt-desc">平行的短针脚，最基础也最考验功力</span>
                 </button>
@@ -94,18 +110,15 @@ export async function SimulatorPage() {
                   <span class="tool-opt-name">打籽绣</span>
                   <span class="tool-opt-desc">绕线成粒，如种子散落，常用于花蕊</span>
                 </button>
-                <button class="tool-opt" role="radio" aria-checked="false" data-stitch="satin">
-                  <span class="tool-opt-name">齐针（缎面）</span>
-                  <span class="tool-opt-desc">紧密排列覆盖底料，光泽如缎</span>
-                </button>
                 <button class="tool-opt" role="radio" aria-checked="false" data-stitch="chain">
                   <span class="tool-opt-name">锁针（链条）</span>
                   <span class="tool-opt-desc">环环相扣成链，常用于勾勒轮廓</span>
                 </button>
               </div>
+              <p class="tool-note">图纸会标出每一格该用的针法，选对了才算绣得地道</p>
             </div>
 
-            <div class="tool-group">
+            <div class="tool-group" data-lock="template">
               <h3 class="tool-title">丝线</h3>
               <div class="thread-picker" role="radiogroup" aria-label="选择丝线颜色">
                 ${[
@@ -120,35 +133,38 @@ export async function SimulatorPage() {
                     <span class="thread-name">${label}</span>
                   </button>`).join('')}
               </div>
+              <p class="tool-note">自由绣时自选线色；图纸模式下由图纸决定</p>
             </div>
 
-            <div class="tool-group">
+            <div class="tool-group" data-lock="template">
               <h3 class="tool-title">针脚密度</h3>
               <label class="tool-slider">
                 <input type="range" id="stitch-density" min="4" max="22" value="12"
                        aria-label="针脚密度">
                 <span class="slider-value" id="density-value">12</span>
               </label>
+              <p class="tool-note">自由绣时控制针脚疏密</p>
             </div>
 
             <div class="tool-group">
-              <h3 class="tool-title">难度</h3>
-              <div class="tool-options tool-options-inline" role="radiogroup" aria-label="选择图案">
-                <button class="tool-chip is-active" role="radio" aria-checked="true" data-pattern="free">自由绣</button>
-                <button class="tool-chip" role="radio" aria-checked="false" data-pattern="petal">花瓣</button>
-                <button class="tool-chip" role="radio" aria-checked="false" data-pattern="leaf">叶脉</button>
-                <button class="tool-chip" role="radio" aria-checked="false" data-pattern="wave">水波</button>
+              <h3 class="tool-title">进度与评价</h3>
+              <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+                   aria-valuenow="0" id="emb-progress-bar">
+                <span id="emb-progress" style="width:0%"></span>
               </div>
+              <p class="grade-line"><span>覆盖</span><strong id="emb-covered">0 / 0 格</strong></p>
+              <p class="grade-line"><span>针法</span><strong id="emb-stitchfit">—</strong></p>
+              <p class="grade-line"><span>品级</span><strong id="emb-rank">未完成</strong></p>
             </div>
 
             <div class="tool-actions">
-              <button class="btn btn-ghost btn-sm" id="undo-embroidery">撤销一针</button>
+              <button class="btn btn-ghost btn-sm" id="undo-embroidery">撤销一步</button>
               <button class="btn btn-ghost btn-sm" id="clear-embroidery">重新开始</button>
               <button class="btn btn-primary btn-sm" id="save-embroidery">保存作品</button>
             </div>
 
             <p class="tool-stat">
-              已绣 <strong id="stitch-count">0</strong> 针
+              已绣 <strong id="stitch-count">0</strong> <span id="stitch-unit">格</span>
             </p>
           </aside>
         </div>
@@ -310,7 +326,8 @@ export async function SimulatorPage() {
               <div class="tool-actions tool-actions-block">
                 <button class="btn btn-ghost btn-sm" id="rotate-mortise">旋转 90°</button>
                 <button class="btn btn-ghost btn-sm" id="reset-mortise">归位</button>
-                <button class="btn btn-primary btn-sm" id="auto-mortise">查看正确接法</button>
+                <button class="btn btn-ghost btn-sm" id="auto-mortise">查看正确接法</button>
+                <button class="btn btn-primary btn-sm" id="save-mortise">保存作品</button>
               </div>
             </div>
 

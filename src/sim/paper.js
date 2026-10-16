@@ -13,6 +13,8 @@
  *   · 帘纹由竹丝间距决定，会在纸面留下平行细纹
  */
 
+import { downloadWork } from './export.js';
+
 export function initPaper() {
   const canvas = document.getElementById('canvas-paper');
   if (!canvas) return;
@@ -454,13 +456,16 @@ export function initPaper() {
   });
 
   document.getElementById('save-paper')?.addEventListener('click', () => {
-    const out = document.createElement('canvas');
-    out.width = canvas.width; out.height = canvas.height;
-    out.getContext('2d').drawImage(canvas, 0, 0);
-    const a = document.createElement('a');
-    a.download = `匠作-宣纸成品-${Date.now()}.png`;
-    a.href = out.toDataURL('image/png');
-    a.click();
+    // 导出为 PNG：带上这一张纸的匀度、厚度与品级
+    const even = document.getElementById('grade-even')?.textContent.trim() || '';
+    const thick = document.getElementById('grade-thick')?.textContent.trim() || '';
+    const rank = document.getElementById('grade-rank')?.textContent.trim() || '';
+    const detail = [even && `匀度 ${even}`, thick && `厚度 ${thick}`, rank]
+      .filter(Boolean).join('　');
+    downloadWork(canvas, {
+      title: '宣纸 · 捞纸',
+      note: `匠作 · 非物质文化遗产数字展馆${detail ? `　${detail}` : ''}`,
+    });
   });
 
   /* ---------- 启动 ---------- */
