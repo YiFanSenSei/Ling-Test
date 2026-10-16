@@ -108,8 +108,11 @@ async function main() {
     ['同项目其他地区-首条', '#/project/13978', `document.querySelector('.variant-name')?.textContent.trim()`],
     // 剪纸组 56 条（Ⅶ-016），是所有项目里申报地区最多的一组
     ['剪纸组条数', '#/project/13924', `String(document.querySelectorAll('.variant').length)`],
-    // 无详情页要能说清原因，而不是只写一句「暂未收录」
-    ['无详情页说明', '#/project/12178', `document.querySelector('.project-text.is-empty')?.textContent.replace(/\\s+/g,'').slice(0,24)`],
+    // 详情覆盖率：全量补录的目标是名录每一条都有官方正文。
+    // 直接读内联数据，能从 180/3614 一路观察到 3614/3614。
+    // （早期这里断言的是某条「无正文」记录的说明文案；补录推进后那条记录
+    //   随时可能被填上，断言会静默变成 undefined，所以改成覆盖率。）
+    ['详情覆盖率', '#/about', `(() => { const d = window.__JZ_DATA__ || {}; const proj = d.projects || []; const raw = d.details && d.details.details ? d.details.details : (d.details || {}); const n = Object.values(raw).filter(x => x && x.intro).length; return n + '/' + proj.length; })()`],
     ['项目传承人', '#/project/13978', `String(document.querySelectorAll('.inheritor').length)`],
     ['传承人名录', '#/inheritors', `document.querySelector('.result-count')?.textContent.trim().replace(/\\s+/g,'')`],
     ['传承人卡', '#/inheritors', `String(document.querySelectorAll('.inh-card').length)`],

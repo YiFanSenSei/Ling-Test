@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 4173",
-    "data": "node scripts/fetch-data.mjs && node scripts/fetch-details.mjs"
+    "data": "node scripts/fetch-data.mjs && node scripts/fetch-details.mjs",
+    "data:all": "node scripts/fetch-all-details.mjs",
+    "data:coverage": "node scripts/coverage-report.mjs"
   },
   "devDependencies": {
     "@esbuild/win32-x64": "^0.25.12",
