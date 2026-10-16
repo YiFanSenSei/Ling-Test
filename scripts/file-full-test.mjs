@@ -103,6 +103,13 @@ async function main() {
     ['筛选', '#/gallery?category=%E4%BC%A0%E7%BB%9F%E7%BE%8E%E6%9C%AF', `String(document.querySelectorAll('.pcard').length)`],
     ['搜索', '#/gallery?q=%E8%8B%8F%E7%BB%A3', `String(document.querySelectorAll('.pcard').length)`],
     ['档案', '#/project/13978', `document.querySelector('.project-title')?.textContent.trim()`],
+    // 同一项目的其他申报地区：苏绣组共 5 条记录（Ⅶ-018），本页之外应有 4 条
+    ['同项目其他地区', '#/project/13978', `String(document.querySelectorAll('.variant').length)`],
+    ['同项目其他地区-首条', '#/project/13978', `document.querySelector('.variant-name')?.textContent.trim()`],
+    // 剪纸组 56 条（Ⅶ-016），是所有项目里申报地区最多的一组
+    ['剪纸组条数', '#/project/13924', `String(document.querySelectorAll('.variant').length)`],
+    // 无详情页要能说清原因，而不是只写一句「暂未收录」
+    ['无详情页说明', '#/project/12178', `document.querySelector('.project-text.is-empty')?.textContent.replace(/\\s+/g,'').slice(0,24)`],
     ['项目传承人', '#/project/13978', `String(document.querySelectorAll('.inheritor').length)`],
     ['传承人名录', '#/inheritors', `document.querySelector('.result-count')?.textContent.trim().replace(/\\s+/g,'')`],
     ['传承人卡', '#/inheritors', `String(document.querySelectorAll('.inh-card').length)`],
@@ -111,6 +118,9 @@ async function main() {
     ['传承人检索', '#/inheritors?q=%E5%A7%9A', `String(document.querySelectorAll('.inh-card').length)`],
     ['体验', '#/simulator', `document.querySelectorAll('.sim-tab').length`],
     ['关于', '#/about', `document.querySelectorAll('.about-block').length`],
+    // 关于页声称「3614 条记录按编号前缀归并恰好得到 1557 个编号」——
+    // 这句话是拿数据现算的，必须能被断言验证，否则就只是页面上的漂亮话
+    ['关于-编号归并', '#/about', `(() => { const p = [...document.querySelectorAll('.about-callout p')].find(x => x.textContent.includes('不同的编号')); return p ? (p.textContent.replace(/\\s+/g,'').match(/([\\d,]+)个不同的编号/) || [])[1] : null; })()`],
     ['404', '#/no-such-page', `document.querySelector('.empty-state h3, .notfound h1')?.textContent.trim()`],
     ['404-传承人', '#/inheritor/999-99', `document.querySelector('.empty-state h3, .notfound h1')?.textContent.trim()`],
   ];

@@ -7,7 +7,7 @@
  * 第三方资源声明、无障碍与适配说明。
  */
 
-import { getMeta, getProjects, getDetails, getInheritorStats, num, esc } from '../data.js';
+import { getMeta, getProjects, getDetails, getInheritorStats, projectCodePrefix, projectBaseName, num, esc } from '../data.js';
 import { SectionTitle } from '../components/ui.js';
 
 export async function AboutPage() {
@@ -16,6 +16,25 @@ export async function AboutPage() {
   ]);
   const official = meta.official || {};
   const detailCount = Object.keys(details.details || {}).length;
+
+  /* 编号前缀的分组统计。
+   *
+   * 全部从数据现算，不写死数字——「1557」这一条如果哪天数据更新了，
+   * 页面上那句「恰好得到 1557 个不同的编号」必须跟着变，
+   * 否则就成了拿一个过期结论去自证。
+   */
+  const prefixGroups = new Map();
+  for (const p of projects) {
+    const k = projectCodePrefix(p.projectNo);
+    if (!k) continue;
+    if (!prefixGroups.has(k)) prefixGroups.set(k, []);
+    prefixGroups.get(k).push(p);
+  }
+  const prefixCount = prefixGroups.size;
+  const multiGroups = [...prefixGroups.values()].filter(g => g.length > 1);
+  const multiRegionGroups = multiGroups.length;
+  const multiRegionRecords = multiGroups.reduce((s, g) => s + g.length, 0);
+  const largestGroup = [...prefixGroups.values()].reduce((a, b) => (b.length > a.length ? b : a), []);
 
   return `
   <section class="page-head">
@@ -111,6 +130,20 @@ export async function AboutPage() {
             <p>
               两者是不同层级的统计口径，因此本站<strong>检索使用子项数据，展示项目总数时使用官方口径</strong>，
               并在页脚同时标注。官方子项数 3610 与本站 3614 的差异，来自数据快照时间不同。
+            </p>
+            <p>
+              <strong>这两个数字能对上。</strong>官方项目编号形如
+              <code>Ⅶ-018_01_320500</code>，短横线前那段 <code>Ⅶ-018</code> 是项目本身的编号，
+              后面两段才是批次与地区。把本站 ${num(projects.length)} 条记录按编号前缀归并，
+              恰好得到 <strong>${num(prefixCount)} 个不同的编号</strong>——与官方公布的
+              ${num(official.totalProjects || 1557)} 项完全一致。也就是说，两个数字不是两个数据源，
+              而是同一份名录的两种粒度。
+            </p>
+            <p class="about-note-inline">
+              这个前缀也正是项目页「同一项目的其他申报地区」一节的分组依据：
+              ${num(projects.length)} 条记录中，${num(multiRegionRecords)} 条与其他记录共享编号，
+              分布在 ${num(multiRegionGroups)} 个项目里；最多的一组是「${esc(projectBaseName(largestGroup[0]?.name))}」，
+              共有 ${num(largestGroup.length)} 个申报地区。
             </p>
           </div>
 
