@@ -26,7 +26,7 @@ export async function ProjectPage(id) {
     ['项目编号', detail.projectNo],
     ['所属门类', detail.category],
     ['公布时间', detail.batch ? batchLabel(detail.batch) : ''],
-    ['申报地区', detail.unit || detail.province],
+    ['申报地区', detail.declareUnit || detail.unit || detail.province],
     ['保护单位', detail.protectUnit],
   ].filter(([, v]) => v);
 
@@ -163,7 +163,7 @@ export async function ProjectPage(id) {
     <p class="intro-shared">
       这份介绍是中国非物质文化遗产网为项目 <code>${esc(prefix)}</code>「${esc(baseName)}」
       统一撰写的，同项目另有 ${num(shared.count - 1)} 处申报地区沿用同一份文字。
-      本页是其中「${esc(detail.unit || detail.region || '—')}」的申报记录，
+      本页是其中「${esc(detail.declareUnit || detail.unit || detail.province || detail.region || '—')}」的申报记录，
       其他地区的版本见下方<strong>同一项目的其他申报地区</strong>。
     </p>` : '';
 
