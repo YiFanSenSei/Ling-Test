@@ -41,8 +41,17 @@ blocks.forEach((b, i) => {
   }
 });
 
-// 另外确认内联数据是否完整
-const hasProjects = html.includes('window.__JZ_DATA__["projects"]');
-const hasDetails = html.includes('window.__JZ_DATA__["details"]');
-const hasMeta = html.includes('window.__JZ_DATA__["meta"]');
-console.log(`内联数据：projects=${hasProjects} details=${hasDetails} meta=${hasMeta}`);
+// 另外确认内联数据是否完整。
+// ⚠️ details 不再内联——它已切成 dist/data/detail-N.js 按需注入，
+//    所以这里检查的是「内联的小数据」与「外链的分片」两类，缺一不可。
+const INLINE = ['projects', 'meta', 'detail-index', 'featured', 'inheritor-stats'];
+const inlineState = INLINE.map(n => `${n}=${html.includes(`window.__JZ_DATA__[${JSON.stringify(n)}]`)}`);
+console.log(`内联数据：${inlineState.join(' ')}`);
+
+import { existsSync, readdirSync } from 'node:fs';
+const shards = existsSync('dist/data')
+  ? readdirSync('dist/data').filter(f => /^detail-\d+\.js$/.test(f))
+  : [];
+console.log(`外链分片：dist/data/detail-*.js 共 ${shards.length} 片`
+  + `${existsSync('dist/data/inheritors.js') ? '，另有 inheritors.js' : ''}`
+  + `${shards.length ? '' : '  ✗ 缺失！项目详情页会全部空白'}`);

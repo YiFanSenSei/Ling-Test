@@ -109,10 +109,22 @@ async function main() {
     // 剪纸组 56 条（Ⅶ-016），是所有项目里申报地区最多的一组
     ['剪纸组条数', '#/project/13924', `String(document.querySelectorAll('.variant').length)`],
     // 详情覆盖率：全量补录的目标是名录每一条都有官方正文。
-    // 直接读内联数据，能从 180/3614 一路观察到 3614/3614。
+    // 详情已切成 dist/data/detail-N.js 按需注入，不再内联，
+    // 因此这里读的是构建期内联的小索引 detail-index。
     // （早期这里断言的是某条「无正文」记录的说明文案；补录推进后那条记录
     //   随时可能被填上，断言会静默变成 undefined，所以改成覆盖率。）
-    ['详情覆盖率', '#/about', `(() => { const d = window.__JZ_DATA__ || {}; const proj = d.projects || []; const raw = d.details && d.details.details ? d.details.details : (d.details || {}); const n = Object.values(raw).filter(x => x && x.intro).length; return n + '/' + proj.length; })()`],
+    ['详情覆盖率', '#/about', `(() => { const d = window.__JZ_DATA__ || {}; const idx = d['detail-index'] || {}; const proj = d.projects || []; return (idx.withIntro || 0) + '/' + proj.length; })()`],
+    // 分片按需加载：体积方案 B 的命门。
+    // 这一条同时验证三件事——file:// 下普通 <script src> 能注入、
+    // 项目页正文确实渲染出来了、而且**没有**把全量详情一起拉进来。
+    // 走的是名录最后一条（最后一个分片），最坏情况。
+    ['分片按需加载', '#/project/23631', `(() => {
+      const title = document.querySelector('.project-title')?.textContent.trim() || '(无标题)';
+      const loaded = Object.keys(window.__JZ_DETAILS__ || {}).length;
+      const total = (window.__JZ_DATA__['detail-index'] || {}).count || 0;
+      const paras = document.querySelectorAll('.project-text').length;
+      return title + ' | 已注入 ' + loaded + '/' + total + ' 条 | 正文 ' + paras + ' 段';
+    })()`],
     ['项目传承人', '#/project/13978', `String(document.querySelectorAll('.inheritor').length)`],
     ['传承人名录', '#/inheritors', `document.querySelector('.result-count')?.textContent.trim().replace(/\\s+/g,'')`],
     ['传承人卡', '#/inheritors', `String(document.querySelectorAll('.inh-card').length)`],

@@ -1,0 +1,232 @@
+/**
+ * 详情分片生成（体积方案 B）
+ *
+ * 背景：全量补录后 details.json 约 10 MB，而评委从名录随手点开的只是其中一条。
+ *   若把它整体内联进 index.html，首屏就要吞下 10 MB；若整体外链，一次点击
+ *   也要下载 10 MB。都不划算。
+ *
+ * 做法：把详情按「官方名录顺序」切成固定条数的分片，写成一堆普通脚本；
+ *   运行时点进某个项目时只注入它所在的那一片（约 600 KB）。
+ *
+ * ⚠️ 为什么分片写成 <script> 而不是 .json：
+ *   Chrome 自 2021 年起禁止 file:// 页面 fetch 同目录文件（origin 为 null），
+ *   但**允许**普通 <script src>（受限的只有 type="module"）。
+ *   分片因此写成「向 window.__JZ_DETAILS__ 挂数据」的普通脚本，
+ *   这样「双击 index.html 即用」这条底线不会被打破。
+ *   详见 vite.config.js 顶部注释与 NOTES.md。
+ *
+ * 产出（全部落在 public/data/，会被 vite 原样拷进 dist/data/）：
+ *   detail-index.json    覆盖率、分片参数、名录顺序的 id 列表（会被内联，体积小）
+ *   detail-<k>.js        详情分片，每片 SHARD_SIZE 条
+ *   inheritors.js        扁平化的传承人索引（传承人页按需加载）
+ *   inheritor-stats.json 传承人统计（首页只要数字，不该为此加载整个索引）
+ *   featured.json        首页「精选馆藏」的策展名单
+ *
+ * 用法：node scripts/split-details.mjs
+ * 说明：pnpm dev / pnpm build 前会自动跑（见 package.json 的 predev / prebuild）。
+ */
+
+import { readFile, writeFile, rm, readdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+const ROOT = join(import.meta.dirname, '..');
+const DATA = join(ROOT, 'public', 'data');
+const SRC = join(DATA, 'details.json');
+
+/** 每片条数。200 条 ≈ 600 KB，一次点击的加载量与「看一条」相称。 */
+const SHARD_SIZE = 200;
+
+/**
+ * 首页「精选馆藏」的策展名单。
+ *
+ * 为什么不再用「有详情的项目里排前八个」：
+ *   补录之前只有 151 个策展级项目有详情，按插入顺序取前八，
+ *   实际出现的是「苏绣 ×4 + 苗族古歌 ×2」——四个苏绣变体占掉一半版面，
+ *   另两条还是同一项目的不同申报地区。补录后全部记录都有详情，
+ *   这个取法只会更糟，所以改成显式点名。
+ *
+ * 选法：覆盖尽可能多的门类，且优先本站有对应体验/关联的项目
+ *   （苏绣、宣纸、香山帮分别对应三个模拟器）。
+ * 第二列是**校验用的项目名**——名字对不上会直接报错，
+ *   避免数据更新后 id 漂移却静默换成了别的项目。
+ */
+const FEATURED = [
+  ['13978', '苏绣', '传统美术'],
+  ['14376', '宣纸制作技艺', '传统技艺'],
+  ['14306', '香山帮传统建筑营造技艺', '传统技艺'],
+  ['13133', '昆曲', '传统戏剧'],
+  ['12484', '古琴艺术', '传统音乐'],
+  ['13581', '苏州评弹（苏州评话、苏州弹词）', '曲艺'],
+  ['13794', '太极拳（杨氏太极拳）', '传统体育、游艺与杂技'],
+  ['15059', '农历二十四节气', '民俗'],
+];
+
+if (!existsSync(SRC)) {
+  console.error(`找不到 ${SRC}`);
+  console.error('请先跑 node scripts/fetch-all-details.mjs 抓取详情。');
+  process.exit(1);
+}
+
+const detailsFile = JSON.parse(await readFile(SRC, 'utf8'));
+const details = detailsFile.details || {};
+const projects = JSON.parse(await readFile(join(DATA, 'projects.json'), 'utf8'));
+
+/** 名录顺序的 id 列表——分片按这个顺序切，与官方名录的编排一致 */
+const ids = projects.map(p => String(p.id)).filter(id => details[id]);
+const missing = projects.length - ids.length;
+
+const withIntro = ids.filter(id => (details[id].intro || '').trim()).length;
+
+if (!ids.length) {
+  console.error('details.json 里没有任何可用条目。');
+  process.exit(1);
+}
+
+const shardCount = Math.ceil(ids.length / SHARD_SIZE);
+
+/* ---------------- 分片 ---------------- */
+
+const shards = Array.from({ length: shardCount }, () => ({}));
+ids.forEach((id, pos) => { shards[Math.floor(pos / SHARD_SIZE)][id] = details[id]; });
+
+// 清掉上一次生成的分片（条数变少时，残留的旧分片会让 shardCount 与文件对不上）
+for (const name of await readdir(DATA)) {
+  if (/^detail-\d+\.js$/.test(name)) await rm(join(DATA, name), { force: true });
+}
+
+/** JSON.stringify 的输出直接当 JS 字面量用；顺手防一手 </script> 序列 */
+const lit = v => JSON.stringify(v).replace(/<\/script/gi, '<\\/script');
+
+const sizes = [];
+await Promise.all(shards.map(async (shard, k) => {
+  const body = Object.entries(shard).map(([id, v]) => `s[${lit(id)}]=${lit(v)};`).join('');
+  const js = `(function(g){var s=g.__JZ_DETAILS__||(g.__JZ_DETAILS__={});${body}})(window);\n`;
+  const file = join(DATA, `detail-${k}.js`);
+  await writeFile(file, js, 'utf8');
+  sizes.push({ k, count: Object.keys(shard).length, bytes: Buffer.byteLength(js) });
+}));
+
+/* ---------------- 传承人索引 ---------------- */
+
+/*
+ * 扁平化的传承人索引。
+ *
+ * ⚠️ 这里的 id 必须用「项目内序号」（`<项目id>-<序号>`），不能用全局序号：
+ *    项目详情页在渲染时直接拼 `#/inheritor/<项目id>-<序号>`，
+ *    两边必须由同一套规则生成，否则所有传承人链接都会指向错误的人。
+ *
+ * ⚠️ 遍历顺序固定为名录顺序（而不是 details 的键顺序），
+ *    这样传承人页的默认排序是稳定的，重跑本脚本不会让列表乱跳。
+ */
+const inheritors = [];
+const seen = new Set();
+for (const id of ids) {
+  const proj = details[id];
+  let n = 0;
+  for (const p of proj.inheritors || []) {
+    const key = `${p.code || 'x'}|${p.name}|${id}`;
+    const idx = n;
+    n += 1;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    inheritors.push({
+      ...p,
+      id: `${id}-${idx}`,
+      projectId: String(id),
+      projectTitle: proj.name,
+      projectCategory: proj.category,
+      projectNo: proj.projectNo,
+      batch: proj.batch,
+      province: proj.province,
+    });
+  }
+}
+
+const inheritorJs = `window.__JZ_INHERITORS__=${lit(inheritors)};\n`;
+await writeFile(join(DATA, 'inheritors.js'), inheritorJs, 'utf8');
+
+const withBirth = inheritors.filter(p => p.birth).length;
+const withCode = inheritors.filter(p => p.code).length;
+
+/*
+ * 按批次统计字段空缺。
+ *
+ * 为什么要算这个：「关于」页要说明「传承人档案里的空缺不是抓取遗漏」。
+ * 这句话必须能被数据支撑——实测（逐页核对过官网原文）空缺确实来自官网表格本身：
+ * 第五批（2021）259 位传承人的编号与出生日期两栏**整体未填写**，
+ * 其余批次也有部分行留空，多集中在出生日期。
+ * 把统计写进数据、由页面现算，这样将来数据更新时那句结论会自动跟着变，
+ * 不会变成拿一个过期结论去自证。
+ */
+const byBatch = {};
+for (const p of inheritors) {
+  const b = String(p.batch || '?');
+  const x = byBatch[b] || (byBatch[b] = { total: 0, noCode: 0, noBirth: 0 });
+  x.total += 1;
+  if (!(p.code || '').trim()) x.noCode += 1;
+  if (!(p.birth || '').trim()) x.noBirth += 1;
+}
+
+const inheritorStats = {
+  total: inheritors.length,
+  projects: new Set(inheritors.map(p => p.projectId)).size,
+  categories: new Set(inheritors.map(p => p.projectCategory).filter(Boolean)).size,
+  withBirth,
+  withCode,
+  ethnicities: new Set(inheritors.map(p => p.ethnicity).filter(Boolean)).size,
+  byBatch,
+};
+await writeFile(join(DATA, 'inheritor-stats.json'),
+  `${JSON.stringify(inheritorStats, null, 2)}\n`, 'utf8');
+
+/* ---------------- 精选名单 ---------------- */
+
+const byId = new Map(projects.map(p => [String(p.id), p]));
+const featuredIds = [];
+const featuredMissed = [];
+for (const [id, name, category] of FEATURED) {
+  const p = byId.get(id);
+  if (!p) { featuredMissed.push(`${id}（名录中不存在）`); continue; }
+  if (p.name !== name) { featuredMissed.push(`${id} 期望「${name}」，实际「${p.name}」`); continue; }
+  if (category && p.category !== category) { featuredMissed.push(`${id} 门类期望「${category}」，实际「${p.category}」`); continue; }
+  if (!details[id]) { featuredMissed.push(`${id}「${name}」没有详情`); continue; }
+  featuredIds.push(id);
+}
+if (featuredMissed.length) {
+  console.error('\n✗ 精选名单校验未通过，请修正 scripts/split-details.mjs 的 FEATURED：');
+  for (const m of featuredMissed) console.error(`    ${m}`);
+  process.exit(1);
+}
+await writeFile(join(DATA, 'featured.json'),
+  `${JSON.stringify({ ids: featuredIds }, null, 2)}\n`, 'utf8');
+
+/* ---------------- 索引 ---------------- */
+
+const index = {
+  generatedAt: new Date().toISOString(),
+  source: detailsFile.source || '',
+  count: ids.length,
+  withIntro,
+  shardSize: SHARD_SIZE,
+  shardCount,
+  ids,
+};
+await writeFile(join(DATA, 'detail-index.json'),
+  `${JSON.stringify(index)}\n`, 'utf8');
+
+/* ---------------- 报告 ---------------- */
+
+const mb = n => (n / 1048576).toFixed(2);
+const shardBytes = sizes.reduce((s, x) => s + x.bytes, 0);
+const minShard = Math.min(...sizes.map(s => s.bytes));
+const maxShard = Math.max(...sizes.map(s => s.bytes));
+
+console.log('【详情分片】');
+console.log(`  名录 ${projects.length} 条 / 有详情 ${ids.length} 条${missing ? ` / 缺 ${missing} 条` : ''}`);
+console.log(`  其中有正文 ${withIntro} 条（${(withIntro / ids.length * 100).toFixed(1)}%）`);
+console.log(`  分片 ${shardCount} 片 × ${SHARD_SIZE} 条，单片 ${(minShard / 1024).toFixed(0)}–${(maxShard / 1024).toFixed(0)} KB，合计 ${mb(shardBytes)} MB`);
+console.log(`  传承人 ${inheritorStats.total} 位（${inheritorStats.projects} 个项目，有编号 ${withCode}、有出生日期 ${withBirth}）`);
+console.log(`  传承人索引 ${(Buffer.byteLength(inheritorJs) / 1024).toFixed(0)} KB`);
+console.log(`  精选馆藏 ${featuredIds.length} 项：${featuredIds.map(i => byId.get(i).name).join('、')}`);
+if (missing) console.log(`\n  ⚠️ 还有 ${missing} 条没有详情，先跑 node scripts/fetch-all-details.mjs`);

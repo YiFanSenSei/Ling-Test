@@ -6,7 +6,7 @@
  * 还必须有本站自己的组织：档案卡、传承人时间轴、技艺要点、相关项目。
  */
 
-import { getProjectDetail, getSiblings, getProjectVariants, getProjects, getDetails, esc, num, batchLabel, birthYear, categoryGlyph } from '../data.js';
+import { getProjectDetail, getSiblings, getProjectVariants, getProjects, getDetailCoverage, esc, num, batchLabel, birthYear, categoryGlyph } from '../data.js';
 import { categoryPattern } from '../components/ui.js';
 
 export async function ProjectPage(id) {
@@ -33,6 +33,11 @@ export async function ProjectPage(id) {
   /* ---- 传承人 ---- */
   // 每位传承人都链到本站自己的档案页——把人从「项目表格里的一行」
   // 变成「可以点进去的人」。linkId 由数据层按 项目id-序号 生成。
+  //
+  // ⚠️ 字段名以 scripts/lib/parse-detail.mjs 的解析结果为唯一依据：
+  //    民族是 ethnicity（不是 ethnic），申报地区是 declareUnit（不是 unit）。
+  //    早先这里写的是 p.ethnic / p.unit，两个都取不到值，于是 meta 行只剩编号——
+  //    页面看起来「正常」，实际是静默丢了两个字段。
   const inheritors = Array.isArray(detail.inheritors) ? detail.inheritors : [];
   const inheritorCards = inheritors.length ? `
     <ol class="inheritor-list">
@@ -47,8 +52,8 @@ export async function ProjectPage(id) {
             </div>
             <div class="inheritor-meta">
               ${p.code ? `<span class="inheritor-code">编号 ${esc(p.code)}</span>` : ''}
-              ${p.ethnic ? `<span>${esc(p.ethnic)}</span>` : ''}
-              ${p.unit ? `<span>${esc(p.unit)}</span>` : ''}
+              ${p.ethnicity ? `<span>${esc(p.ethnicity)}</span>` : ''}
+              ${p.declareUnit ? `<span>${esc(p.declareUnit)}</span>` : ''}
             </div>
           </div>
           <a class="inheritor-link" href="#/inheritor/${esc(detail.id)}-${i}">
@@ -77,9 +82,9 @@ export async function ProjectPage(id) {
    * 实测 3614 条记录归入 1557 个前缀——与官网公布的国家级代表性项目
    * 数目完全吻合，说明这条关联线索是真实的，不是巧合。
    *
-   * 为什么非做不可：全站 3614 条记录里只有 150 条抓到了官方正文，
-   * 评委从名录随手点开一张卡，96% 的概率落在一个「暂无介绍」的页面上。
-   * 有了这一节，那些页面至少能横向展开到同源的其他版本，不至于翻完就到底。
+   * 为什么非做不可：它让每个项目页都能横向展开到同源的其他申报地区，
+   * 而不是翻完就到底；对个别官方页面确实没有可转录正文的条目来说，
+   * 这一节更是页面上唯一的实质内容。
    */
   const { variants, prefix, baseName } = variantsInfo;
 
@@ -131,27 +136,34 @@ export async function ProjectPage(id) {
     ? intro.split(/\n+/).map(t => t.trim()).filter(Boolean)
     : [];
 
-  /* ---- 「暂无介绍」要说清原因 ----
+  /* ---- 「没有正文」有两种原因，不能混为一谈 ----
    *
-   * 全站 3614 条记录里只有 150 条抓到了官方正文，也就是说评委随手点开的
-   * 页有 96% 会看到这个提示。如果只写一句「暂未收录」，读起来像站点没做完；
-   * 说清覆盖率与原因，同一句话就从「缺内容」变成了「档案有边界」。
-   * 数字全部从数据派生，不写死（详情页扩到 300 条时这里会自动跟着变）。
+   * 1) detail.noDetail：分片没加载出来（离线文件缺失、注入被拦等）。
+   *    这是**故障**，该让读者刷新重试，而不是暗示「这条本来就没内容」。
+   * 2) 记录在、但 intro 为空：官网那一条确实没有可转录的介绍文字。
+   *
+   * 早先这两种情况共用一句话，而且写的是「不是抓取遗漏，而是官方公开页面
+   * 本身没有可转录的正文」——那句是在只抓了 151 个项目的情况下写下的，是错的。
+   * 覆盖率从数据派生，不写死。
    */
-  const [allProjects, allDetails] = await Promise.all([getProjects(), getDetails()]);
+  const [allProjects, coverage] = await Promise.all([getProjects(), getDetailCoverage()]);
   const totalRecords = (allProjects || []).length;
-  const detailedRecords = Object.keys((allDetails || {}).details || {}).length;
 
-  const emptyIntro = `
+  const emptyIntro = detail.noDetail
+    ? `
     <p class="project-text is-empty">
-      本站收录了全部 ${num(totalRecords)} 条国家级非遗代表性项目记录，
-      其中 ${num(detailedRecords)} 条转录了官方的项目介绍。这一条不在其中——
-      不是抓取遗漏，而是官方公开页面本身没有可转录的正文。
-    </p>
-    <p class="project-text is-empty">
-      可以看下方的<strong>同一项目的其他申报地区</strong>展开阅读，
+      这条记录的项目介绍没能加载出来。可以刷新重试，
       或到 <a href="https://www.ihchina.cn/project_details/${esc(detail.id)}.html"
         target="_blank" rel="noopener noreferrer">中国非物质文化遗产网原文 ↗</a> 核对。
+    </p>`
+    : `
+    <p class="project-text is-empty">
+      本站已收录全部 ${num(totalRecords)} 条国家级非遗代表性项目记录，
+      其中 ${num(coverage.withIntro)} 条转录了官方的项目介绍。这一条暂未转录到正文——
+      可点击下方链接到中国非物质文化遗产网核对原文。
+    </p>
+    <p class="project-text is-empty">
+      也可以看下方的<strong>同一项目的其他申报地区</strong>，横向展开阅读同源的版本。
     </p>`;
 
   /* ---- 相邻项目 ---- */

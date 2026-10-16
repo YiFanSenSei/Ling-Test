@@ -5,11 +5,14 @@
   "type": "module",
   "description": "匠作 — 非遗数字展馆与技艺互动体验（2026 武汉大学「零杯」网页设计大赛参赛作品）",
   "scripts": {
+    "predev": "node scripts/split-details.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/split-details.mjs",
     "build": "vite build",
     "preview": "vite preview --port 4173",
     "data": "node scripts/fetch-data.mjs && node scripts/fetch-details.mjs",
     "data:all": "node scripts/fetch-all-details.mjs",
+    "data:split": "node scripts/split-details.mjs",
     "data:coverage": "node scripts/coverage-report.mjs"
   },
   "devDependencies": {

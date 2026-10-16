@@ -66,18 +66,28 @@ for (const c of cats) {
   );
 }
 
-// 体积推算
+/* 体积（体积方案 B：详情切成按需加载的分片，不再全部内联进首屏）
+ *
+ * 这里刻意把「首屏」与「分片」分开报：
+ * 补录推进时增长的只有分片，首屏是恒定的——这正是选方案 B 的理由。
+ * 早期只报「单文件 HTML 预计 13.3 MB」，把这两件事混在一起，
+ * 于是每加一条详情都像是在把首屏撑大。
+ */
 const bytes = Buffer.byteLength(JSON.stringify(detailsFile), 'utf-8');
-if (withIntro.length) {
-  const perRecord = bytes / Object.keys(details).length;
-  const projected = perRecord * projects.length;
-  console.log(`\n【体积】`);
-  console.log(`  details.json 现值  ${(bytes / 1048576).toFixed(2)} MB（${num(Object.keys(details).length)} 条）`);
-  console.log(`  单条平均          ${(perRecord / 1024).toFixed(2)} KB`);
-  console.log(`  若全部录入        ≈ ${(projected / 1048576).toFixed(1)} MB（按当前单条均值线性外推）`);
-  const projectsJson = Buffer.byteLength(await readFile('public/data/projects.json'), 'utf-8');
-  console.log(`  单文件 HTML 预计  ≈ ${((projected + projectsJson) / 1048576 + 1.3).toFixed(1)} MB（含约 1.3 MB 代码与名录）`);
+const projectsBytes = Buffer.byteLength(await readFile('public/data/projects.json'), 'utf-8');
+const metaBytes = Buffer.byteLength(await readFile('public/data/meta.json'), 'utf-8');
+const shardCount = Math.ceil(projects.length / 200);
+
+console.log(`\n【体积（方案 B：详情分片按需加载）】`);
+console.log(`  details.json 现值    ${(bytes / 1048576).toFixed(2)} MB（${num(Object.keys(details).length)} 条，单条均 ${(bytes / Math.max(1, Object.keys(details).length) / 1024).toFixed(2)} KB）`);
+
+if (missing.length) {
+  const per = bytes / Math.max(1, Object.keys(details).length);
+  console.log(`  全量补录后预估      ≈ ${(per * projects.length / 1048576).toFixed(1)} MB`);
 }
+console.log(`  首屏 index.html      ≈ ${((projectsBytes + metaBytes) / 1048576 + 1.3).toFixed(2)} MB（与补录进度无关，恒定）`);
+console.log(`  分片合计             ≈ ${(bytes / 1048576).toFixed(1)} MB，${shardCount} 片 × 200 条（点进项目才注入）`);
+console.log(`  压缩包（zip）        ≈ ${(((bytes + projectsBytes + metaBytes) / 1048576) * 0.25).toFixed(1)} MB（按文本 4:1 粗估）`);
 
 if (missing.length) {
   console.log(`\n【尚未抓取的前 10 条】`);

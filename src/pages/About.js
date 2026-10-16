@@ -7,15 +7,14 @@
  * 第三方资源声明、无障碍与适配说明。
  */
 
-import { getMeta, getProjects, getDetails, getInheritorStats, projectCodePrefix, projectBaseName, num, esc } from '../data.js';
+import { getMeta, getProjects, getDetailCoverage, getInheritorStats, projectCodePrefix, projectBaseName, batchLabel, num, esc } from '../data.js';
 import { SectionTitle } from '../components/ui.js';
 
 export async function AboutPage() {
-  const [meta, projects, details, inhStats] = await Promise.all([
-    getMeta(), getProjects(), getDetails(), getInheritorStats(),
+  const [meta, projects, coverage, inhStats] = await Promise.all([
+    getMeta(), getProjects(), getDetailCoverage(), getInheritorStats(),
   ]);
   const official = meta.official || {};
-  const detailCount = Object.keys(details.details || {}).length;
 
   /* 编号前缀的分组统计。
    *
@@ -35,6 +34,20 @@ export async function AboutPage() {
   const multiRegionGroups = multiGroups.length;
   const multiRegionRecords = multiGroups.reduce((s, g) => s + g.length, 0);
   const largestGroup = [...prefixGroups.values()].reduce((a, b) => (b.length > a.length ? b : a), []);
+
+  /* 传承人字段整体留空的批次。
+   *
+   * 「空缺不是抓取遗漏」这句结论要能被数据支撑，所以这里现算：
+   * 哪些批次的编号与出生日期是**整体**未填写的（逐页核对过官网原文，
+   * 官网表格里那些格子确实是空的，不是我们解析漏了）。
+   * 数字不写死，数据更新时结论自动跟着变。
+   */
+  const blankBatches = Object.entries(inhStats.byBatch || {})
+    .filter(([, v]) => v.total > 0 && v.noCode === v.total && v.noBirth === v.total);
+  const blankBatchTotal = blankBatches.reduce((s, [, v]) => s + v.total, 0);
+  const blankBatchLabel = blankBatches
+    .map(([b]) => batchLabel(Number(b)) || `第 ${b} 批`)
+    .join('、');
 
   return `
   <section class="page-head">
@@ -64,8 +77,9 @@ export async function AboutPage() {
             全站内容取自中国非物质文化遗产网公开信息，共收录
             <strong>${num(projects.length)} 条</strong>按申报地区拆分的子项记录，
             覆盖十大门类、${num(meta.byRegion?.length || 34)} 个省级行政区与五批公布年表。
-            其中 <strong>${num(detailCount)} 个项目</strong>建立了完整详情页，
-            含官方项目介绍与国家级代表性传承人档案；
+            ${coverage.withIntro >= projects.length
+              ? '每一条都建有完整详情页，转录了官方的项目介绍与国家级代表性传承人档案；'
+              : `其中 <strong>${num(coverage.withIntro)} 条</strong>建有完整详情页，转录了官方的项目介绍与国家级代表性传承人档案；`}
             站内另为 <strong>${num(inhStats.total)} 位传承人</strong>建立了可检索、可逐人翻阅的独立档案页。
           </p>
           <p>
@@ -159,9 +173,10 @@ export async function AboutPage() {
               其中 ${num(inhStats.withCode)} 位有官方编号、${num(inhStats.withBirth)} 位有明确出生日期。
             </p>
             <p>
-              其余的空缺<strong>不是抓取遗漏</strong>：中国非物质文化遗产网在第五批（2021 年公布）
-              传承人的公开表格中，本身就没有标注编号与出生日期。本站照实留空并显示为「—」，
-              不作任何推测性填补——档案的价值在于可信，而不在于看起来完整。
+              其余的空缺<strong>不是抓取遗漏</strong>：中国非物质文化遗产网的公开表格本身就没有这些字段。
+              ${blankBatches.length ? `其中${blankBatchLabel}（共 ${num(blankBatchTotal)} 位）的编号与出生日期两栏整体未填写；` : ''}
+              其余批次也有部分行留空，多集中在出生日期一栏。
+              本站照实留空并显示为「—」，不作任何推测性填补——档案的价值在于可信，而不在于看起来完整。
             </p>
           </div>
         </article>
@@ -202,6 +217,7 @@ export async function AboutPage() {
           <ul class="about-specs">
             <li><span>界面规格</span><strong>1440 × 900</strong>（比赛要求三选一并标注，已在页面与页脚注明）</li>
             <li><span>路由方案</span><strong>Hash 路由</strong>（保证在 file:// 与任意静态托管下均可直接打开，无需服务器）</li>
+            <li><span>数据加载</span><strong>按需分片</strong>（名录与统计内联；${num(coverage.shardCount)} 片项目详情在打开对应项目时才注入，首屏不为其付费）</li>
             <li><span>图形实现</span><strong>内联 SVG + Canvas</strong>（纹样、印玺、技艺模拟器）</li>
             <li><span>字体</span><strong>系统字体栈</strong>（宋体 / 楷体优先，不下载外部字体，离线可用）</li>
             <li><span>适配</span><strong>响应式</strong>（1440 / 1920 桌面，以及 720 与移动端布局）</li>

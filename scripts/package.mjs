@@ -81,6 +81,16 @@ const FORBIDDEN = [
 const NAMES_OK_IN = new Set();
 
 
+/**
+ * 由 scripts/split-details.mjs 生成的构建中间产物。
+ *
+ * 它们的内容与 public/data/details.json 重复，且已经随成品放在包的 data/ 目录里，
+ * 因此不再往源码的 public/ 里塞一份——否则同样的 10 MB 会在压缩包里出现三遍。
+ * 需要它们时跑 pnpm dev / pnpm build 即可（predev / prebuild 会自动生成）。
+ */
+const GENERATED = /[\\/](detail-\d+\.js|detail-index\.json|featured\.json|inheritors\.js|inheritor-stats\.json)$/;
+
+
 function walk(dir, base = dir, acc = []) {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
@@ -98,18 +108,33 @@ function copyPayload(target) {
     if (!existsSync(src)) { console.warn(`  ! 跳过不存在的条目: ${item}`); continue; }
     cpSync(src, join(target, item), {
       recursive: true,
-      filter: (s) => !/node_modules|_shots|[\\/]dist[\\/]?$/.test(s),
+      filter: (s) => !/node_modules|_shots|[\\/]dist[\\/]?$/.test(s) && !GENERATED.test(s),
     });
   }
-  // 成品是构建好的**单文件** index.html（JS / CSS / 数据全部内联），
-  // 放在包的根目录，评委解压后双击即可，无需服务器、无需联网。
-  // 同时保留一份 dist/ 以满足「包含完整项目」的提交习惯。
+
+  /* 成品：dist/index.html + dist/data/（详情分片）。
+   *
+   * ⚠️ 从「单文件」改成「单文件 + 分片」之后，这里必须连 data 目录一起搬。
+   *    只搬 index.html 的话，评委双击后首页一切正常，一点进项目就空白——
+   *    而首页恰恰是最容易被顺手检查的一页，这个缺陷极难被发现。
+   *
+   * 布局：打开作品.html 放在包根目录，分片放在它旁边的 data/。
+   *    运行时用的是相对路径 ./data/detail-N.js，两者必须保持相邻。
+   *    不再另存一份 dist/index.html：那会让同样的数据在压缩包里出现两遍。
+   */
   const distIndex = join(ROOT, 'dist', 'index.html');
-  if (existsSync(distIndex)) {
-    mkdirSync(join(target, 'dist'), { recursive: true });
-    cpSync(distIndex, join(target, 'dist', 'index.html'));
-    cpSync(distIndex, join(target, '打开作品.html'));
+  if (!existsSync(distIndex)) {
+    console.warn('  ! dist/index.html 不存在——先跑 pnpm build');
+    return;
   }
+  cpSync(distIndex, join(target, '打开作品.html'));
+
+  const distData = join(ROOT, 'dist', 'data');
+  if (!existsSync(distData)) {
+    console.warn('  ! dist/data 不存在——详情分片没生成，先跑 node scripts/split-details.mjs');
+    return;
+  }
+  cpSync(distData, join(target, 'data'), { recursive: true });
 }
 
 function zip(srcDir, zipPath) {

@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import { readFileSync, writeFileSync, existsSync, rmSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, rmSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -12,11 +12,17 @@ import { join } from 'node:path';
  *    就只会看到加载动画，永远进不去。
  *
  *    解决办法是 build-single-file 插件：构建结束后把 JS / CSS 全部内联进 HTML，
- *    并把数据文件也内联为 JSON 脚本，最终 dist/ 只有一个自包含的 index.html。
+ *    并把名录、统计口径等**小**数据也内联为 JSON 脚本。
  *    没有跨源请求，双击必然可用，也方便直接邮件提交。
+ *
+ *    ⚠️ 详情数据（全量补录后约 10 MB）是个例外，它**不内联**，而是切成
+ *    dist/data/detail-N.js 分片，由运行时按需注入。依据同样是上面这条限制的
+ *    反面：file:// 禁止的是 type="module" 与 fetch，**普通 <script src> 仍然可用**。
+ *    所以分片能工作，首屏也不必为 10 MB 买单。分片由 scripts/split-details.mjs 生成。
  *
  *    验证时必须用**不带 --allow-file-access-from-files** 的真实浏览器，
  *    否则这个参数会掩盖问题（我最初就是被它骗过一次）。
+ *    分片路径同理：必须在真实 file:// 下验证，不能只看开发服务器。
  */
 function buildSingleFile() {
   return {
@@ -51,14 +57,20 @@ function buildSingleFile() {
         return '';
       });
 
-      // 3) 内联数据文件。
+      // 3) 内联「小」数据文件。
       //    ⚠️ 必须在「搬运脚本」之前做完，且数据只用 JSON.stringify 写成
       //    单行字面量。否则 JSON 里的任意文本会被后续的 <script> 正则误匹配，
       //    把整个文档切碎（曾导致脚本块里混进 <html>，页面直接语法错误白屏）。
+      //
+      //    ⚠️ 详情分片（detail-N.js）与传承人索引（inheritors.js）**刻意不内联**：
+      //    它们由运行时按需注入，必须留在 dist/data/ 里。
+      //    所以这里不能像早期那样把整个 data 目录删掉——早期只内联 180 条详情时
+      //    删掉无所谓，现在删了等于把全站详情一起删掉。
+      const INLINE_DATA = ['projects', 'meta', 'detail-index', 'featured', 'inheritor-stats'];
       const dataDir = join(dist, 'data');
       const inlined = {};
       if (existsSync(dataDir)) {
-        for (const name of ['projects', 'details', 'meta']) {
+        for (const name of INLINE_DATA) {
           const f = join(dataDir, `${name}.json`);
           if (!existsSync(f)) continue;
           // 重新序列化：确保单行、无 </script> 隐患、无换行被误判
@@ -66,7 +78,8 @@ function buildSingleFile() {
             .replace(/<\/script/gi, '<\\/script');
           rmSync(f, { force: true });
         }
-        rmSync(dataDir, { recursive: true, force: true });
+        // 原始语料 details.json 不进产物：它的内容已经切成 data/detail-N.js
+        rmSync(join(dataDir, 'details.json'), { force: true });
       }
 
       // 4) 组装：数据脚本在前、业务脚本在后，一起放在 </body> 之前。
@@ -91,8 +104,26 @@ function buildSingleFile() {
         throw new Error('单文件内联自检失败：脚本块中混入了 HTML，产物不可用');
       }
 
+      // 自检：分片必须真的落在产物里。漏了它页面能打开、首页也正常，
+      // 只有点进某个项目时才空白——这种缺陷靠肉眼翻首页是发现不了的。
+      const shardFiles = existsSync(dataDir)
+        ? readdirSync(dataDir).filter(f => /^detail-\d+\.js$/.test(f))
+        : [];
+      if (!shardFiles.length) {
+        throw new Error('构建产物里没有详情分片（dist/data/detail-*.js）：'
+          + '先跑 node scripts/split-details.mjs，否则项目详情页全部空白');
+      }
+
       const size = (readFileSync(htmlPath).length / 1024 / 1024).toFixed(2);
-      console.log(`\n  ✓ 已内联为单文件：dist/index.html（${size} MB，${blocks.length} 个脚本块，无任何外部依赖）`);
+      const shardBytes = shardFiles.reduce((s, f) => s + statSync(join(dataDir, f)).size, 0);
+      console.log(`\n  ✓ 首屏单文件：dist/index.html（${size} MB，${blocks.length} 个脚本块）`);
+      console.log(`  ✓ 详情分片：data/detail-*.js 共 ${shardFiles.length} 片，`
+        + `合计 ${(shardBytes / 1048576).toFixed(2)} MB（打开项目时按需注入，不占首屏）`);
+      if (existsSync(join(dataDir, 'inheritors.js'))) {
+        const inhSize = (statSync(join(dataDir, 'inheritors.js')).size / 1024).toFixed(0);
+        console.log(`  ✓ 传承人索引：data/inheritors.js（${inhSize} KB，传承人页按需注入）`);
+      }
+      console.log('  ✓ 双击 dist/index.html 即可离线浏览（file:// 下普通脚本可加载）');
     },
   };
 }

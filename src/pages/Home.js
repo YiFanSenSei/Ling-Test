@@ -188,7 +188,7 @@ export async function HomePage() {
   <!-- ══════════ 四、精选馆藏 ══════════ -->
   <section class="section">
     <div class="container">
-      ${SectionTitle({ num: '叁', title: '精选馆藏', sub: '以下项目已建立完整详情页，含项目介绍、历代传承人与官方档案编号。' })}
+      ${SectionTitle({ num: '叁', title: '精选馆藏', sub: '从名录里选出八件代表性项目——从织绣、陶瓷到民俗，每一件都有官方项目介绍与传承人档案。' })}
       <div class="card-grid">${featuredCards}</div>
       <div class="section-more">
         <a class="btn btn-ghost" href="#/gallery">查看全部 ${num(projects.length)} 条子项 →</a>

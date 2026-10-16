@@ -2,7 +2,8 @@
  * 项目详情页截图
  *
  * 重点拍「同一项目的其他申报地区」这一节：它覆盖全站 71% 的记录，
- * 但形态差异很大——苏绣只有 4 条，剪纸有 55 条，苗族古歌一条都没有。
+ * 但形态差异很大——苏绣只有 4 条，剪纸有 55 条，
+ * 另有 1045 个项目只申报过一次，整节不出现。
  * 三种形态都要看，不能只测最漂亮的那个。
  *
  * 静态截图只能证明「页面能看」，交互正确性由 file-full-test.mjs 负责。
@@ -134,13 +135,15 @@ async function main() {
   await gotoVariant('#/project/13924');
   await shoot('2-jianzhi-variants');
 
-  // 苗族古歌：无详情 + 无同组兄弟以外的内容，看空态文案
-  await send('Runtime.evaluate', { expression: `location.hash = '#/project/12178'` });
+  // 全量补录后每一条都有官方正文，早先那两个「无正文空态」用例已经没有对应记录，
+  // 改成拍「没有同组兄弟」的形态：1045 个只申报过一次的项目不出现这一节，
+  // 页面要能干净收尾，不能留一个空标题。
+  await send('Runtime.evaluate', { expression: `location.hash = '#/project/12180'` });
   await sleep(1500);
-  await shoot('3-no-detail-empty');
+  await shoot('3-no-variants');
 
-  // 苗族古歌整页（截图长图看整体结构）
-  await shoot('4-no-detail-full', { full: true });
+  // 布洛陀整页（截图长图看整体结构：有正文、无「其他申报地区」）
+  await shoot('4-project-full', { full: true });
 
   // 苏绣整页：详情页的完整形态
   await send('Runtime.evaluate', { expression: `location.hash = '#/project/13978'` });

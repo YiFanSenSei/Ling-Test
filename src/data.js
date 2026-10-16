@@ -3,7 +3,12 @@
  *
  * 数据来源：中国非物质文化遗产网（文化和旅游部主管）
  *   https://www.ihchina.cn
- * 抓取脚本：scripts/fetch-data.mjs / scripts/fetch-details.mjs
+ * 数据管道：scripts/fetch-data.mjs（名录）→ scripts/fetch-all-details.mjs（全量详情）
+ *          → scripts/split-details.mjs（切分片，构建前自动执行）
+ *
+ * 加载策略：名录与统计口径等小数据在构建时内联进页面；
+ *   项目详情与传承人索引体积大，改成按需注入的普通 <script> 分片。
+ *   原因见下方「项目详情：按需加载分片」一节。
  *
  * ⚠️ 数据口径说明（「关于」页需向评委交代，体现严谨性）：
  *    projects.json 的 3614 条是「按申报地区拆分的子项记录」，
@@ -24,8 +29,9 @@ const cache = new Map();
  * 这一步不是优化，而是为了让作品在 **file:// 协议下也能运行**：
  * Chrome 禁止本地文件页面发起 fetch 读取同目录 JSON（跨源策略，origin 为 null），
  * 所以「外链 JSON + 本地双击」的组合必定加载失败、只停在加载动画上。
- * 构建脚本 build-single-file 会把三个数据文件内联进来，
- * 这里的 fetch 分支仅作为开发服务器（http://localhost）下的回退。
+ * 构建脚本 build-single-file 会把**小数据文件**（名录、统计口径、覆盖率索引、
+ * 策展名单）内联进来；这里的 fetch 分支仅作为开发服务器（http://localhost）下的回退。
+ * 体积大的详情与传承人索引不走这条路，见下方「项目详情：按需加载分片」。
  */
 async function loadJSON(name) {
   if (cache.has(name)) return cache.get(name);
@@ -50,16 +56,78 @@ async function loadJSON(name) {
 
 export const getMeta = () => loadJSON('meta');
 export const getProjects = () => loadJSON('projects');
-export const getDetails = () => loadJSON('details');
+export const getFeaturedIds = () => loadJSON('featured');
+export const getInheritorStatsFile = () => loadJSON('inheritor-stats');
+
+/* ---------------- 项目详情：按需加载分片 ----------------
+ *
+ * 全量补录后详情约 10 MB。评委从名录随手点开的只是其中一条，
+ * 为一条记录付 10 MB 不划算，所以详情被切成若干分片（见 scripts/split-details.mjs），
+ * 点进某个项目时才注入它所在的那一片。
+ *
+ * ⚠️ 为什么用 <script> 注入而不是 fetch：
+ *    Chrome 禁止 file:// 页面 fetch 同目录文件（origin 为 null），
+ *    但**允许**普通 <script src>——受限的只有 type="module"。
+ *    分片因此写成「向 window.__JZ_DETAILS__ 挂数据」的普通脚本。
+ *    这是「双击 index.html 即用」能不能保住的关键，不要改成 fetch 或 import()。
+ */
+
+let _shardIndex = null;
+const _shardPromises = new Map();
+
+/** 分片索引：覆盖率、分片参数、按名录顺序排列的 id 列表（体积很小，随构建内联） */
+export async function getDetailIndex() {
+  if (!_shardIndex) _shardIndex = await loadJSON('detail-index');
+  return _shardIndex;
+}
+
+/** 详情覆盖率——「关于」页与项目页用它陈述事实，不写死数字 */
+export async function getDetailCoverage() {
+  const idx = await getDetailIndex();
+  return {
+    total: idx.count,
+    withIntro: idx.withIntro,
+    shardCount: idx.shardCount,
+    shardSize: idx.shardSize,
+  };
+}
+
+/** 注入第 k 片（同一片并发只注入一次） */
+function loadShard(k) {
+  if (_shardPromises.has(k)) return _shardPromises.get(k);
+  const p = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = `${DATA_BASE}/detail-${k}.js`;
+    s.onload = () => resolve();
+    s.onerror = () => {
+      _shardPromises.delete(k);
+      reject(new Error(`详情分片加载失败：detail-${k}.js`));
+    };
+    document.head.appendChild(s);
+  });
+  _shardPromises.set(k, p);
+  return p;
+}
 
 /** 按 id 取单个项目的完整详情（含正文与传承人） */
 export async function getProjectDetail(id) {
-  const [details, projects] = await Promise.all([getDetails(), getProjects()]);
   const key = String(id);
-  const detail = details.details[key];
-  if (detail) return detail;
+  const idx = await getDetailIndex();
+  const pos = idx.ids.indexOf(key);
+
+  if (pos >= 0) {
+    try {
+      await loadShard(Math.floor(pos / idx.shardSize));
+      const detail = window.__JZ_DETAILS__ && window.__JZ_DETAILS__[key];
+      if (detail) return detail;
+    } catch (err) {
+      // 分片没拿到不该让整页崩掉：退到档案卡形态，页面仍然可读
+      console.warn(err.message);
+    }
+  }
+
   // 降级：仅在列表数据里（无正文），仍可展示基础信息
-  const base = projects.find(p => p.id === key);
+  const base = (await getProjects()).find(p => p.id === key);
   return base ? { ...base, intro: '', inheritors: [], noDetail: true } : null;
 }
 
@@ -229,33 +297,34 @@ export async function queryProjects({
   };
 }
 
-/** 取若干「精选」项目用于首页——优先有详情的 */
+/**
+ * 首页「精选馆藏」的策展名单。
+ *
+ * 名单在 scripts/split-details.mjs 里显式点名，并按项目名与门类做校验。
+ * 之前是「有详情的项目里按插入顺序取前八」——补录前只有 151 个策展级项目
+ * 有详情，实际取到的是「苏绣 ×4 + 苗族古歌 ×2」，四个苏绣变体占掉一半版面，
+ * 另两条还是同一项目的不同申报地区。补录后全部记录都有详情，这个取法只会更糟。
+ *
+ * 这里只从名录数据取卡片所需字段，不需要加载任何详情分片。
+ */
 export async function getFeatured() {
-  const [details, projects] = await Promise.all([getDetails(), getProjects()]);
-  const ids = Object.keys(details.details);
-  const featured = ids.map(id => {
-    const d = details.details[id];
-    const base = projects.find(p => p.id === id);
-    return { ...base, ...d };
-  });
-  // 苏绣放首位——它是模拟器主题材
-  featured.sort((a, b) => {
-    const rank = n => (n.includes('苏绣') ? 0 : n.includes('宣纸') ? 1 : n.includes('香山帮') ? 2 : 3);
-    return rank(a.name) - rank(b.name);
-  });
-  return featured;
+  const [projects, feat] = await Promise.all([getProjects(), getFeaturedIds()]);
+  const byId = new Map(projects.map(p => [String(p.id), p]));
+  return (feat.ids || []).map(id => byId.get(String(id))).filter(Boolean);
 }
 
-/** 相邻项目导航（详情页「上一件 / 下一件」） */
+/**
+ * 相邻项目导航（详情页「上一件 / 下一件」）。
+ *
+ * 顺序取官方名录顺序（projects.json 的排列），而不是「已抓到的详情」的顺序——
+ * 后者会随补录进度变化，同一页面的上/下一件会在两次构建之间跳来跳去。
+ */
 export async function getSiblings(id) {
-  const details = await getDetails();
-  const ids = Object.keys(details.details);
-  const idx = ids.indexOf(String(id));
+  const projects = await getProjects();
+  const idx = projects.findIndex(p => String(p.id) === String(id));
   if (idx === -1) return { prev: null, next: null };
-  return {
-    prev: idx > 0 ? details.details[ids[idx - 1]] : null,
-    next: idx < ids.length - 1 ? details.details[ids[idx + 1]] : null,
-  };
+  const brief = p => (p ? { id: p.id, name: p.name, category: p.category } : null);
+  return { prev: brief(projects[idx - 1]), next: brief(projects[idx + 1]) };
 }
 
 /* ---------------- 同一项目的各地区版本 ---------------- */
@@ -278,14 +347,14 @@ export const projectBaseName = name => String(name || '').replace(/[（(].*?[)�
 /**
  * 找出同一项目的其他申报地区版本。
  *
- * 为什么值得做：本站收录 3614 条记录，但只有 150 条抓到了官方正文。
- * 换句话说，评委从名录里随手点开一张卡，有 96% 的概率落在一个
- * 只有一句话的页面上。而编号前缀恰好给出了一条**真实**的关联线索——
+ * 为什么值得做：编号前缀给出了一条**真实**的关联线索——
  * 3614 条记录归入 1557 个前缀，与官网公布的国家级代表性项目数目
  * （1557 个）完全吻合，说明前缀就是项目身份，不是巧合。
  *
  * 512 个项目有多个申报地区，覆盖 2569 条记录；剪纸最多，56 条。
  * 有了它，每个项目页都能横向展开到同源的其他版本，而不是翻完就到底。
+ * （全量补录前它几乎是每个项目页唯一的实质内容；补录后正文补齐了，
+ *   但这一节仍然是本站自己组织的关联，不是官网给的栏目。）
  */
 let _prefixIndex = null;
 export async function getProjectVariants(project) {
@@ -316,48 +385,49 @@ export async function getProjectVariants(project) {
 /* ---------------- 传承人 ---------------- */
 
 /**
- * 传承人索引（惰性构建，只建一次）。
+ * 传承人索引（按需加载，只加载一次）。
  *
- * 为什么要单独建索引而不是每次遍历 details：
- *    379 条记录分散在 150 个项目的表格里，检索时逐项目遍历是 O(项目数 × 传承人数)。
- *    建一次扁平索引后，检索与排序都是 O(传承人数)。
+ * 索引由 scripts/split-details.mjs 在构建前从全部详情里扁平化生成。
+ * 不这么做的代价：传承人分散在数千个项目的表格里，运行时逐项目遍历是
+ * O(项目数 × 传承人数)，而且会强迫首页与传承人页加载全部详情分片。
+ * 扁平化之后检索与排序都是 O(传承人数)。
+ *
+ * ⚠️ 索引里的 id 是「项目内序号」拼成的 `<项目id>-<序号>`，
+ *    必须与项目详情页拼出的链接规则完全一致——两端由同一个脚本生成，
+ *    改这里等于同时改链接的两端。
  *
  * ⚠️ 数据里有一部分「第五批（2021）」传承人没有编号、没有出生日期
  *    （官网原表如此，不是解析错误）。索引照实保留空值，
  *    展示层负责降级——不要用假数据填补，那等于伪造档案。
  */
 let _inheritorIndex = null;
-export async function getInheritors() {
+let _inheritorPromise = null;
+
+async function loadInheritors() {
   if (_inheritorIndex) return _inheritorIndex;
-  const details = await getDetails();
-  const list = [];
-  const seen = new Set();
-  for (const proj of Object.values(details.details)) {
-    // ⚠️ id 必须用「项目内序号」而不是全局序号。
-    //    项目详情页要在渲染时直接拼出 `#/inheritor/项目id-序号` 的链接，
-    //    如果这里用全局自增序号，两边对不上，所有链接都会指向错误的人。
-    let n = 0;
-    for (const p of proj.inheritors || []) {
-      const key = `${p.code || 'x'}|${p.name}|${proj.id}`;
-      const idx = n;
-      n += 1;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      list.push({
-        ...p,
-        id: `${proj.id}-${idx}`,
-        projectId: String(proj.id),
-        projectTitle: proj.name,
-        projectCategory: proj.category,
-        projectNo: proj.projectNo,
-        batch: proj.batch,
-        province: proj.province,
+  if (!_inheritorPromise) {
+    _inheritorPromise = (async () => {
+      const inline = typeof window !== 'undefined' && window.__JZ_DATA__ && window.__JZ_DATA__.inheritors;
+      if (inline) return inline;
+      // 与详情分片同理：普通 <script> 注入，file:// 下也能用
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = `${DATA_BASE}/inheritors.js`;
+        s.onload = () => resolve();
+        s.onerror = () => {
+          _inheritorPromise = null;
+          reject(new Error('传承人索引加载失败：inheritors.js'));
+        };
+        document.head.appendChild(s);
       });
-    }
+      return window.__JZ_INHERITORS__ || [];
+    })();
   }
-  _inheritorIndex = list;
-  return list;
+  _inheritorIndex = await _inheritorPromise;
+  return _inheritorIndex;
 }
+
+export const getInheritors = loadInheritors;
 
 /**
  * 传承人检索。
@@ -447,22 +517,15 @@ export async function getInheritorSiblings(inheritor) {
   };
 }
 
-/** 统计：有多少传承人、覆盖多少项目、多少门类 */
+/**
+ * 统计：有多少传承人、覆盖多少项目、多少门类。
+ *
+ * 走构建期算好的小文件（inheritor-stats.json），不加载传承人索引本身——
+ * 首页只要一个数字，不该为此拉几百 KB 的索引。
+ * 口径与 scripts/split-details.mjs 里生成索引时的那一段完全一致。
+ */
 export async function getInheritorStats() {
-  const list = await getInheritors();
-  const projects = new Set(list.map(p => p.projectId));
-  const categories = new Set(list.map(p => p.projectCategory).filter(Boolean));
-  const withBirth = list.filter(p => p.birth).length;
-  const withCode = list.filter(p => p.code).length;
-  const ethnicities = new Set(list.map(p => p.ethnicity).filter(Boolean));
-  return {
-    total: list.length,
-    projects: projects.size,
-    categories: categories.size,
-    withBirth,
-    withCode,
-    ethnicities: ethnicities.size,
-  };
+  return getInheritorStatsFile();
 }
 
 /* ---------------- 格式化工具 ---------------- */

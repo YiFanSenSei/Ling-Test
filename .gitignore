@@ -2,6 +2,15 @@
 node_modules/
 dist/
 
+# 由 scripts/split-details.mjs 从 details.json 生成的详情分片与小索引。
+# 它们是构建中间产物（内容与 details.json 重复），不入库；
+# pnpm dev / pnpm build 前会自动重新生成（见 package.json 的 predev / prebuild）。
+public/data/detail-*.js
+public/data/detail-index.json
+public/data/featured.json
+public/data/inheritors.js
+public/data/inheritor-stats.json
+
 # 本机测试截图（数十 MB，且含本机渲染结果）
 _shots/
 
