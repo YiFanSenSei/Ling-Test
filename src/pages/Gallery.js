@@ -43,7 +43,22 @@ export async function GalleryPage() {
 
   const categories = ['民间文学','传统音乐','传统舞蹈','传统戏剧','曲艺',
                       '传统体育、游艺与杂技','传统美术','传统技艺','传统医药','民俗'];
-  const regions = (meta.byRegion || []).map(r => r.region);
+  /*
+   * 地区筛选项：33 个省级行政区 + 「中直单位及机构」。
+   *
+   * 中直类必须在这里也有，否则京剧、昆曲、古琴艺术、格萨（斯）尔这 78 个
+   * 由中国艺术研究院等单位申报的项目，就只存在于「全部」和关键词搜索里，
+   * 按地区一路筛下去永远见不到——而首页明明写着它们单列成一项。
+   *
+   * 排序上把它压到最后：它不是行政区，混在省份中间读起来别扭。
+   * 按 count 降序排省份，中直不在其中独立成末位。
+   */
+  const allRegions = (meta.byRegion || []);
+  const regions = allRegions
+    .filter(r => r.region !== '中直单位及机构')
+    .sort((a, b) => b.count - a.count)
+    .map(r => r.region);
+  if (allRegions.some(r => r.region === '中直单位及机构')) regions.push('中直单位及机构');
 
   const hasFilter = q || category || region || batch;
 
@@ -142,7 +157,7 @@ export async function GalleryPage() {
       ${SectionTitle({
         num: '贰',
         title: '非遗名录',
-        sub: `收录国家级非物质文化遗产代表性项目按申报地区拆分的 ${num(result.total)} 条子项记录，可按门类、批次、地区检索。`,
+        sub: `收录国家级非物质文化遗产代表性项目按申报地区拆分的 ${num(meta.heritageCount || 0)} 条子项记录，可按门类、批次、地区检索。`,
       })}
     </div>
   </section>

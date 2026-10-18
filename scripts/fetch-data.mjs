@@ -284,9 +284,21 @@ async function main() {
   for (const r of heritage) {
     provinceCount[r.region] = (provinceCount[r.region] || 0) + 1;
   }
-  // 省份排行：按归一化后的省级行政区，用于「地域分布」可视化
+  /*
+   * 地区分布：**保留全部 34 项，含「中直单位及机构」**。
+   *
+   * 这里原本写着 .filter(([k]) => k !== '中直单位及机构')，用意只是让首页
+   * 「地域分布 Top 12」的柱状图不出现中直类的长条。但这个数组同时被
+   * Gallery.js 当成**地区筛选选项的唯一来源**，于是那行过滤顺带把
+   * 「中直单位及机构」从筛选里删掉了——京剧、昆曲、古琴艺术、格萨（斯）尔
+   * 这 78 个项目，就此无法按地区筛出，只能靠关键词碰运气。
+   * 首页又恰好写着「机构类申报单位单列为『中直单位及机构』，共 78 条」，
+   * 等于承诺了却做不到。
+   *
+   * 一个数据被两种用途共用时，滤条件要写在**用它的地方**，不能写在产它的地方。
+   * 所以这里不再过滤，改由 Home.js 在画柱状图时自己排除中直项。
+   */
   const byRegion = Object.entries(provinceCount)
-    .filter(([k]) => k !== '中直单位及机构')
     .sort((a, b) => b[1] - a[1])
     .map(([region, count]) => ({ region, count }));
   const institutionCount = provinceCount['中直单位及机构'] || 0;

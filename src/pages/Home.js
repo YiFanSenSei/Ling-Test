@@ -55,9 +55,19 @@ export async function HomePage() {
       <span class="tl-count">${num(byBatch[b] || 0)} 项</span>
     </li>`).join('');
 
-  /* ---- 地域分布 Top 12 ---- */
-  const maxRegion = byRegion[0]?.count || 1;
-  const regionBars = byRegion.slice(0, 12).map(r => `
+  /* ---- 地域分布 Top 12 ----
+   * 柱状图只画省级行政区：中直单位及机构（78 条）不属于任何省，
+   * 混进来会挤掉一个省份的展示位。它在下方 data-note 里单独说明。
+   *
+   * 注意过滤写在这里、不写在 fetch-data.mjs 产 byRegion 的地方。
+   * 那份数据同时是名录页地区筛选的选项来源，在源头过滤会连带把
+   * 中直类从筛选里删掉，京剧昆曲古琴艺术就再也筛不出来了。
+   */
+  const regionSorted = byRegion
+    .filter(r => r.region !== '中直单位及机构')
+    .sort((a, b) => b.count - a.count);
+  const maxRegion = regionSorted[0]?.count || 1;
+  const regionBars = regionSorted.slice(0, 12).map(r => `
     <li class="region-row">
       <span class="region-name">${esc(r.region)}</span>
       <span class="region-bar" aria-hidden="true">
