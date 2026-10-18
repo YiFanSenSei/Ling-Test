@@ -54,11 +54,25 @@ export async function GalleryPage() {
    * 按 count 降序排省份，中直不在其中独立成末位。
    */
   const allRegions = (meta.byRegion || []);
-  const regions = allRegions
+  const regionList = allRegions
     .filter(r => r.region !== '中直单位及机构')
     .sort((a, b) => b.count - a.count)
     .map(r => r.region);
-  if (allRegions.some(r => r.region === '中直单位及机构')) regions.push('中直单位及机构');
+  if (allRegions.some(r => r.region === '中直单位及机构')) regionList.push('中直单位及机构');
+
+  /*
+   * 地区有 34 项，全铺开要占三行、把结果往下顶掉大半屏。
+   * 默认只露前 12 行（含「全部」共 13 个 chip），其余折进「展开全部」。
+   *
+   * ⚠️ 不能因为「折叠着」就把选中项藏起来——如果用户带着 region 参数进来的，
+   *    或者选了排在后半段的省份，折叠区里看不到自己选了什么，
+   *    会以为筛选没生效。所以已选中的那个永远露在外面。
+   */
+  const REGION_VISIBLE = 12;
+  const regionTail = regionList.slice(REGION_VISIBLE);
+  const regionHead = regionList.slice(0, REGION_VISIBLE);
+  const regionCollapsed = !region && regionTail.length > 0;
+  const regionHiddenCount = regionTail.length;
 
   const hasFilter = q || category || region || batch;
 
@@ -117,12 +131,22 @@ export async function GalleryPage() {
 
     <div class="filter-row">
       <span class="filter-label">地区</span>
-      <div class="filter-chips">
+      <div class="filter-chips filter-chips--region ${regionCollapsed ? 'is-collapsed' : ''}"
+           id="region-chips" data-collapsed="${regionCollapsed ? '1' : '0'}">
         <a class="tag tag-btn ${!region ? 'is-active' : ''}"
            href="#${buildPath({ q, category, batch })}">全部</a>
-        ${regions.map(r => `
+        ${regionHead.map(r => `
           <a class="tag tag-btn ${region === r ? 'is-active' : ''}"
              href="#${buildPath({ q, category, region: r, batch })}">${esc(r)}</a>`).join('')}
+        ${regionTail.map(r => `
+          <a class="tag tag-btn tag-btn--extra ${region === r ? 'is-active' : ''}"
+             href="#${buildPath({ q, category, region: r, batch })}">${esc(r)}</a>`).join('')}
+        ${regionTail.length ? `
+          <button class="filter-more" type="button" id="region-more"
+                  aria-expanded="false" aria-controls="region-chips">
+            <span class="filter-more-label">展开全部</span>
+            <span class="filter-more-count">+${regionHiddenCount}</span>
+          </button>` : ''}
       </div>
     </div>
 
@@ -192,22 +216,100 @@ export async function GalleryPage() {
 export function initGallery() {
   const form = document.getElementById('gallery-filters');
   if (!form) return undefined;
+  const cleanups = [];
+
   const input = form.querySelector('#f-q');
-  if (!input) return undefined;
 
-  const onSubmit = e => {
-    e.preventDefault();
-    const params = parseQuery();
-    const next = {};
-    if (input.value.trim()) next.q = input.value.trim();
-    if (params.category) next.category = params.category;
-    if (params.region) next.region = params.region;
-    if (params.batch) next.batch = params.batch;
-    // 改关键词应当从第 1 页重新开始，而不是沿用旧页码——
-    // 否则在第 5 页改搜索词会停在一个可能并不存在的结果页上。
-    navigate(buildPath(next));
-  };
+  /*
+   * ---- 输入即搜（防抖 420ms）----
+   *
+   * 原本只有按回车或点「查」才跳转，输入框里打了半天没反应，
+   * 属于「有操作障碍」那一档的观感。这里补上防抖实时搜索。
+   *
+   * 三条克制：
+   *   · 至少 2 个字才触发——单字查询命中面太大，边打边跳只会让人眼晕；
+   *   · 值没变就不跳（避免左右移动光标也触发路由重渲染）；
+   *   · 正在输入法组字（composing）时不触发，否则拼音打一半就会搜「sux」。
+   *
+   * 回车仍然走 submit，二者用 _lastQ 对齐，避免重复跳转。
+   */
+  if (input) {
+    let timer = null;
+    let composing = false;
+    let lastQ = (parseQuery().q || '').trim();
 
-  form.addEventListener('submit', onSubmit);
-  return () => form.removeEventListener('submit', onSubmit);
+    const buildNext = keyword => {
+      const params = parseQuery();
+      const next = {};
+      if (keyword) next.q = keyword;
+      if (params.category) next.category = params.category;
+      if (params.region) next.region = params.region;
+      if (params.batch) next.batch = params.batch;
+      // 改关键词应当从第 1 页重新开始，而不是沿用旧页码——
+      // 否则在第 5 页改搜索词会停在一个可能并不存在的结果页上。
+      return next;
+    };
+
+    const debounced = () => {
+      const keyword = input.value.trim();
+      if (keyword === lastQ) return;
+      if (keyword.length === 1) return;   // 单字不触发，等第二个字或回车
+      lastQ = keyword;
+      navigate(buildPath(buildNext(keyword)));
+    };
+
+    const onInput = () => {
+      if (composing) return;
+      clearTimeout(timer);
+      timer = setTimeout(debounced, 420);
+    };
+    const onCompositionStart = () => { composing = true; };
+    const onCompositionEnd = () => {
+      composing = false;
+      clearTimeout(timer);
+      timer = setTimeout(debounced, 420);
+    };
+
+    input.addEventListener('input', onInput);
+    input.addEventListener('compositionstart', onCompositionStart);
+    input.addEventListener('compositionend', onCompositionEnd);
+    cleanups.push(() => {
+      clearTimeout(timer);
+      input.removeEventListener('input', onInput);
+      input.removeEventListener('compositionstart', onCompositionStart);
+      input.removeEventListener('compositionend', onCompositionEnd);
+    });
+
+    const onSubmit = e => {
+      e.preventDefault();
+      clearTimeout(timer);
+      lastQ = input.value.trim();
+      navigate(buildPath(buildNext(lastQ)));
+    };
+    form.addEventListener('submit', onSubmit);
+    cleanups.push(() => form.removeEventListener('submit', onSubmit));
+  }
+
+  /*
+   * ---- 地区折叠区 ----
+   *
+   * 折叠只发生在首屏渲染前（服务端式地由模板决定 is-collapsed），
+   * 这里只负责「展开 / 收起」这一下。不做动画入场——
+   * 34 个 chip 同时出现时，逐个淡入反而像卡了。
+   */
+  const regionBox = document.getElementById('region-chips');
+  const regionMore = document.getElementById('region-more');
+  if (regionBox && regionMore) {
+    const label = regionMore.querySelector('.filter-more-label');
+    const onToggleRegion = () => {
+      const open = regionBox.classList.toggle('is-collapsed') === false;
+      regionMore.setAttribute('aria-expanded', String(open));
+      if (label) label.textContent = open ? '收起' : '展开全部';
+    };
+    regionMore.addEventListener('click', onToggleRegion);
+    cleanups.push(() => regionMore.removeEventListener('click', onToggleRegion));
+  }
+
+  if (!cleanups.length) return undefined;
+  return () => { for (const fn of cleanups) fn(); };
 }

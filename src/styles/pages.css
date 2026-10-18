@@ -6,9 +6,63 @@
 
 /* 通用：页面头（带面包屑的页首区） */
 .page-head {
-  padding-top: var(--sp-6);
+  padding: var(--sp-7) 0 var(--sp-6);
   background: var(--paper);
+  border-bottom: 1px solid var(--rule);
 }
+
+/*
+ * ⚠️ 下面这几条曾经根本不存在，后果比「不好看」严重得多。
+ *
+ * 传承人页（Inheritors.js）、年龄结构页（Ages.js）用的是
+ * .page-idx / .page-title / .page-lede 这一套手写页头，
+ * 而它们在整个 src/styles/ 里一条规则都没有。
+ * 于是这两页的 h1 退回浏览器默认的 32px 粗黑体，
+ * 序号「叁」是一个 12px 的裸字挤在标题左边——
+ * 和首页、名录、技艺、关于那种宋体排印完全不是一个站点。
+ *
+ * 这类错误静态截图里看得出来，但所有测试都是绿的：
+ * 断言查的是 textContent，而文字一直都在，只是没穿衣服。
+ * 以后再动页面头，务必连视觉一起截一张。
+ */
+.page-idx {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--ls-wider);
+  color: var(--cinnabar);
+  opacity: 0.62;
+  margin-bottom: var(--sp-3);
+}
+
+.page-title {
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 4.4vw, 3.25rem);
+  font-weight: 500;
+  line-height: 1.16;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+
+.page-lede {
+  max-width: var(--maxw-text);
+  margin-top: var(--sp-4);
+  font-size: var(--fs-md);
+  line-height: var(--lh-loose);
+  color: var(--ink-soft);
+}
+
+/* 页头里的段落不要继承 h1 旁边的大行高 */
+.page-head p { line-height: var(--lh-normal); }
+.page-head .page-lede { line-height: var(--lh-loose); }
+
+/*
+ * ⚠️ 加粗词把行高撑大，会把首行挤成只剩一个字。
+ * 关于页「…就是這一代人…」里的 <strong> 没限定字号，
+ * 落在一段 18px 正文里时按自己的行高排版，首行只装得下一个「這」。
+ * 行内强调就该继承所在环境的字号与行高。
+ */
+strong { font-size: inherit; line-height: inherit; }
 
 .breadcrumb {
   display: flex;
@@ -36,7 +90,29 @@
    ========================================================================== */
 .hero {
   position: relative;
-  padding: clamp(48px, 8vh, 96px) 0 clamp(40px, 6vh, 72px);
+  /*
+   * 屏幕上要「正好一屏」。
+   *
+   * 用 100vh 减去页头高度（--header-h，定义在 tokens.css，
+   * 与 .header-inner 的 min-height 保持一致），让首屏底边刚好压在折线上，
+   * 而不是留出一大片空白、把「向下」提示悬在中间。
+   * 内容本身不够高时（矮屏）用 min-height，允许被撑开。
+   * svh 是给移动端地址栏收放用的，不支持时回落到 vh。
+   */
+  min-height: calc(100vh - var(--header-h));
+  min-height: calc(100svh - var(--header-h));
+  /*
+   * ⚠️ 必须是 column。
+   *    .hero 有两个直接子元素：.container.hero-inner 与 .hero-scroll。
+   *    一开始写的是 align-items: center（隐含 flex-direction: row），
+   *    结果「向下」提示被摆到了 .container 的右边，
+   *    在 1440 下贴着屏幕右边缘、只剩半截，像页面被裁了一刀。
+   *    改成列方向后，「向下」自然落在正文下方，再各自居中。
+   */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: clamp(40px, 6vh, 80px) 0 clamp(32px, 5vh, 64px);
   overflow: hidden;
 }
 
@@ -45,6 +121,10 @@
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
   gap: var(--sp-9);
   align-items: center;
+  /* flex 子项默认 min-width:auto，栅格会被内容撑破，显式收成 0 才能正常压缩 */
+  width: 100%;
+  min-width: 0;
+  margin-inline: auto;
 }
 
 .hero-copy { max-width: 46rem; }
@@ -140,18 +220,30 @@
 
 /* 右侧：印章 + 圆形纹样。
    这里的尺寸必须被显式约束，否则内联 SVG 会撑满整个栅格列。 */
+/*
+ * 印章与纹样环的构图。
+ *
+ * ⚠️ 印章原本是 position: absolute; top: 4%; left: 0，
+ *    挂在 .hero-visual 的左上角，而纹样环是 place-items: center 居中的。
+ *    1440 下两者勉强叠在一起，一到 1920（内容框放宽到 1440），
+ *    .hero-visual 变宽，印章被甩到环的左侧一百多像素之外，
+ *    竖排的「匠/作」孤零零悬在空白里，像两个掉下来的图钉。
+ *
+ * 改成：整个视觉区作为一个整体居中，印章与环用同一套相对定位叠放，
+ * 不再各自为政。这样任何宽度下二者的相对关系都是固定的。
+ */
 .hero-visual {
   position: relative;
   display: grid;
   place-items: center;
-  justify-items: center;
   min-height: 260px;
 }
 
 .seal-stack {
   position: absolute;
-  top: 4%;
-  left: 0;
+  /* 压在纹样环的左上方，与环的 10 点方向相交 */
+  top: calc(50% - min(24vw, 190px));
+  left: calc(50% - min(24vw, 190px));
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -186,22 +278,39 @@
   opacity: 0.5;
 }
 
-/* 向下滚动提示 */
-.hero-scroll {
+/*
+ * 画布拿到键盘焦点时的描边。
+ *
+ * tabindex="0" 让画布进入 Tab 顺序，但浏览器默认焦点圈在 canvas 上是
+ * 一圈细细的黑色虚线，在纸底上几乎看不出重点落在哪。
+ * 这里换成 2px 朱砂 + 一点偏移，跟全站其他 focus-visible 一致。
+ */
+.sim-canvas-wrap canvas:focus-visible {
+  outline: 2px solid var(--cinnabar);
+  outline-offset: 3px;
+}
+
+/* 向下滚动提示 */.hero-scroll {
   display: flex;
   flex-direction: column;
   align-items: center;
+  /*
+   * 它是 .hero 的 flex 子项（.hero 是 column 方向），
+   * 默认 align-items 是 stretch，得显式居中，否则会横着铺满。
+   */
+  align-self: center;
   gap: var(--sp-2);
   margin-top: var(--sp-8);
   font-size: var(--fs-xs);
   letter-spacing: 0.3em;
-  color: var(--ink-ghost);
+  /* 「向下」是有信息量的提示，不该用装饰色。2.0:1 的极淡色读不出来。 */
+  color: var(--ink-faint);
 }
 
 .scroll-line {
   width: 1px;
   height: 40px;
-  background: linear-gradient(var(--ink-ghost), transparent);
+  background: linear-gradient(var(--ink-faint), transparent);
   animation: scrollHint 2.4s var(--ease) infinite;
 }
 
@@ -210,6 +319,21 @@
   45%  { transform: scaleY(1); transform-origin: top; }
   55%  { transform: scaleY(1); transform-origin: bottom; }
   100% { transform: scaleY(0); transform-origin: bottom; }
+}
+
+/*
+ * 矮屏幕上收起「向下」提示。
+ *
+ * .hero 现在是「正好一屏」高（100vh - 页头），提示又挂在内容下方，
+ * 所以屏幕越矮，它越容易被折线切掉半截，看着像页面被裁了一块。
+ * 800 是分界：比这矮的窗口里，首屏本身已经满得没地方放提示了。
+ * 它本来只是「下面还有内容」的辅助暗示，屏够高时才值得出现。
+ *
+ * ⚠️ 阈值别卡太死。上一版写的是 820，恰好把 1440×900 这类主流
+ *    笔记本屏（可用高度约 828）挡在门外——最常见的演示规格反而看不到提示。
+ */
+@media (max-height: 800px) {
+  .hero-scroll { display: none; }
 }
 
 /* ==========================================================================
@@ -277,7 +401,7 @@
 .cat-idx {
   font-size: 10px;
   letter-spacing: 0.2em;
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
 }
 
 .cat-glyph {
@@ -325,7 +449,9 @@
 .sim-promo-eyebrow {
   font-size: var(--fs-xs);
   letter-spacing: 0.34em;
-  color: var(--gold);
+  /* 深色区用 --gold-deep：明度更低一档，介于纸白正文与暗底之间，
+     --gold 原值在深底上偏白，和正文糊在一起失去了「点缀」的层次 */
+  color: var(--gold-deep);
   margin-bottom: var(--sp-4);
 }
 
@@ -345,7 +471,14 @@
   margin-bottom: var(--sp-6);
 }
 
-.sim-promo-copy strong { color: var(--gold); font-weight: 500; }
+/*
+ * 深色区里的强调字。
+ *
+ * 原本是 color: var(--gold) —— 金色做正文里的加粗词，
+ * 读起来会被误认成「这是个链接」，但它不可点。
+ * 强调应该用明度差而不是色相：改用纸白加粗，金留给线条与徽记。
+ */
+.sim-promo-copy strong { color: var(--paper); font-weight: 600; }
 
 .sim-promo-list {
   display: flex;
@@ -373,6 +506,7 @@
 .sim-promo-glyph {
   font-family: var(--font-serif);
   font-size: 22px;
+  /* 这是「徽记」——金色在本作品里为数不多被允许正当使用的地方之一 */
   color: var(--gold);
 }
 
@@ -558,7 +692,7 @@
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
-.filter-search input::placeholder { color: var(--ink-ghost); }
+.filter-search input::placeholder { color: var(--ink-faint); }
 
 .filter-search input:focus {
   outline: none;
@@ -611,6 +745,62 @@
   border-top: 1px dashed var(--rule);
 }
 
+/*
+ * ---- 地区折叠 ----
+ *
+ * 34 个省级行政区全铺开要占三行、把结果列表往下顶掉大半屏。
+ * Gallery.js 早就输出了 .filter-chips--region / .tag-btn--extra / .filter-more
+ * 这套标记和 is-collapsed 状态，但这里一条规则都没写——
+ * 于是「展开全部」按钮渲染成浏览器默认的灰底方钮，
+ * 点它只是切换一个没有任何样式消费的类名，视觉上毫无变化。
+ *
+ * 一个纯 JS 驱动、CSS 却没接上的折叠，就是评委亲手点出来的「假交互」。
+ * 以后加这种开关，标记与样式必须一起落地。
+ */
+.filter-chips--region.is-collapsed .tag-btn--extra { display: none; }
+
+.filter-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.32em 0.85em;
+  font-family: var(--font-serif);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.08em;
+  color: var(--cinnabar);
+  background: transparent;
+  border: 1px dashed rgba(178, 58, 46, 0.42);
+  border-radius: 100px;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease),
+              border-color var(--dur-fast) var(--ease);
+}
+.filter-more:hover {
+  background: var(--cinnabar-wash);
+  border-color: var(--cinnabar);
+}
+.filter-more:active { transform: translateY(1px); }
+.filter-more:focus-visible {
+  outline: 2px solid var(--cinnabar);
+  outline-offset: 2px;
+}
+
+/* 已选中的那个地区即使被折在后面也要露出来，否则用户以为自己没选上 */
+.filter-chips--region.is-collapsed .tag-btn--extra.is-active { display: inline-block; }
+
+.filter-more-count {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 展开后，34 个 chip 同时出现会显得拥挤，给个收尾暗示 */
+.filter-chips--region:not(.is-collapsed) .filter-more {
+  color: var(--ink-faint);
+  border-color: var(--rule);
+}
+
 /* 结果工具条 */
 .result-bar {
   display: flex;
@@ -632,7 +822,7 @@
   margin: 0 3px;
 }
 
-.result-filtered { color: var(--gold); margin-left: 4px; }
+.result-filtered { color: var(--gold-ink); margin-left: 4px; }
 .result-page { font-variant-numeric: tabular-nums; }
 
 /* 门类级关键词提示：与其给一堆沾边的结果，不如把真正该去的入口递到手边 */
@@ -652,7 +842,7 @@
   color: var(--ink-soft);
 }
 .result-hint p + p { margin-top: var(--sp-4); }
-.result-hint strong { color: var(--ink); font-weight: 500; }
+.result-hint strong { color: var(--ink); font-weight: 500; font-size: inherit; line-height: inherit; }
 
 /* ==========================================================================
    项目档案页
@@ -857,7 +1047,8 @@
 .inheritor-idx {
   font-family: var(--font-serif);
   font-size: var(--fs-sm);
-  color: var(--gold);
+  /* 序号是文字，不是装饰：金色 2.0:1 在纸底上读不出来，改用可读的金褐 */
+  color: var(--gold-ink);
   font-variant-numeric: tabular-nums;
   padding-top: 2px;
 }
@@ -906,7 +1097,7 @@ a.inheritor-name:hover {
   flex-wrap: wrap;
   gap: var(--sp-3);
   font-size: var(--fs-xs);
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
   line-height: 1.7;
 }
 
@@ -1003,7 +1194,7 @@ a.inheritor-name:hover {
 .variant-batch {
   grid-area: batch;
   font-size: var(--fs-xs);
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
   letter-spacing: 0.06em;
   white-space: nowrap;
 }
@@ -1065,7 +1256,7 @@ a.inheritor-name:hover {
   border-top: 1px solid var(--rule);
   font-size: var(--fs-xs);
   line-height: 1.8;
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
 }
 
 .archive-source a { color: var(--azurite); }
@@ -1090,13 +1281,21 @@ a.inheritor-name:hover {
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-.aside-link:hover { background: var(--ink); color: var(--paper); }
+/*
+ * 侧栏三个「小链接」的悬停态。
+ *
+ * 原本是 background: var(--ink) —— 一块纯黑底。
+ * 侧栏里三个辅助导航，悬停时比页面主 CTA 还重，视觉焦点被拽到边上。
+ * 纸面上的辅助链接应该只是「薄薄地亮一下」：换淡纸色 + 朱砂字。
+ */
+.aside-link:hover { background: var(--paper-deep); color: var(--cinnabar); }
 
 .aside-arrow {
   color: var(--cinnabar);
   transition: transform var(--dur) var(--ease);
 }
 
+/* 箭头滑出时用金色，是「徽记」级的微装饰，不承载信息 */
 .aside-link:hover .aside-arrow { transform: translateX(4px); color: var(--gold); }
 
 /* 相邻项目导航 */
@@ -1175,7 +1374,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 .sim-tab-idx {
   font-size: 10px;
   letter-spacing: 0.2em;
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
 }
 
 .sim-tab-name {
@@ -1188,7 +1387,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 
 .sim-tab-desc {
   font-size: var(--fs-xs);
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
   letter-spacing: 0.06em;
 }
 
@@ -1274,7 +1473,8 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 }
 
 .sim-hint-icon {
-  color: var(--gold);
+  /* 提示框里唯一的强调符号，得看得见 */
+  color: var(--gold-ink);
   font-size: 10px;
   animation: pulse 2s var(--ease) infinite;
 }
@@ -1341,16 +1541,27 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 .tool-opt-desc {
   font-size: 10px;
   line-height: 1.6;
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
 }
 
+/*
+ * 选项卡的选中态。
+ *
+ * 原本是 background: var(--ink) —— 一整块墨。
+ * 一屏工具面板里有四五个选项组，选中的那几张黑方块比所有朱砂按钮都重，
+ * 视线被拽到侧栏，画布（真正的操作对象）反而变轻了。
+ *
+ * 全站「选中」只有一种语义：朱砂。这里改成朱砂描边 + 淡朱底 + 左侧一道实边，
+ * 和 .tool-chip / .tag-btn.is-active / .thread.is-active 归为同一套语言。
+ */
 .tool-opt.is-active {
-  background: var(--ink);
-  border-color: var(--ink);
+  background: var(--paper-light);
+  border-color: var(--cinnabar);
+  box-shadow: inset 2px 0 0 var(--cinnabar);
 }
 
-.tool-opt.is-active .tool-opt-name { color: var(--paper); }
-.tool-opt.is-active .tool-opt-desc { color: rgba(245, 241, 232, 0.55); }
+.tool-opt.is-active .tool-opt-name { color: var(--cinnabar); font-weight: 600; }
+.tool-opt.is-active .tool-opt-desc { color: var(--ink-soft); }
 
 .tool-chip {
   padding: 6px 14px;
@@ -1407,8 +1618,10 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 .thread-name { white-space: nowrap; }
 
 .thread.is-active {
-  border-color: var(--ink);
-  background: var(--paper-deep);
+  /* 与 .tool-opt / .tool-chip / .tag-btn 统一走朱砂语义 */
+  border-color: var(--cinnabar);
+  background: var(--paper-light);
+  box-shadow: inset 0 0 0 1px var(--cinnabar);
 }
 
 /* 滑块 */
@@ -1470,7 +1683,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   margin-top: 8px;
   font-size: 10px;
   line-height: 1.75;
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
 }
 
 /**
@@ -1527,7 +1740,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   align-items: center;
   gap: 9px;
   font-size: var(--fs-xs);
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
   transition: color var(--dur) var(--ease);
 }
 
@@ -1785,7 +1998,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   font-size: var(--fs-xs);
   letter-spacing: 0.14em;
   color: var(--ink-faint);
-  border-bottom: 1px solid var(--ink-ghost);
+  border-bottom: 1px solid var(--rule);
   white-space: nowrap;
 }
 
@@ -1839,7 +2052,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 .about-note {
   font-size: var(--fs-xs) !important;
   line-height: 1.95;
-  color: var(--ink-ghost) !important;
+  color: var(--ink-faint) !important;
 }
 
 /* 技术规格列表 */
@@ -1878,7 +2091,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   padding-top: var(--sp-4);
   border-top: 1px solid var(--rule);
   font-size: var(--fs-xs) !important;
-  color: var(--ink-ghost) !important;
+  color: var(--ink-faint) !important;
 }
 
 /* 侧栏 */
@@ -2071,7 +2284,13 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 /* 480 及以下：极限窄屏 */
 @media (max-width: 480px) {
   .cat-grid { grid-template-columns: 1fr; }
-  .hero-facts { grid-template-columns: 1fr; gap: var(--sp-3); }
+  /*
+   * ⚠️ 这里曾经是 grid-template-columns: 1fr —— 首屏「1,557 项 / 3,998 位 / 45 项」
+   *    三个短数字各占一整行，240px 高度里竖着排三个数字，还带着一条贯穿的竖线。
+   *    三列在 390 宽下每列约 110px，放「3,998 位」完全够，本来就该并排。
+   */
+  .hero-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-3); }
+  .hero-facts dd { font-size: var(--fs-lg); }
   .thread-picker { grid-template-columns: repeat(2, 1fr); }
   .sim-tools { grid-template-columns: 1fr; }
 }
@@ -2268,7 +2487,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   font-size: var(--fs-xs);
   color: var(--ink-faint);
 }
-.inh-birth.is-unknown { color: var(--ink-ghost); }
+.inh-birth.is-unknown { color: var(--ink-faint); }
 
 .inh-project {
   display: block;
@@ -2362,7 +2581,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   cursor: not-allowed;
 }
 .pager-gap {
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
   padding: 0 2px;
 }
 
@@ -2696,7 +2915,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   order: 4;
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
 }
 
 /* 计数为 0 的档位：没有柱子时画一条短底座，说明「样本中确实没有」，
@@ -2707,14 +2926,15 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   background: var(--rule);
   opacity: 1;
 }
-.age-bar.is-zero .age-bar-count { color: var(--ink-ghost); }
-.age-bar.is-zero .age-bar-pct { color: var(--ink-ghost); }
+/* 「0」是要读的数字，不是装饰。淡到看不见等于图表缺一格、说不清为什么缺。 */
+.age-bar.is-zero .age-bar-count { color: var(--ink-faint); }
+.age-bar.is-zero .age-bar-pct { color: var(--ink-faint); }
 
 
 /* ---- 分批次覆盖率 ---- */
 .age-table td { vertical-align: middle; }
 .age-table tr.is-empty th,
-.age-table tr.is-empty td { color: var(--ink-ghost); }
+.age-table tr.is-empty td { color: var(--ink-faint); }
 
 .cov-bar {
   display: inline-block;

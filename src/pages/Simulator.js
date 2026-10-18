@@ -74,8 +74,9 @@ export async function SimulatorPage() {
 
         <div class="sim-stage">
           <div class="sim-canvas-wrap">
-            <canvas id="canvas-embroidery" width="900" height="640"
-                    aria-label="苏绣刺绣画布，用鼠标拖动即可绣制"></canvas>
+            <canvas id="canvas-embroidery" width="900" height="640" tabindex="0"
+                    role="application"
+                    aria-label="苏绣刺绣画布。鼠标按住拖动即可刺绣；键盘用户可用方向键移动光标格，空格键落针，Delete 撤销一针"></canvas>
             <div class="sim-hint" id="hint-embroidery">
               <span class="sim-hint-icon" aria-hidden="true">✦</span>
               <span>按住并拖动，沿图纸格子落针</span>
@@ -166,6 +167,8 @@ export async function SimulatorPage() {
             <p class="tool-stat">
               已绣 <strong id="stitch-count">0</strong> <span id="stitch-unit">格</span>
             </p>
+            <!-- 读屏软件听不见 canvas 里画了什么，进度只能靠这里播报 -->
+            <p id="sr-stitch" class="sr-only" role="status" aria-live="polite"></p>
           </aside>
         </div>
 
@@ -205,8 +208,9 @@ export async function SimulatorPage() {
 
         <div class="sim-stage">
           <div class="sim-canvas-wrap">
-            <canvas id="canvas-paper" width="900" height="640"
-                    aria-label="宣纸抄造画布，拖动纸帘捞取纸浆"></canvas>
+            <canvas id="canvas-paper" width="900" height="640" tabindex="0"
+                    role="application"
+                    aria-label="宣纸抄造画布。鼠标按住左右荡动纸帘；键盘用户可用左右方向键荡帘"></canvas>
             <div class="sim-hint" id="hint-paper">
               <span class="sim-hint-icon" aria-hidden="true">✦</span>
               <span>按住鼠标左右荡动，让纸浆均匀附着在帘上</span>
@@ -295,8 +299,9 @@ export async function SimulatorPage() {
 
         <div class="sim-stage">
           <div class="sim-canvas-wrap">
-            <canvas id="canvas-mortise" width="900" height="640"
-                    aria-label="榫卯拼合画布，拖动木件沿轴向推入卯眼，拖动空白处旋转视角"></canvas>
+            <canvas id="canvas-mortise" width="900" height="640" tabindex="0"
+                    role="application"
+                    aria-label="榫卯拼合画布。拖动木件沿轴向推入卯眼，拖动空白处旋转视角；键盘用户可用上下方向键推入或拔出木件"></canvas>
             <div class="sim-hint" id="hint-mortise">
               <span class="sim-hint-icon" aria-hidden="true">✦</span>
               <span>拖动木件沿轴向推进 · 拖动空白处旋转视角</span>

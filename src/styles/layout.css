@@ -78,7 +78,7 @@
 .site-nav a:hover { color: var(--ink); background: rgba(28,26,23,0.04); }
 .nav-num {
   font-size: var(--fs-xs);
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
   transition: color var(--dur) var(--ease);
 }
 .site-nav a.is-active { color: var(--cinnabar); }
@@ -141,7 +141,7 @@
 .nav-drawer .nav-num {
   font-size: var(--fs-sm);
   width: 1.6em;
-  color: var(--ink-ghost);
+  color: var(--ink-faint);
 }
 body.nav-open { overflow: hidden; }
 
@@ -183,10 +183,15 @@ body.nav-open { overflow: hidden; }
   grid-template-columns: repeat(3, 1fr);
   gap: var(--sp-6);
 }
+/*
+ * 页脚是深墨底，--gold-ink 是「浅底上用」的可读金，
+ * 放到深底上反而发闷；这里要用的是深底专用金 --gold-deep。
+ * （两个 token 各自为正对的那一种底色调过，不能互换。）
+ */
 .footer-col h3 {
   font-size: var(--fs-sm);
   letter-spacing: 0.14em;
-  color: var(--gold);
+  color: var(--gold-deep);
   margin-bottom: var(--sp-4);
   font-weight: 500;
 }
@@ -196,7 +201,7 @@ body.nav-open { overflow: hidden; }
   color: rgba(245,241,232,0.78);
   transition: color var(--dur-fast) var(--ease);
 }
-.footer-col a:hover { color: var(--gold); }
+.footer-col a:hover { color: var(--gold-deep); }
 .footer-note {
   font-size: var(--fs-sm);
   color: rgba(245,241,232,0.5);
@@ -221,17 +226,36 @@ body.nav-open { overflow: hidden; }
 .section-tight { padding: var(--sp-7) 0; }
 .section-title {
   display: flex;
-  align-items: flex-start;
+  /*
+   * ⚠️ 曾经是 align-items: flex-start。序号是 36px / line-height:1，
+   *    标题在 1440 下是 40px / line-height:1.25——两块顶对齐时基线差约 24px，
+   *    截图里「贰」浮在「非遗名录」左上方，像两个字没对齐。
+   *    改成 baseline 后，两个不同字号的行按字底对齐，才是中文排版的正解。
+   */
+  align-items: baseline;
   gap: var(--sp-4);
   margin-bottom: var(--sp-6);
 }
 .section-num {
+  flex: none;
   font-size: var(--fs-2xl);
   color: var(--cinnabar);
-  opacity: 0.25;
+  /*
+   * 原本是 opacity: 0.25。它把朱砂的 5.27:1 压到 1.6:1 左右，
+   * 序号既读不清、又不像「设计」，更像一块洗淡了的红。
+   * 改成描边数字：字面透明、只留 1px 朱砂笔画轮廓——
+   * 既是结构线索（章节索引），又不会和真正的强调色抢注意力。
+   * Chrome 129 支持 -webkit-text-stroke，file:// 下不依赖任何资源。
+   */
+  opacity: 0.62;
   font-weight: 400;
   line-height: 1;
-  padding-top: 0.12em;
+  color: transparent;
+  -webkit-text-stroke: 1px var(--cinnabar);
+}
+/* 描边不可用时退回实心朱砂，不能变成「看不见的字」 */
+@supports not (-webkit-text-stroke: 1px red) {
+  .section-num { color: var(--cinnabar); }
 }
 .section-head h2, .section-head h1 { font-size: clamp(1.75rem, 3.2vw, 2.5rem); }
 .section-sub {
@@ -251,6 +275,8 @@ body.nav-open { overflow: hidden; }
 }
 
 @media (max-width: 720px) {
+  /* 页头变矮时，--header-h 必须跟着改，否则首屏高度算错 */
+  :root { --header-h: 60px; }
   .header-inner { min-height: 60px; }
   .brand-text em { display: none; }
   .nav-drawer { inset: 60px 0 0; }

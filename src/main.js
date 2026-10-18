@@ -10,6 +10,8 @@ import './styles/base.css';
 import './styles/layout.css';
 import './styles/components.css';
 import './styles/pages.css';
+// 大屏断点必须放在最后：它要覆盖前面各文件里定义的 --maxw 与栅格列数
+import './styles/wide.css';
 
 import { route, setNotFound, startRouter, navigate } from './router.js';
 import { Header, initHeader } from './components/Header.js';
