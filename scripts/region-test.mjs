@@ -46,6 +46,14 @@ async function main() {
   await send('Page.navigate', { url: BASE + '#/gallery' });
   await sleep(2000);
 
+  /*
+   * 顺带钉住副标题：它曾经写的是 ${num(result.total)}，即筛选后的结果数。
+   * 筛到 78 条时，副标题就成了「收录…拆分的 78 条子项记录」，
+   * 读起来像本站只收了 78 条。这类错误页面不报错、测试不失败，只能靠断言守住。
+   */
+  const sub = await ev(`document.querySelector('.page-head p, .page-head .page-sub, main p')?.textContent?.replace(/\\s+/g, ' ').trim()`);
+  check('副标题恒为全站 3,614 条，不随筛选变化', /3,?614/.test(sub || ''), sub);
+
   // 注意：.filter-chips 这个类在门类、批次、地区三轮筛选里都用了一次，
   // 直接取会把 52 个 chips 全选中。地区那一轮得靠 filter-row 里的 label 定位。
   const chips = await ev(`(() => {
