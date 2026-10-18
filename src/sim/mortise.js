@@ -21,6 +21,7 @@
  */
 
 import { downloadWork } from './export.js';
+import { prefersReducedMotion } from './camera.js';
 
 /* ══════════════ 1. 三维基础 ══════════════ */
 
@@ -291,12 +292,47 @@ export function initMortise() {
   /** 相机：比例按默认视角的投影包围盒定，再把场景中心摆到画布正中 */
   function camNow() {
     const w = W(), h = H();
-    const scale = Math.min(w * 0.40 / scene.halfW, h * 0.40 / scene.halfH) * view.zoom;
+    // view.zoom 里不含开场推镜，倍率由 pushZoom() 单独给出，
+    // 这样镜头动画与用户手动缩放互不覆盖。
+    const scale = Math.min(w * 0.40 / scene.halfW, h * 0.40 / scene.halfH) * view.zoom * pushZoom();
     const cam = makeCam(view.yaw, view.pitch, scale);
     const c = proj(scene.center, cam);
     cam.cx = w / 2 - c[0];
     cam.cy = h / 2 - c[1];
     return cam;
+  }
+
+  /*
+   * 开场推镜：1.55 → 1。
+   *
+   * 这里没有用 camera.js 的 createPushIn——那个是套在 2D ctx 上的，而榫卯是
+   * 自己算投影，没有可以整体缩放的变换层。硬套的话得连 canvas 的
+   * setTransform 一起改，命中判定（屏幕坐标 vs 世界坐标）会跟着全乱。
+   * 直接改相机焦距是同一个效果的干净做法：世界不动，只是看得更近。
+   *
+   * 复用页面的 raf（单条动画、新的顶掉旧的），与转视角共用同一个动画位，
+   * 所以两者不会互相打断；用户一拖，tween 顶掉推镜，镜头自然落定。
+   */
+  const PUSH_FROM = 1.55;
+  const PUSH_MS = 900;
+  let pushZoom = () => 1;
+
+  function playPushIn() {
+    cancelAnimationFrame(raf);
+    const t0 = performance.now();
+    const step = now => {
+      if (!alive) return;
+      const k = Math.min(1, (now - t0) / PUSH_MS);
+      const e = 1 - (1 - k) ** 3;                 // easeOutCubic，与另外两个模拟器一致
+      const z = PUSH_FROM + (1 - PUSH_FROM) * e;
+      pushZoom = () => z;
+      render();
+      if (k < 1) raf = requestAnimationFrame(step);
+      else { pushZoom = () => 1; render(); }
+    };
+    pushZoom = () => PUSH_FROM;
+    render();
+    raf = requestAnimationFrame(step);
   }
 
   const offsetOf = () => [-t * scene.travel, 0, lift];
@@ -750,8 +786,11 @@ export function initMortise() {
   /* ---- 4.6 启动 ---- */
   fitCanvas();
   updateState();
+  if (!prefersReducedMotion()) playPushIn();
   const onActivate = e => {
-    if (e.detail.key === 'mortise') requestAnimationFrame(fitCanvas);
+    if (e.detail.key === 'mortise') {
+      requestAnimationFrame(() => { fitCanvas(); if (!prefersReducedMotion()) playPushIn(); });
+    }
   };
   window.addEventListener('resize', fitCanvas);
   window.addEventListener('sim:activate', onActivate);

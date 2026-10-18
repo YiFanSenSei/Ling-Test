@@ -26,6 +26,7 @@
  */
 
 import { downloadWork } from './export.js';
+import { createPushIn, prefersReducedMotion } from './camera.js';
 
 const COLOR_HEX = {
   red: '#C0392B', pink: '#D98880', jade: '#7D9B76',
@@ -189,6 +190,10 @@ export function initEmbroidery() {
   const W = () => Number(canvas.dataset.w) || 900;
   const H = () => Number(canvas.dataset.h) || 640;
 
+  /* ---------- 开场推镜 ---------- */
+  const cam = createPushIn({ canvas, ctx, redraw: () => redraw(), reduceMotion: prefersReducedMotion() });
+  canvas.dataset.camera = 'push-in';
+
   /* ---------- 图纸解析与网格几何 ---------- */
 
   /** 把图纸的字符行解析成二维数组；行宽不一致或出现未定义字符即抛错 */
@@ -222,7 +227,15 @@ export function initEmbroidery() {
   }
 
   /* ---------- 绘制底料（素绸）---------- */
-  function drawCloth() {
+
+  /**
+   * 背景层：底色、经纬纹理、柔光。
+   *
+   * 这一层**不参与**开场推镜的缩放——绸缎是环境，镜头推近时它不该跟着变形。
+   * 拆出这一层的直接原因：整体缩放时四周会露白，那看起来像画面被缩小，
+   * 而不是镜头在靠近。
+   */
+  function drawClothBackdrop() {
     const w = W(), h = H();
     // 底色：素绸的暖白
     const g = ctx.createLinearGradient(0, 0, w, h);
@@ -252,7 +265,11 @@ export function initEmbroidery() {
     sheen.addColorStop(1, 'rgba(120,105,80,0.06)');
     ctx.fillStyle = sheen;
     ctx.fillRect(0, 0, w, h);
+  }
 
+  /** 内容层：绣绷木框。跟随镜头缩放，让画面看起来是「推近到绷架上」。 */
+  function drawClothFrame() {
+    const w = W(), h = H();
     // 绣绷：外圈木框，让画布成为「绷在架子上的绣布」
     ctx.save();
     ctx.strokeStyle = 'rgba(92,71,50,0.28)';
@@ -335,6 +352,44 @@ export function initEmbroidery() {
   }
 
   /* ---------- 画一针 ---------- */
+  /**
+   * 丝线反光。
+   *
+   * 上一版是在整根线上再描一条等宽的白线，结果是「线被描了一道白边」——
+   * 那是塑料线，不是丝。真实丝线的反光有很强的方向性：视线、线轴、
+   * 光源三者的夹角决定亮点落在哪里，而且只占线长的一段，两头渐隐。
+   *
+   * 这里做法：
+   *   · 亮点位置由针脚坐标算一个稳定的伪随机偏移（不能每帧跳，否则会闪）
+   *   · 用沿线的线性渐变，从「全透明 → 亮 → 全透明」
+   *   · 只覆盖线宽的中段，让它看起来是「浮在线上的一道光」而不是描边
+   */
+  function paintThreadSheen(x1, y1, x2, y2, width, hex) {
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    if (len < 1.2) return;
+
+    // 稳定的伪随机：由坐标决定，同一根线下一次重绘落在同一处
+    const seed = Math.abs(Math.sin((x1 * 12.9898 + y1 * 78.233) * 0.017) * 43758.5453);
+    const frac = 0.18 + (seed % 1) * 0.34;        // 亮点落在线长 18%~52% 处
+
+    const at = f => ({ x: x1 + (x2 - x1) * f, y: y1 + (y2 - y1) * f });
+    const a = at(Math.max(0, frac - 0.22));
+    const b = at(frac);
+    const c = at(Math.min(1, frac + 0.2));
+
+    const g = ctx.createLinearGradient(a.x, a.y, c.x, c.y);
+    g.addColorStop(0, withAlpha(hex, 0));
+    g.addColorStop(0.5, 'rgba(255,255,255,0.42)');
+    g.addColorStop(1, withAlpha(hex, 0));
+
+    ctx.save();
+    ctx.strokeStyle = g;
+    ctx.lineWidth = Math.max(0.5, width * 0.42);
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+    ctx.restore();
+  }
+
   function paintStitch(s) {
     const hex = COLOR_HEX[s.color] || '#C0392B';
     const ex = !!s.exact;          // 图纸绣：几何已经定好，不再按密度缩放
@@ -376,10 +431,8 @@ export function initEmbroidery() {
       ctx.strokeStyle = threadGradient(s.x1, s.y1, ex2, ey2, hex);
       ctx.lineWidth = lw;
       ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(ex2, ey2); ctx.stroke();
-      // 缎面高光
-      ctx.strokeStyle = 'rgba(255,255,255,0.26)';
-      ctx.lineWidth = Math.max(0.6, lw * 0.22);
-      ctx.beginPath(); ctx.moveTo(s.x1, s.y1 - 1); ctx.lineTo(ex2, ey2 - 1); ctx.stroke();
+      // 缎面高光：一段集中、两头渐隐的丝光，而不是整条描白边
+      paintThreadSheen(s.x1, s.y1, ex2, ey2, lw, hex);
 
     } else {
       // 平针：短促平行的针脚
@@ -388,19 +441,32 @@ export function initEmbroidery() {
       ctx.lineWidth = lw;
       ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); ctx.stroke();
       // 丝线反光
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-      ctx.lineWidth = Math.max(0.5, lw * 0.3);
-      ctx.beginPath(); ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); ctx.stroke();
+      paintThreadSheen(s.x1, s.y1, s.x2, s.y2, lw, hex);
     }
     ctx.restore();
   }
 
   /* ---------- 重绘 ---------- */
+  /*
+   * 分两层画，是开场推镜的正确做法。
+   *
+   * 一开始我把整幅画面（连同素绸底料）一起缩放，结果是四周露出一圈空白——
+   * 那不叫推近，叫「把图缩小了」。真实的镜头推近，环境是不动的：
+   * 绸缎依然铺满整块画布，只有绷在上面的绣绷、图纸与针脚在靠近。
+   * 所以这里把 drawCloth() 的背景部分与内容部分拆开：
+   *   · 背景（底色/经纬/柔光）—— 不缩放，始终铺满
+   *   · 内容（绣绷框/图纸/针脚）—— 跟随 cam 缩放
+   * 拆开之后，镜头跑起来就不会有任何一边露白。
+   */
   function redraw() {
     ctx.clearRect(0, 0, W(), H());
-    drawCloth();
+    drawClothBackdrop();
+    ctx.save();
+    cam.apply();
+    drawClothFrame();
     drawPlan();
     for (const s of stitches) paintStitch(s);
+    ctx.restore();
     if (countEl) {
       countEl.textContent = String(mode === 'template' ? filled.size : stitches.length);
     }
@@ -623,6 +689,12 @@ export function initEmbroidery() {
 
   /* ---------- 事件 ---------- */
   function onDown(e) {
+    /*
+     * 开场镜头还在推的时候，画布的屏幕坐标和绘制坐标差着一个比例，
+     * 这时候落针会落到离手指很远的地方。与其算补偿（三分之一的概率算错），
+     * 不如直接把动画落定——用户一伸手就说明他已经准备好动手了。
+     */
+    if (!cam.done()) cam.finish();
     e.preventDefault();
     drawing = true;
     if (hint) hint.classList.add('is-hidden');
@@ -749,8 +821,12 @@ export function initEmbroidery() {
   /* ---------- 启动 ---------- */
   setTemplate(templateKey);
   fitCanvas();
+  // 首次进入播一次开场推镜；切回本页签时再播一次（用户刚离开又回来，等于重新开场）
+  cam.replay();
   const onActivate = e => {
-    if (e.detail.key === 'embroidery') requestAnimationFrame(fitCanvas);
+    if (e.detail.key === 'embroidery') {
+      requestAnimationFrame(() => { fitCanvas(); cam.replay(); });
+    }
   };
   window.addEventListener('resize', fitCanvas);
   window.addEventListener('sim:activate', onActivate);
@@ -760,6 +836,7 @@ export function initEmbroidery() {
   return {
     redraw,
     dispose() {
+      cam.finish();
       window.removeEventListener('resize', fitCanvas);
       window.removeEventListener('sim:activate', onActivate);
     },

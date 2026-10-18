@@ -2136,7 +2136,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 /* ---------- 名录页：统计条 ---------- */
 .inh-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   border: 1px solid var(--rule);
   background: var(--paper-light);
   margin: var(--sp-6) 0 var(--sp-7);
@@ -2148,6 +2148,36 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   border-right: 1px solid var(--rule);
 }
 .inh-stat:last-child { border-right: none; }
+
+/* 第五格整格是链接（中位年龄 → 年龄结构页），做成可点的样子：
+   默认与其它格一致，只在悬停/聚焦时变朱砂，避免和数字格割裂。 */
+.inh-stat-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--dur) var(--ease);
+}
+.inh-stat-link:hover,
+.inh-stat-link:focus-visible {
+  background: var(--cinnabar-wash);
+}
+.inh-stat-link:hover .inh-stat-num,
+.inh-stat-link:hover .inh-stat-label,
+.inh-stat-link:focus-visible .inh-stat-num,
+.inh-stat-link:focus-visible .inh-stat-label {
+  color: var(--cinnabar);
+}
+.inh-stat-link em {
+  font-style: normal;
+  font-size: 0.5em;
+  margin-left: 2px;
+}
+.result-more {
+  display: inline-block;
+  margin-left: 8px;
+  color: var(--cinnabar);
+  white-space: nowrap;
+}
 
 .inh-stat-num {
   display: block;
@@ -2441,7 +2471,12 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 
 @media (max-width: 900px) {
   .inh-detail-layout { grid-template-columns: 1fr; }
+@media (max-width: 900px) {
   .inh-stats { grid-template-columns: repeat(2, 1fr); }
+  /* 5 格在 2 列下最后一行只有一个，右侧空出来——让它在版面上居中，
+     比留一个突兀的半格更稳。 */
+  .inh-stat:nth-child(5) { grid-column: 1 / -1; border-right: none; border-top: 1px solid var(--rule); }
+}
   .inh-stat:nth-child(2) { border-right: none; }
   .inh-stat:nth-child(1),
   .inh-stat:nth-child(2) { border-bottom: 1px solid var(--rule); }
@@ -2556,4 +2591,191 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   .inh-card { border: 1px solid var(--rule); }
   .inh-card::after { display: none; }
   body { background: #fff; }
+}
+
+/* ============================================================
+ * 传承人年龄结构页（#/ages）
+ *
+ * 柱状图是纯 CSS 高度百分比——比赛禁止预设样式库，也不该为一张
+ * 六根柱子的图引入 echarts。
+ * ============================================================ */
+
+.age-hero {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: var(--sp-6) 0 var(--sp-7);
+}
+.age-figure {
+  background: var(--paper);
+  padding: var(--sp-5) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.age-figure-num {
+  font-family: var(--font-serif);
+  font-size: 2.6rem;
+  line-height: 1.05;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+.age-figure-num em {
+  font-style: normal;
+  font-size: 1.1rem;
+  color: var(--cinnabar);
+  margin: 0 2px;
+}
+.age-figure-label {
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  line-height: 1.6;
+}
+
+.age-caveat { margin-bottom: var(--sp-7); }
+
+.age-section { margin-bottom: var(--sp-7); }
+
+.age-note {
+  font-size: var(--fs-sm);
+  color: var(--ink-faint);
+  line-height: 1.95;
+  max-width: var(--maxw-text);
+  margin: var(--sp-3) 0 var(--sp-5);
+}
+
+/* ---- 年龄直方图 ---- */
+.age-chart {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: end;
+  gap: var(--sp-3);
+  height: 300px;
+  margin: 0;
+  /* 顶部 34px 是给数字标签留的位置。柱子按百分比占满内容高度，
+     标签绝对定位在柱子之上——不留白，最高那根的数字会被裁掉。 */
+  padding: 34px 0 0;
+  list-style: none;
+  border-bottom: 1px solid var(--rule);
+}
+.age-bar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  min-height: 0;
+}
+.age-bar-fill {
+  width: 100%;
+  max-width: 88px;
+  background: linear-gradient(180deg, var(--cinnabar) 0%, var(--cinnabar-deep, #8f2c22) 100%);
+  opacity: 0.82;
+  min-height: 2px;
+  border-radius: 1px 1px 0 0;
+}
+.age-bar-count {
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--ink);
+}
+.age-bar-label {
+  order: 3;
+  margin-top: 10px;
+  font-size: var(--fs-xs);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.age-bar-pct {
+  order: 4;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--ink-ghost);
+}
+
+/* 计数为 0 的档位：没有柱子时画一条短底座，说明「样本中确实没有」，
+   而不是让那一列空着、看起来像图表没渲染出来。 */
+.age-bar.is-zero .age-bar-fill {
+  height: 2px !important;
+  min-height: 2px;
+  background: var(--rule);
+  opacity: 1;
+}
+.age-bar.is-zero .age-bar-count { color: var(--ink-ghost); }
+.age-bar.is-zero .age-bar-pct { color: var(--ink-ghost); }
+
+
+/* ---- 分批次覆盖率 ---- */
+.age-table td { vertical-align: middle; }
+.age-table tr.is-empty th,
+.age-table tr.is-empty td { color: var(--ink-ghost); }
+
+.cov-bar {
+  display: inline-block;
+  vertical-align: middle;
+  width: 96px;
+  height: 6px;
+  background: var(--paper-deep);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-right: 8px;
+}
+.cov-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--cinnabar);
+  opacity: 0.75;
+}
+.cov-num {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+}
+
+/* ---- 外部口径对照 ---- */
+.ext-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+.ext-row {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) auto;
+  gap: var(--sp-4);
+  align-items: baseline;
+  padding: var(--sp-4) 0;
+  border-bottom: 1px solid var(--rule);
+}
+.ext-source { font-size: var(--fs-sm); color: var(--ink-soft); }
+.ext-claim { font-size: var(--fs-sm); color: var(--ink-faint); line-height: 1.85; }
+.ext-link { font-size: var(--fs-xs); color: var(--cinnabar); white-space: nowrap; }
+
+.age-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin: var(--sp-6) 0 var(--sp-8);
+}
+
+@media (max-width: 1100px) {
+  .age-hero { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .age-chart { gap: 4px; height: 220px; }
+  .age-bar-label { font-size: 10px; }
+  .age-bar-pct { display: none; }
+  .ext-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .age-figure-num { font-size: 2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .age-bar-fill { transition: none; }
+}
+
+@media print {
+  .age-actions { display: none; }
+  .age-bar-fill { background: #999 !important; }
 }

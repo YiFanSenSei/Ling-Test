@@ -168,14 +168,90 @@ for (const p of inheritors) {
   if (!(p.birth || '').trim()) x.noBirth += 1;
 }
 
+/*
+ * 年龄结构（构建期算好，页面不加载继承者索引就能画）。
+ *
+ * ⚠️ 口径必须写死在这里，不然页面上的每个数字都会变成「不知道哪来的」：
+ *  - 基准年取 2026（比赛当年）。官方名单只公布出生年份、不公布生卒，
+ *    因此 1908 年出生的第一批传承人在这里显示为 118 岁——那不是脏数据，
+ *    是他「若在世」的年龄。文案必须标明这一点，否则等于替官方宣告在世。
+ *  - 只统计 birth 非空的记录。第四、五批官网这两栏整体空白，
+ *    覆盖率会直接暴露出来，页面要照实呈现，不推测填补。
+ */
+const AGE_YEAR = 2026;
+const AGE_BUCKETS = [
+  { key: 'lt40', label: '40 岁以下', min: -Infinity, max: 39 },
+  { key: '40s', label: '40–49 岁', min: 40, max: 49 },
+  { key: '50s', label: '50–59 岁', min: 50, max: 59 },
+  { key: '60s', label: '60–69 岁', min: 60, max: 69 },
+  { key: '70s', label: '70–79 岁', min: 70, max: 79 },
+  { key: '80plus', label: '80 岁以上', min: 80, max: Infinity },
+];
+
+const bornYears = [];
+for (const p of inheritors) {
+  const m = String(p.birth || '').match(/(\d{4})/);
+  if (m) bornYears.push({ year: Number(m[1]), batch: p.batch });
+}
+
+const ages = bornYears.map(b => AGE_YEAR - b.year);
+const ageHistogram = AGE_BUCKETS.map(b => ({
+  key: b.key,
+  label: b.label,
+  count: ages.filter(a => a >= b.min && a <= b.max).length,
+}));
+const sortedAges = [...ages].sort((a, b) => a - b);
+const ageSummary = {
+  year: AGE_YEAR,
+  counted: ages.length,
+  mean: ages.length ? Math.round((ages.reduce((s, a) => s + a, 0) / ages.length) * 10) / 10 : 0,
+  median: sortedAges.length ? sortedAges[Math.floor(sortedAges.length / 2)] : 0,
+  min: sortedAges[0] ?? 0,
+  max: sortedAges[sortedAges.length - 1] ?? 0,
+  over70: ages.filter(a => a >= 70).length,
+  over80: ages.filter(a => a >= 80).length,
+  histogram: ageHistogram,
+};
+
+// 分批次：既要记录数，也要「有出生日期」的覆盖率——后者才是缺口所在
+const ageByBatch = {};
+for (const p of inheritors) {
+  const b = String(p.batch || '?');
+  const x = ageByBatch[b] || (ageByBatch[b] = { total: 0, born: 0, ages: [] });
+  x.total += 1;
+  const m = String(p.birth || '').match(/(\d{4})/);
+  if (m) { x.born += 1; x.ages.push(AGE_YEAR - Number(m[1])); }
+}
+const ageBatchRows = Object.keys(ageByBatch).sort().map(b => {
+  const x = ageByBatch[b];
+  const s = [...x.ages].sort((p, q) => p - q);
+  return {
+    batch: b,
+    total: x.total,
+    born: x.born,
+    coverage: x.total ? Math.round((x.born / x.total) * 1000) / 10 : 0,
+    median: s.length ? s[Math.floor(s.length / 2)] : null,
+  };
+});
+
 const inheritorStats = {
   total: inheritors.length,
   projects: new Set(inheritors.map(p => p.projectId)).size,
   categories: new Set(inheritors.map(p => p.projectCategory).filter(Boolean)).size,
   withBirth,
   withCode,
-  ethnicities: new Set(inheritors.map(p => p.ethnicity).filter(Boolean)).size,
+  /*
+   * 民族数要剔除「其他」这种兜底取值。
+   *
+   * 实测 4,032 条里有 2 条的 ethnicity 是「其他」——官网表格里确实这么写，
+   * 但它不是一个民族。直接 new Set().size 会把它算进去，对外就成了
+   * 「54 个民族」，比实际多一个。数字小，但属于虚报，不能留着。
+   */
+  ethnicities: new Set(
+    inheritors.map(p => (p.ethnicity || '').trim()).filter(e => e && e !== '其他'),
+  ).size,
   byBatch,
+  age: { ...ageSummary, byBatch: ageBatchRows },
 };
 await writeFile(join(DATA, 'inheritor-stats.json'),
   `${JSON.stringify(inheritorStats, null, 2)}\n`, 'utf8');

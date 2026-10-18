@@ -21,6 +21,7 @@ import { HomePage } from './pages/Home.js';
 import { GalleryPage, initGallery } from './pages/Gallery.js';
 import { ProjectPage } from './pages/Project.js';
 import { InheritorsPage, initInheritors, InheritorPage } from './pages/Inheritors.js';
+import { AgesPage } from './pages/Ages.js';
 import { SimulatorPage, initSimulator } from './pages/Simulator.js';
 import { AboutPage, initAbout } from './pages/About.js';
 
@@ -130,6 +131,11 @@ route('/inheritor/:id', async ({ params }) => {
 route('/about', async () => {
   const html = await AboutPage();
   await render(html, { title: '关于本站', init: initAbout });
+});
+
+route('/ages', async () => {
+  const { html, title } = await AgesPage();
+  await render(html, { title });
 });
 
 setNotFound(async () => {
