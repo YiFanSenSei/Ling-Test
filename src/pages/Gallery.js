@@ -5,11 +5,34 @@
  * 筛选条件同步到 URL，保证可分享、可前进后退（「想去哪就去哪」档位）。
  */
 
-import { queryProjects, getMeta, detectCategoryTerm, esc, num } from '../data.js';
+import { queryProjects, getMeta, getProjects, detectCategoryTerm, esc, num } from '../data.js';
 import { ProjectCard, EmptyState, Pagination, SectionTitle } from '../components/ui.js';
+import { ShelfStage, initShelf } from '../components/Shelf.js';
 import { navigate, currentPath } from '../router.js';
 
 const PAGE_SIZE = 24;
+
+/*
+ * 书脊底部的「代表项目」小字。
+ *
+ * 为什么不从数据里随机挑：随机挑会在每次渲染时变，
+ * 而书脊上的字被读者当成「这一门类举的例子」，
+ * 一个每次都变的例子就成了噪音。这里点名十条，
+ * 挑的都是各自门类里最广为人知的项目——读者一眼能认出来，
+ * 才知道这不是随机装饰，是索引。
+ */
+const SHELF_MARKS = {
+  '民间文学': '苗族古歌',
+  '传统音乐': '古琴艺术',
+  '传统舞蹈': '秧歌',
+  '传统戏剧': '昆曲',
+  '曲艺': '苏州评弹',
+  '传统体育、游艺与杂技': '太极拳',
+  '传统美术': '苏绣',
+  '传统技艺': '景德镇手工制瓷',
+  '传统医药': '针灸',
+  '民俗': '春节',
+};
 
 /** 解析 hash 中的查询参数：/gallery?q=绣&category=传统美术&page=2 */
 function parseQuery() {
@@ -170,6 +193,21 @@ export async function GalleryPage() {
         '<p style="margin-top:1.5rem"><a class="btn btn-primary" href="#/gallery">查看全部</a></p>'
       );
 
+  /*
+   * ---- 十方书阁 ----
+   *
+   * 书架放在筛选栏**上方**，因为它是「进馆先看货架」的动作，
+   * 而不是筛选出来之后的结果展示。放在下面会被 34 个地区 chip 推到屏幕外。
+   *
+   * 选中某门类时，书架本身不隐藏 —— 它同时是这个页面的导航，
+   * 读者在「传统美术」的结果里想换到「传统技艺」，直接从架上取另一本就走了，
+   * 不必回到顶部重新找筛选条。
+   */
+  const shelfMarks = Object.entries(SHELF_MARKS).map(([cat, name]) => ({ cat, name }));
+  const shelfStatus = category
+    ? `架上当前：${category}`
+    : `十册 · ${num(Object.values(meta.byCategory || {}).reduce((a, b) => a + b, 0))} 项`;
+
   return `
   <section class="page-head">
     <div class="container">
@@ -188,6 +226,12 @@ export async function GalleryPage() {
 
   <section class="section-tight">
     <div class="container">
+      ${ShelfStage({
+        counts: meta.byCategory || {},
+        statusText: shelfStatus,
+        marks: shelfMarks,
+      })}
+
       ${filters}
 
       <div class="result-bar">
@@ -207,16 +251,31 @@ export async function GalleryPage() {
 }
 
 /**
- * 绑定筛选表单：提交后跳转到带参数的路径。
+ * 绑定名录页的交互：筛选表单 + 十方书阁。
  *
  * 返回清理函数（约定见 main.js）。表单监听器挂在被替换的 DOM 上，
  * 理论上会随 innerHTML 一起消失，但显式摘除可以避免将来把监听器
  * 挪到 document 上时悄悄泄漏。
+ *
+ * ⚠️ 书阁的清理函数必须一起返回。
+ *    它持有一个 requestAnimationFrame 循环、一个 IntersectionObserver
+ *    和 window 上的 resize 监听——这三样都不属于 DOM，
+ *    `app.innerHTML = ...` 不会带走它们。漏掉的症状是：
+ *    每进出一次名录页就多留一份监听，拖动时越来越卡。
  */
 export function initGallery() {
-  const form = document.getElementById('gallery-filters');
-  if (!form) return undefined;
   const cleanups = [];
+
+  const disposeShelf = initShelf();
+  if (typeof disposeShelf === 'function') cleanups.push(disposeShelf);
+
+  const form = document.getElementById('gallery-filters');
+  /*
+   * 表单不见了仍然要返回书阁的清理函数。
+   * 原先是 `if (!form) return undefined;` —— 那样一旦筛选栏因任何原因
+   * 没渲染出来，书阁的循环就泄漏了。改成只跳过表单部分。
+   */
+  if (!form) return cleanups.length ? () => { for (const fn of cleanups) fn(); } : undefined;
 
   const input = form.querySelector('#f-q');
 

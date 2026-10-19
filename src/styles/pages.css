@@ -3110,6 +3110,693 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   .age-bar-fill { transition: none; }
 }
 
+/* ==========================================================================
+   名录页 · 展馆视角（十方书阁）
+   --------------------------------------------------------------------------
+   名录页顶部的一条三维书架：十大门类各成一册，书脊朝向观众。
+   全部用 CSS 3D 变换手写，无任何 3D 库（理由见 components/Shelf.js 文件头）。
+
+   ⚠️ 三处几何必须彼此对齐，改任何一处都要同步改另两处：
+      · .shelf-viewport 的 perspective   —— 相机的焦距，决定透视强度
+      · .shelf-rail 的 transform-style   —— 子元素必须保留 3D，否则书脊会塌成平面
+      · components/Shelf.js 的 FOCAL      —— JS 算焦点位置时用的同一个焦距
+   ========================================================================== */
+
+.shelf-stage {
+  padding: var(--sp-5) 0 0;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--sp-5);
+}
+
+.shelf-stage__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--sp-2) var(--sp-5);
+  align-items: baseline;
+  margin-bottom: var(--sp-4);
+}
+
+.shelf-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-serif);
+  font-size: var(--fs-lg);
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* 标题前的「架」字做成一枚小印章，与全站朱砂方印同一语言 */
+.shelf-title__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  font-size: 12px;
+  letter-spacing: 0;
+  color: var(--paper);
+  background: var(--cinnabar);
+  border-radius: 2px;
+  flex: none;
+}
+
+.shelf-stage__lede {
+  font-size: var(--fs-sm);
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+}
+
+.shelf-stage__lede strong {
+  font-weight: 500;
+  font-size: inherit;
+  line-height: inherit;
+  color: var(--ink-soft);
+}
+
+.shelf-stage__status {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* ---- 房间：背墙 + 地板 ---- */
+
+.shelf-room {
+  position: relative;
+  /*
+   * 高度是「房间的高度」而不是书架的高度。
+   * 书架靠下摆放，上方留出的空白是墙——那面墙是这个场景成立的前提，
+   * 没有墙，十本书就只是浮在页面上的十张卡片。
+   *
+   * ⚠️ 房间高度直接决定书的屏幕高度：书是按 px 定高的（256~196），
+   *    房间只有 300px 时，最高的「传统美术」占 262/300 = 87%，看起来是贴顶的；
+   *    而房间宽度是随容器走的（1216px），十本书只占 800px = 66%，
+   *    两侧各空 210px 的墙 —— 一条又扁又宽的房间，书挤在中间，
+   *    这就是「一排书摆在空房间里」的观感来源。
+   *
+   *    解法不是把书再放大（会顶到天花板），而是把房间**收窄**：
+   *    缩短它的横向尺寸，让 800px 的书占 90% 以上。
+   *    收窄用 max-width，不改变书与房的绝对尺寸比例。
+   */
+  height: 330px;
+  max-width: 980px;
+  margin-inline: auto;
+  overflow: hidden;
+  background: var(--paper-deep);
+  border-radius: var(--radius-md);
+  isolation: isolate;
+}
+
+/* 背墙：从下往上由暖转凉的渐变 + 一层极淡的横向木纹 */
+.shelf-room__wall {
+  position: absolute;
+  inset: 0 0 34% 0;
+  background:
+    linear-gradient(180deg, rgba(28, 26, 23, 0.12), rgba(28, 26, 23, 0.02) 60%, rgba(28, 26, 23, 0.05)),
+    linear-gradient(180deg, #E7DFCE 0%, #EDE6D6 44%, #E4DBC7 100%);
+  transform: translateX(var(--room-shift, 0px));
+  transition: transform 90ms linear;
+}
+
+/* 墙上的横向木纹：用重复线性渐变画，比贴图轻，也比纯色可信 */
+.shelf-room__wall::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(92, 71, 50, 0.05) 0 1px,
+    transparent 1px 9px
+  );
+  opacity: 0.7;
+}
+
+/* 地板：比墙暗，带一条向上的反光，暗示地面材质 */
+.shelf-room__floor {
+  position: absolute;
+  inset: 66% 0 0 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 40%),
+    linear-gradient(180deg, #C9BCA2 0%, #B3A488 52%, #9C8D72 100%);
+  transform: translateX(var(--room-shift, 0px));
+  transition: transform 90ms linear;
+}
+
+/* 地板与墙的接缝：一道极淡的暗线，让空间有「进深」 */
+.shelf-room__floor::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: rgba(60, 48, 34, 0.22);
+}
+
+/* 地板上的竖向缝隙（木地板拼缝） */
+.shelf-room__floor::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 63px,
+    rgba(60, 48, 34, 0.10) 63px 64px
+  );
+  opacity: 0.5;
+}
+
+/* ---- 视口与书架 ---- */
+
+.shelf-viewport {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /*
+   * 焦距。数值越小透视越夸张。1100px 配 300px 高的房间，
+   * 十本书刚好散开又不至于两侧被拉成鱼眼。
+   * ⚠️ 与 Shelf.js 的 FOCAL 常量保持一致。
+   */
+  perspective: 1100px;
+  perspective-origin: 50% 46%;
+  cursor: grab;
+  user-select: none;
+  /* 拖动时不要触发浏览器的横向滑动（触屏） */
+  touch-action: pan-y;
+}
+
+.shelf-viewport:active { cursor: grabbing; }
+
+/* 键盘焦点落在视口上时给一圈朱砂提示 */
+.shelf-viewport:focus-visible {
+  outline: 2px solid var(--cinnabar);
+  outline-offset: -3px;
+}
+
+.shelf-rail {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  /*
+   * 必须保留 3D 上下文，否则每本书上的 rotateY 会被压平进 rail 平面，
+   * 书脊看起来就是十张贴纸，而不是十本立着的书。
+   */
+  transform-style: preserve-3d;
+  /*
+   * 整架书随拖动一起转。
+   * rotateY 作用在 rail 上、单本书的 rotateY 作用在自己身上，
+   * 二者叠加才有「站在书架前转头」的感觉。
+   */
+  transform: rotateY(var(--rail-rot, 0deg));
+  transition: transform 90ms linear;
+}
+
+/* 拖动期间撤销过渡：否则鼠标与书架之间有肉眼可见的滞后 */
+.shelf-rail.is-dragging { transition: none; }
+
+/*
+ * 对齐底边期间关掉过渡。
+ * Shelf.js 的 alignBottoms() 会临时加这个类，量完再摘掉。
+ * 不关的话 getBoundingClientRect 读到的是过渡中间值，补偿量算不准
+ * （实测偏差 -7 ~ +19px，且每次重跑结果都不同）。
+ */
+.is-aligning .shelf-book { transition: none !important; }
+
+/* ---- 单本书 ---- */
+
+.shelf-book {
+  position: absolute;
+  bottom: 30px;                 /* 坐在踏板上 */
+  left: 50%;
+  width: var(--bw);
+  height: var(--bh);
+  /*
+   * ⚠️ 水平居中用 translate 而不是 margin-left: calc(var(--bw) / -2)。
+   *    因为下面 --off 用的是 margin-bottom —— 而「不对称的水平外边距 +
+   *    负的水平 margin-left」会让每本书的水平基准各自偏移一点，
+   *    十本叠起来就是整排书往左漂。全部改用一个 margin 走完（只留垂直），
+   *    水平交给 transform，位置就只由一个来源决定。
+   *
+   *    transform 里 x 分量 = -50%（自身宽度的一半），由 CSS 提供；
+   *    JS 每帧重写 transform 时必须原样带上这一项，见 Shelf.js 的 paint()。
+   */
+  translate: -50% 0;
+  /*
+   * 离台高度交给 JS 的 --yfix 统一处理（见 Shelf.js 的 alignBottoms）。
+   * 这里不再用 margin-bottom: var(--off)：--off 只是「想要的错落」，
+   * 而透视缩放与 tilt 倾斜还会额外把底边推离基准线，两者必须一起抵消，
+   * 分开设会出现「有的书陷进踏板、有的浮空」。
+   */
+  rotate: var(--tilt);
+  transform-style: preserve-3d;
+  /*
+   * 以底边为轴：书永远「站在踏板上」。
+   *
+   * 注：曾经有一版注释把「4/10 本书点不着」归咎于这个原点，那是误判。
+   * 真凶是 --z 被推到透视平面之后（详见 Shelf.js 里 Z_LIFT 那段）。
+   * 这里保持 center bottom 是因为倾倒的姿态更自然，不是因为修 bug。
+   */
+  transform-origin: center bottom;
+  transition: transform 90ms linear, filter 90ms linear, opacity 90ms linear;
+  text-decoration: none;
+  color: inherit;
+}
+
+.shelf-rail.is-dragging .shelf-book { transition: none; }
+
+/* 悬停/聚焦时整本略微前倾并抬高 —— 「想拿」的反馈 */
+.shelf-book:hover,
+.shelf-book:focus-visible {
+  z-index: 999 !important;
+}
+
+.shelf-book:hover .shelf-book__spine,
+.shelf-book:focus-visible .shelf-book__spine {
+  transform: translate3d(0, -7px, 26px);
+  box-shadow:
+    0 18px 26px -12px rgba(28, 26, 23, 0.42),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+
+.shelf-book:focus-visible .shelf-book__spine {
+  outline: 2px solid var(--cinnabar);
+  outline-offset: 3px;
+}
+
+/* 书脊：立面的主面，所有文字与纹样都在这里 */
+.shelf-book__spine {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  padding: 13px 3px 10px;
+  border-radius: 2px 2px 1px 1px;
+  /*
+   * 书脊着色：三段渐变。
+   *   左侧窄亮边 = 圆背的光
+   *   --sheen 位置的光斑 = JS 逐帧推动的侧光
+   *   右侧收暗 = 书脊弧面转过去
+   * 缺任何一段，书脊就是一块平面色板。
+   */
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.20) 0%,
+      transparent 9%,
+      transparent 62%,
+      rgba(0, 0, 0, 0.18) 100%
+    ),
+    radial-gradient(
+      120% 60% at var(--sheen, 50%) 0%,
+      rgba(255, 250, 235, 0.28),
+      transparent 62%
+    ),
+    linear-gradient(180deg, var(--tone-lit) 0%, var(--tone) 46%, var(--tone-dark) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.10),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 10px 18px -10px rgba(28, 26, 23, 0.45);
+  transition: transform 220ms var(--ease), box-shadow 220ms var(--ease);
+  overflow: hidden;
+}
+
+/* 书脊两端的两道烫金细线 —— 古籍常见的「堵头布」位置 */
+.shelf-book__spine::before,
+.shelf-book__spine::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(201, 169, 97, 0.75), transparent);
+}
+
+.shelf-book__spine::before { top: 7px; }
+.shelf-book__spine::after { bottom: 7px; }
+
+/*
+ * 书脊内部的纵向节奏。
+ *
+ * 从上到下：印章 → （弹性留白）→ 竖排书名 → 纹样 → 条目数
+ *
+ * ⚠️ 第一版是 seal 之后立刻接书名，书名还带了 max-height: calc(--bh - 108px)，
+ *    结果：书脊上半截只剩一枚 22px 的小印，书名挤在中段，
+ *    下端又被绝对定位的代表项目名压住 —— 一根细长的书脊上有 2/3 是空的。
+ *    真实古籍的书脊是「上端印、中段题名、下端编号」三段式，要的是这个分布，
+ *    不是把元素从上往下堆。
+ *
+ *    所以 seal 之下补一段 padding-top（把书名往下推），
+ *    书名自己不再限高（竖排文字本来就窄，撑不满书脊宽度），
+ *    其余元素交给 margin-top: auto 推到底。
+ */
+.shelf-book__seal {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 3px;
+  font-family: var(--font-serif);
+  font-size: 11px;
+  letter-spacing: 0;
+  color: #FBF3EC;
+  background: var(--cinnabar);
+  border-radius: 1px;
+  opacity: 0.92;
+  /* 印章之下留出空档，题名从这里才开始 */
+  margin-bottom: auto;
+}
+
+/*
+ * 书名：竖排。书脊宽度只有 53–91px，横排书名会挤成两行看不清。
+ *
+ * ⚠️ 这里**不设 max-height**。
+ *    第一版写的是 max-height: calc(var(--bh) - 108px)，意图是防住
+ *    「传统体育、游艺与杂技」十个字排不下。但那等于把书名的可用高度
+ *    锁死在 88~148px，而实际书脊高 196~256px —— 书名被压成一截短字，
+ *    上下各空一大块，这正是「书脊显得空」的直接原因。
+ *
+ *    真正需要的不是限高，而是「短名往下排、长名排得下」：
+ *    竖排文字天然只占一行宽度，高度由字数决定，
+ *    十个字的门类在 14px × 1.15 行高下约 161px，仍然放得下。
+ *    所以交给 flex 的剩余空间（seal 的 margin-bottom: auto 推下来，
+ *    motif 的 margin-top: auto 顶上去），不做硬裁切。
+ */
+.shelf-book__title {
+  flex: 0 1 auto;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-family: var(--font-serif);
+  /*
+   * 字号从 14 提到 17。
+   *
+   * 书脊宽 53~91px，而竖排书名本身只有 17~19px 宽 ——
+   * 14px 字号时右侧 60% 的书脊完全是空的，十本并排看起来
+   * 像十条彩纸夹在架子上，不像书。字号提上来之后，
+   * 书名成为书脊上最重的一笔，符合「书脊认人靠书名」的实际。
+   */
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  line-height: 1.15;
+  color: #F7F1E6;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.34);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 门类纹样：白描线稿，压在书名下方做装饰 */
+.shelf-book__motif {
+  margin-top: auto;
+  /*
+   * 从 34 放大到 42，并提高不透明度。
+   *
+   * 原来 0.52 的白色线稿压在中浅色书脊（舞蹈的赭、游艺的墨绿）上
+   * 几乎看不出来，等于白画。纹样是这十本书唯一能区分「门类个性」
+   * 的图形，淡到看不见就失去了它存在的意义。
+   * 0.68 能看出线，又不会抢书名的分量。
+   */
+  width: 42px;
+  height: 42px;
+  color: rgba(247, 241, 230, 0.68);
+  flex: none;
+}
+
+.shelf-book__motif svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 条目数：书脊下端的小字 */
+.shelf-book__count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: rgba(247, 241, 230, 0.68);
+}
+
+/*
+ * 代表项目名：横排小字，作为书脊底部的「这部书里装了什么」的注脚。
+ *
+ * ⚠️ 用绝对定位，且必须让开下面的 .shelf-book__count。
+ *
+ *    第一版写 bottom: 26px、count 在 flex 流的末尾，
+ *    两者都贴着书脊下沿 —— count 是「629」这样的数字，mark 是「景德镇手工制瓷」，
+ *    两层字直接叠在一起，谁都读不出来（截图确认过）。
+ *
+ *    现在 mark 改成「从下往上数第 26px 起、再往上 2 行」，
+ *    而 count 仍由 flex 推到最底：两者在纵向错开，
+ *    中间留着书脊封底的烫金细线（::after 在 bottom: 7px）。
+ */
+.shelf-book__mark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /*
+   * 从 24 抬到 30。
+   *
+   * 原来 mark 底边距书脊下端 24px，count（条目数）由 flex 压在最底，
+   * 两者只差不到 10px —— 截图里「苗族古歌」紧贴着「252」，
+   * 像同一行字折了行。抬到 30 之后中间空出一行的呼吸，
+   * 也正好让开 ::after 那道烫金细线（bottom: 7px）。
+   */
+  bottom: 30px;
+  padding: 0 3px;
+  font-family: var(--font-serif);
+  font-size: 9px;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: rgba(247, 241, 230, 0.58);
+  /*
+   * 最多两行：「景德镇手工制瓷」在 53px 宽的书脊上要折两行，
+   * 「太极拳」只有三字。超过两行就截掉 —— 但截的是行，不是字，
+   * 所以不会出现半个字。全名在 aria-label 里，读屏与悬停注释都能拿到。
+   */
+  max-height: 24px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/*
+ * 书脊侧面（书的厚度）。
+ * 这是让书「立起来」的关键：只有一个正面的话，无论怎么转都是一张贴纸。
+ * 用 rotateY(-90deg) 把它翻到左边 —— 光从右上来，
+ * 所以观众看到的永远是书的左侧厚度面。
+ */
+.shelf-book__edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 14px;
+  transform-origin: left center;
+  transform: rotateY(-90deg);
+  background: linear-gradient(90deg, var(--tone-dark), var(--tone));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.22);
+  border-radius: 1px 0 0 1px;
+  /* 侧面上画几道纸页的横线 */
+  background-image:
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0 1px, transparent 1px 4px),
+    linear-gradient(90deg, var(--tone-dark), var(--tone));
+}
+
+/* 书顶（裁口）：从上看下去的一线白，模拟书页纸边 */
+.shelf-book__top {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 14px;
+  transform-origin: center top;
+  transform: rotateX(90deg);
+  background: linear-gradient(180deg, #F2EBDC, #DED3BE);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  border-radius: 1px 1px 0 0;
+}
+
+/* ---- 踏板与灯 ---- */
+
+/*
+ * 横贯视口的踏板：书必须坐在一个东西上，否则「浮在空中」。
+ * 用一条有厚度的深色木条，并在上方加一道高光。
+ *
+ * ⚠️ 踏板的上沿必须**低于**书的底边，否则会把书底那截切掉。
+ *
+ *    .shelf-book 的 bottom 是 30px（再叠 --off）。
+ *    原来踏板是 bottom: 22px + height: 14px，上沿落在 bottom 36px——
+ *    比书的底边还高 6px，于是书的下端被木条盖住，
+ *    书脊底部的条目数（252 / 433 / 213 …）直接看不见。
+ *    offset 越小的书被切得越多，看起来像「有的书陷进架子里了」。
+ *
+ *    现在踏板 bottom 26px、高 16px，上沿在 42px 处仍然高于 30px —
+ *    所以改用结构性的解法：让 .shelf-viewport 的内容整体
+ *    留出底部空间，书与踏板都按 z-index 分层，踏板画在书**下面**。
+ *    真正挡住字的是 z-index，不是几何。见下方 .shelf-book 的 z-index 段。
+ */
+.shelf-plank {
+  position: absolute;
+  left: -5%;
+  right: -5%;
+  bottom: 22px;
+  height: 16px;
+  z-index: 1;                   /* 低于所有书（书是 100+），只做视觉底座 */
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 34%),
+    linear-gradient(180deg, #7A6449 0%, #5F4C37 58%, #4A3B2B 100%);
+  box-shadow:
+    0 -2px 6px -2px rgba(28, 26, 23, 0.28),
+    0 8px 18px -8px rgba(28, 26, 23, 0.5);
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+/* 踏板上沿的一道金线 —— 与全站「金」的使用一致：只做线，不做面 */
+.shelf-plank::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(201, 169, 97, 0.55), transparent);
+}
+
+/*
+ * 顶光：从房间上方打下来的一束暖光。
+ * 用径向渐变模拟，而不是真的加光源 —— 目的是让十本书的顶部有统一的受光，
+ * 否则每本书各亮各的，看起来像十个独立的图标拼在一起。
+ */
+.shelf-lamp {
+  position: absolute;
+  inset: -30% 12% 34% 12%;
+  background: radial-gradient(
+    ellipse 60% 100% at 50% 0%,
+    rgba(255, 246, 220, 0.42),
+    rgba(255, 246, 220, 0.10) 46%,
+    transparent 72%
+  );
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+}
+
+/* ---- 拖动手势提示 ---- */
+
+.shelf-hint {
+  position: absolute;
+  right: 16px;
+  bottom: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 11px;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.1em;
+  color: var(--paper);
+  background: rgba(28, 26, 23, 0.52);
+  border-radius: 100px;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  opacity: 0;
+  animation: shelfHint 5.5s var(--ease) 0.9s forwards;
+}
+
+.shelf-hint__arrow {
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.8;
+  animation: shelfArrow 1.9s ease-in-out infinite;
+}
+
+.shelf-hint__arrow:last-child { animation-delay: 0.28s; }
+
+/* 提示出现 → 停留 → 淡出。不常驻，否则像一块贴在画面上的标签 */
+@keyframes shelfHint {
+  0%   { opacity: 0; transform: translateY(6px); }
+  12%  { opacity: 1; transform: translateY(0); }
+  78%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-2px); }
+}
+
+@keyframes shelfArrow {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(2px); }
+}
+
+/* ---- 断点：房间在窄屏上按比例收缩 ---- */
+
+@media (max-width: 1100px) {
+  .shelf-room { height: 268px; }
+  .shelf-stage__head { grid-template-columns: auto minmax(0, 1fr); }
+  .shelf-stage__status { display: none; }
+}
+
+@media (max-width: 900px) {
+  .shelf-room { height: 240px; }
+  .shelf-book__mark { display: none; }
+  .shelf-book__motif { width: 28px; height: 28px; }
+  .shelf-hint { right: 10px; bottom: 38px; }
+}
+
+/*
+ * 720px 是比赛要求的最小规格。
+ * 此时书脊全部按比例缩小，否则十本书的横向总宽会超过视口宽度，
+ * 两端的书会被挤到房间外面 —— 那是「形变缺失」，适配分要扣。
+ */
+@media (max-width: 720px) {
+  .shelf-room { height: 208px; }
+  .shelf-viewport { perspective: 760px; }
+  .shelf-book {
+    /* 整体缩放靠 zoom 会影响 transform 计算，所以改缩放书本身 */
+    scale: 0.82;
+    transform-origin: center bottom;
+  }
+  .shelf-book__title { font-size: 12px; letter-spacing: 0.1em; }
+  .shelf-book__motif { width: 24px; height: 24px; }
+  .shelf-hint { font-size: 10px; padding: 4px 9px; }
+  .shelf-stage__lede { font-size: var(--fs-xs); }
+}
+
+@media (max-width: 480px) {
+  .shelf-room { height: 186px; }
+  .shelf-book { scale: 0.72; }
+  .shelf-book__seal { min-width: 18px; height: 18px; font-size: 10px; }
+  .shelf-book__title { font-size: 11px; }
+}
+
+/* 触屏没有 hover，把「想拿」的反馈挪到 :active 上 */
+@media (hover: none) {
+  .shelf-book:active .shelf-book__spine {
+    transform: translate3d(0, -5px, 20px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shelf-rail, .shelf-book, .shelf-room__wall, .shelf-room__floor { transition: none; }
+  .shelf-hint { animation: none; opacity: 1; }
+  .shelf-hint__arrow { animation: none; }
+  .shelf-book__spine { transition: none; }
+}
+
+@media print {
+  .shelf-room, .shelf-hint { display: none; }
+  .shelf-stage__lede { display: none; }
+}
+
+/* ==========================================================================
+   名录页 · 展馆视角结束
+   ========================================================================== */
+
 @media print {
   .age-actions { display: none; }
   .age-bar-fill { background: #999 !important; }
