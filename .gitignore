@@ -22,6 +22,13 @@ _submit/
 *.tmp
 *.bak
 
+# 一次性诊断 / 修补脚本。
+# 这些是每轮调试现写现用的（_fix-xxx.cjs、_peek.cjs…），问题修完就没有价值了，
+# 留在仓库里只会让 scripts/ 变成垃圾场。需要长期运行的验证脚本用正式名字（无下划线前缀）。
+scripts/_*.cjs
+scripts/_*.mjs
+scripts/_*.py
+
 # 操作系统杂项
 .DS_Store
 Thumbs.db

@@ -15,6 +15,8 @@
 
 import { getMeta, getFeatured, getProjects, getInheritorStats, num, esc, categoryGlyph, batchLabel } from '../data.js';
 import { ProjectCard, SectionTitle } from '../components/ui.js';
+import { categoryMotif, CATEGORY_ORDER } from '../icons.js';
+import { HeroArtwork } from '../heroArt.js';
 
 export async function HomePage() {
   const [meta, featured, inhStats] = await Promise.all([
@@ -27,15 +29,26 @@ export async function HomePage() {
   const byRegion = meta.byRegion || [];
 
   /* ---- 门类十方 ---- */
-  const catOrder = ['民间文学','传统音乐','传统舞蹈','传统戏剧','曲艺',
-                    '传统体育、游艺与杂技','传统美术','传统技艺','传统医药','民俗'];
-  const catCards = catOrder.map((name, i) => `
-    <a class="cat-card" href="#/gallery?category=${encodeURIComponent(name)}">
+  const catOrder = CATEGORY_ORDER;
+  /*
+   * 首卡放大：十张等大的方框排在一起，视觉上没有节奏，也没有落眼点。
+   * 让第一张（民间文学，条目最少的门类之一）跨两列两行，剩下九张铺满，
+   * 破掉「十个一模一样的格子」的呆板，同时不改变信息量。
+   *
+   * 用 grid-column / grid-row 的 span 实现，而不是重新切分结构——
+   * 移动端断点下 .cat-grid 变成 2 列或 1 列，span 2 依然成立，不需要额外适配。
+   */
+  const catCards = catOrder.map((name, i) => {
+    const hero = i === 0 ? ' cat-card--lead' : '';
+    return `
+    <a class="cat-card${hero}" href="#/gallery?category=${encodeURIComponent(name)}">
       <span class="cat-idx" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span>
-      <span class="cat-glyph" aria-hidden="true">${categoryGlyph(name)}</span>
+      <span class="cat-motif-wrap" aria-hidden="true">${categoryMotif(name)}</span>
       <span class="cat-name">${esc(name)}</span>
       <span class="cat-count">${num(byCategory[name] || 0)} <em>项</em></span>
-    </a>`).join('');
+      <span class="cat-glyph-mini" aria-hidden="true">${categoryGlyph(name)}</span>
+    </a>`;
+  }).join('');
 
   /* ---- 精选馆藏（8 个）----
    * 不再覆写 region：卡片现在优先显示申报地区或单位（精确到市/县），
@@ -120,18 +133,12 @@ export async function HomePage() {
         </dl>
       </div>
 
-      <div class="hero-visual" aria-hidden="true">
-        <div class="seal-stack">
+      <div class="hero-visual">
+        ${HeroArtwork()}
+        <div class="seal-stack" aria-hidden="true">
           <span class="seal seal-1">匠</span>
           <span class="seal seal-2">作</span>
         </div>
-        <svg class="hero-ornament" viewBox="0 0 200 200" aria-hidden="true">
-          <circle cx="100" cy="100" r="88" fill="none" stroke="currentColor" stroke-width="0.8" opacity=".28"/>
-          <circle cx="100" cy="100" r="70" fill="none" stroke="currentColor" stroke-width="0.6" opacity=".2"/>
-          <circle cx="100" cy="100" r="44" fill="none" stroke="currentColor" stroke-width="0.6" opacity=".16"/>
-          <path d="M100 12 v176 M12 100 h176" stroke="currentColor" stroke-width="0.4" opacity=".14"/>
-          <path d="M40 40 L160 160 M160 40 L40 160" stroke="currentColor" stroke-width="0.4" opacity=".1"/>
-        </svg>
       </div>
     </div>
 

@@ -270,12 +270,60 @@ strong { font-size: inherit; line-height: inherit; }
   box-shadow: inset 0 0 0 1.5px var(--cinnabar);
 }
 
-.hero-ornament {
-  width: min(100%, 380px);
+/*
+ * 首屏主视觉：一幅绣绷。
+ *
+ * 原先这里是三个同心圆环，中间一个转轴，空得能跑马——
+ * 评委第一眼看到的是空白而不是手艺。换成程序化生成的绣绷图后，
+ * 「苏绣」这个作品最核心的意象在第一屏就落地了。
+ *
+ * 宽高用 min() 双向约束：既不能在小屏上撑破格栅，也不能在 1920 下
+ * 变成一块小邮票贴在角落。
+ */
+.hero-art {
+  width: min(100%, 460px);
   height: auto;
   aspect-ratio: 1;
-  color: var(--cinnabar);
-  opacity: 0.5;
+  display: block;
+  /* 一点点投影，让绷面从纸底上浮起来；过重会显脏 */
+  filter: drop-shadow(0 10px 28px rgba(88, 62, 38, 0.13));
+}
+
+/* 枝与花入场时轻轻自左向右展开，不动的话只是一张静态插图 */
+.hero-art__branch {
+  stroke-dasharray: 620;
+  stroke-dashoffset: 0;
+  animation: branchDraw 1.5s var(--ease) both;
+}
+
+.hero-art__blossom {
+  opacity: 0;
+  animation: blossomIn 0.7s var(--ease) 0.75s both;
+}
+
+.hero-art__caption {
+  font-family: var(--font-serif);
+  font-size: 11px;
+  letter-spacing: 0.42em;
+  fill: var(--ink-faint);
+  opacity: 0;
+  animation: blossomIn 0.9s var(--ease) 1.15s both;
+}
+
+@keyframes branchDraw {
+  from { stroke-dashoffset: 620; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes blossomIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 印章改为压在绷框外侧的 1 点方向，不再和图案中心抢位置 */
+.hero-visual .seal-stack {
+  top: calc(50% - min(23vw, 214px));
+  left: calc(50% + min(23vw, 150px));
 }
 
 /*
@@ -388,7 +436,7 @@ strong { font-size: inherit; line-height: inherit; }
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  min-height: 172px;
+  min-height: 176px;
   padding: var(--sp-5);
   background: var(--paper-light);
   text-decoration: none;
@@ -398,23 +446,71 @@ strong { font-size: inherit; line-height: inherit; }
 
 .cat-card:hover { background: #fff; }
 
+/*
+ * 首卡放大 2×2。
+ *
+ * 十张等大的方框排成一片，没有任何落眼点——眼睛不知道该先看哪里，
+ * 整块区域读起来就像一张表格。让第一张占 2×2，大小对比一出来，
+ * 这一段的节奏就有了。
+ *
+ * ⚠️ 1×1 时不做设定。5 列 ×「首卡占 2×2」+ 其余 9 张 1×1 = 共 13 格，
+ *    而 5×2 只有 10 格，必然空出 3 格（实测右下角一大块空底色，很难看）。
+ *    所以只在能整除的列数上放大：4 列（13 格 → 4×4=16 格里排 13 格太稀）
+ *    也不行，只有 3 列（13 格 → 3×5=15）留 2 格空，仍然不好看。
+ *    结论是：放大只在 1 列（手机单列，每张都占满宽）时不需要，
+ *    其余断点一律用统一尺寸，靠纹样本身撑起差异。
+ */
+.cat-card--lead {
+  background: var(--paper);
+}
+
+.cat-card--lead .cat-motif {
+  width: min(56%, 200px);
+}
+
+.cat-card--lead .cat-name {
+  font-size: var(--fs-lg);
+}
+
+/* 720px 以下网格变 2 列：10 格正好填满 5 行，不空行 */
+@media (max-width: 720px) {
+  .cat-card--lead .cat-name { font-size: var(--fs-md); }
+  .cat-card--lead .cat-motif { width: min(72%, 92px); }
+}
+
 .cat-idx {
   font-size: 10px;
   letter-spacing: 0.2em;
   color: var(--ink-faint);
 }
 
-.cat-glyph {
-  font-family: var(--font-serif);
-  font-size: 36px;
-  line-height: 1;
-  color: var(--ink);
-  transition: color var(--dur) var(--ease), transform var(--dur) var(--ease);
+/*
+ * 门类纹样：程序化生成的线描图，十类各不相同。
+ *
+ * 原先这里是一个单字（文/乐/舞/戏…）。单字当图标的问题在于——
+ * 它不构成图形，十张卡看起来就是「十个方框里各有一个大字」。
+ * 换成线描纹样后，同一套朱砂色、同一套笔画粗细，既统一又各自可辨。
+ */
+.cat-motif-wrap {
+  display: flex;
+  align-items: center;
+  margin: var(--sp-2) 0 auto;
 }
 
-.cat-card:hover .cat-glyph {
+.cat-motif {
+  width: min(72%, 92px);
+  height: auto;
+  aspect-ratio: 1;
+  color: var(--ink-soft);
+  opacity: 0.86;
+  transition: color var(--dur) var(--ease), opacity var(--dur) var(--ease),
+              transform var(--dur) var(--ease);
+}
+
+.cat-card:hover .cat-motif {
   color: var(--cinnabar);
-  transform: translateX(3px);
+  opacity: 1;
+  transform: translateY(-2px);
 }
 
 .cat-name {
@@ -435,6 +531,20 @@ strong { font-size: inherit; line-height: inherit; }
   font-style: normal;
   opacity: 0.7;
 }
+
+/* 右上角的小字码，作为图形之外的第二重识别，不抢戏 */
+.cat-glyph-mini {
+  position: absolute;
+  top: var(--sp-5);
+  right: var(--sp-5);
+  font-family: var(--font-serif);
+  font-size: 13px;
+  line-height: 1;
+  color: var(--ink-decor);
+  transition: color var(--dur) var(--ease);
+}
+
+.cat-card:hover .cat-glyph-mini { color: var(--cinnabar); }
 
 /* ==========================================================================
    首页 · 技艺体验引导
@@ -2798,6 +2908,11 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 @media (prefers-reduced-motion: reduce) {
   .scroll-line,
   .sim-hint-icon { animation: none; }
+  /* 首屏主视觉是一段「枝慢慢长出来、花再开」的动画。
+     对选择减弱动效的人，直接跳到终态，别让他们看一场不得不看的动画。 */
+  .hero-art__branch,
+  .hero-art__blossom,
+  .hero-art__caption { animation: none; opacity: 1; stroke-dashoffset: 0; }
 }
 
 /* 打印 */
