@@ -1,3 +1,4 @@
+import { updateCraftFeedback } from '../craft-feedback.js';
 /**
  * 宣纸模拟器 —— 捞纸与帘纹
  *
@@ -67,8 +68,10 @@ export function initPaper() {
   /* ---------- 纸浆槽 ---------- */
   function drawVat() {
     const w = W(), h = H();
-    // 槽体
-    ctx.fillStyle = '#3A3630';
+    // 槽体与案面：让初始画面也能辨认操作场景。
+    const bench = ctx.createLinearGradient(0, 0, 0, h);
+    bench.addColorStop(0, '#766A55'); bench.addColorStop(1, '#3A3630');
+    ctx.fillStyle = bench;
     ctx.fillRect(0, 0, w, h);
 
     // 浆液：青檀皮比例越高，浆色越偏米黄
@@ -77,7 +80,10 @@ export function initPaper() {
     const g = Math.round(224 + t * 10);
     const b = Math.round(232 - t * 42);
 
-    const vatY = h * 0.3, vatH = h * 0.55;
+    ctx.fillStyle = '#EEE6D5';
+    ctx.font = `${Math.max(12, Math.min(18, w * 0.025))}px serif`;
+    ctx.fillText('抄纸槽 · 帘面向上', w * 0.05, h * 0.075);
+    const vatY = h * 0.12, vatH = h * 0.76;
     const vg = ctx.createLinearGradient(0, vatY, 0, vatY + vatH);
     vg.addColorStop(0, `rgb(${r - 12},${g - 10},${b - 6})`);
     vg.addColorStop(0.45, `rgb(${r},${g},${b})`);
@@ -244,7 +250,7 @@ export function initPaper() {
   /* ---------- 沉积计算 ---------- */
   /** 按停留时间与荡动速度沉积纤维 */
   function depositFibers(dt) {
-    if (step !== 'dip' && step !== 'swing') return;
+    if (step !== 'swing' || !swinging) return;
 
     // 浆液浓度由青檀皮比例决定（皮多则浆稠）
     const conc = 0.5 + (barkRatio / 100) * 0.9;
@@ -365,11 +371,12 @@ export function initPaper() {
     ctx.save();
     ctx.globalAlpha = 0.22;
     for (let i = 0; i < 340; i++) {
-      const x = sx + Math.random() * sw;
-      const y = sy + Math.random() * sh;
-      const len = 4 + Math.random() * 16;
-      const a = Math.random() * Math.PI;
-      ctx.strokeStyle = Math.random() > 0.5 ? '#B8A67C' : '#D6CBAE';
+      const noise = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+      const x = sx + noise(i * 4) * sw;
+      const y = sy + noise(i * 4 + 1) * sh;
+      const len = 4 + noise(i * 4 + 2) * 16;
+      const a = noise(i * 4 + 3) * Math.PI;
+      ctx.strokeStyle = noise(i * 4 + 4) > 0.5 ? '#B8A67C' : '#D6CBAE';
       ctx.lineWidth = 0.6;
       ctx.beginPath();
       ctx.moveTo(x, y);
@@ -395,15 +402,21 @@ export function initPaper() {
       const order = ['dip', 'swing', 'lift', 'press'];
       el.classList.toggle('is-done', order.indexOf(el.dataset.step) < order.indexOf(step));
     });
-    if (hint) {
+    {
       const texts = {
         dip: '按住鼠标并拖动，把纸帘浸入浆槽',
         swing: '左右匀速荡动，让纤维均匀沉积',
         lift: '向上拖动，缓缓提起纸帘沥水',
         press: '湿纸已成形，点击「保存纸张」留存',
       };
-      hint.querySelector('span:last-child').textContent = texts[step];
-      hint.classList.remove('is-hidden');
+      if (hint) {
+        hint.querySelector('span:last-child').textContent = texts[step];
+        hint.classList.remove('is-hidden');
+      }
+      updateCraftFeedback('paper', { hint: texts[step], complete: step === 'press',
+        title: '一张湿纸，留住这次手上练习',
+        metrics: ['grade-even', 'grade-thick', 'grade-rank'].map((id, i) => `${['匀度', '厚度', '评价'][i]} ${document.getElementById(id)?.textContent.trim() || '—'}`),
+      });
     }
   }
 

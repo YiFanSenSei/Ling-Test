@@ -18,13 +18,17 @@ const cy = 200;
 function plumBlossom(x, y, r, petals = 5) {
   let p = '';
   for (let i = 0; i < petals; i++) {
-    const a = (360 / petals) * i - 90;
-    const rad = (a * Math.PI) / 180;
-    const px = x + Math.cos(rad) * r * 0.62;
-    const py = y + Math.sin(rad) * r * 0.62;
-    p += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${(r * 0.46).toFixed(1)}"/>`;
+    const angle = 360 / petals * i - 18;
+    const fibers = Array.from({ length: 5 }, (_, j) => {
+      const x2 = (j - 2) * r * 0.13;
+      return `<path d="M0 -${r * .12} Q${x2 * .4} -${r * .45} ${x2} -${r * .8}" fill="none" stroke="#F2D4BA" stroke-width=".55" opacity=".6"/>`;
+    }).join('');
+    p += `<g transform="translate(${x} ${y}) rotate(${angle})">
+      <path d="M0 0C-${r * .9} -${r * .35} -${r * .58} -${r * 1.22} 0 -${r * .94}C${r * .58} -${r * 1.22} ${r * .9} -${r * .35} 0 0Z"
+        fill="${i % 2 ? '#AD453D' : '#C26759'}" stroke="#963D35" stroke-width=".7"/>
+      ${fibers}</g>`;
   }
-  p += `<circle cx="${x}" cy="${y}" r="${(r * 0.2).toFixed(1)}" fill="currentColor" stroke="none" opacity=".85"/>`;
+  p += `<circle cx="${x}" cy="${y}" r="${r * .16}" fill="#B99552" stroke="#765E38" stroke-width=".7"/>`;
   return p;
 }
 

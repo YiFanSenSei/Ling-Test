@@ -1,3 +1,4 @@
+import { updateCraftFeedback } from '../craft-feedback.js';
 import { readLocal, writeLocal } from '../storage.js';
 /**
  * 苏绣模拟器 —— 图纸跟随（成品模板）与自由绣
@@ -1272,6 +1273,8 @@ export function initEmbroidery() {
       if (covered) covered.textContent = '自由创作';
       if (fitEl) fitEl.textContent = '—';
       if (rankEl) rankEl.textContent = '不限针法';
+      updateCraftFeedback('embroidery', { hint: stitches.length ? '自由创作没有固定终点，可以继续落针，也可以保存。' : '选择线色与针法，在绣布上拖动开始创作。',
+        complete: stitches.length > 0, title: '自由绣 · 随时可以留存', metrics: [`已绣 ${stitches.length} 针`] });
       return;
     }
 
@@ -1289,6 +1292,11 @@ export function initEmbroidery() {
     if (covered) covered.textContent = `${done} / ${targetCount} 格`;
     if (fitEl) fitEl.textContent = done ? `${Math.round(fitPct * 100)}%` : '—';
     if (rankEl) rankEl.textContent = rankOf(coverPct, fitPct);
+    updateCraftFeedback('embroidery', {
+      hint: coverPct >= 0.999 ? '图纸已绣满，向下查看作品札记，保存后可继续了解苏绣。' : `沿图纸落针，还剩 ${targetCount - done} 格；不同针法会留下不同质感。`,
+      complete: coverPct >= 0.999, title: '一幅绣品，从针脚中成形',
+      metrics: [`覆盖 ${Math.round(coverPct * 100)}%`, `针法契合 ${Math.round(fitPct * 100)}%`, rankOf(coverPct, fitPct)],
+    });
   }
 
   /* ---------- 模式与图纸切换 ---------- */

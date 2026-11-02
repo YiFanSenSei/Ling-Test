@@ -1,3 +1,4 @@
+import { craftStudy } from '../craft-study.js';
 import { galleryReturn } from '../browse-state.js';
 /**
  * 项目详情页
@@ -251,6 +252,7 @@ export async function ProjectPage(id) {
             <h2>${esc(curation.question)}</h2>
             <p>${esc(curation.reason)}</p><p>${esc(curation.observe)}</p>
           </aside>` : ''}
+          ${craftStudy(String(id))}
           <section class="project-section">
             <h2 class="ps-title"><span class="ps-mark">项目介绍</span></h2>
             ${paragraphs.length

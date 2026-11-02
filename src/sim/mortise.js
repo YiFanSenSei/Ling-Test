@@ -1,3 +1,4 @@
+import { updateCraftFeedback } from '../craft-feedback.js';
 /**
  * 榫卯模拟器 —— 燕尾榫 / 直榫 / 格肩榫
  *
@@ -516,6 +517,11 @@ export function initMortise() {
         : `插入中 ${pct}%`;
       stateEl.className = `joint-state ${seated ? 'is-ok' : (t > 0.02 ? 'is-near' : '')}`;
     }
+    updateCraftFeedback('mortise', {
+      hint: seated ? '构件已咬合。试着向上提拉，观察当前榫卯对脱出的约束。' : '抓住活动木件沿轴向推进；抓空白处可调整观察角度。',
+      complete: seated, title: '两块木，在结构中相合',
+      metrics: [document.querySelector('[data-joint].is-active .tool-opt-name')?.textContent.trim() || '榫卯', `推进 ${pct}%`, '已咬合'],
+    });
     if (barEl) barEl.style.width = `${pct}%`;
     if (wrapEl) wrapEl.setAttribute('aria-valuenow', String(pct));
 

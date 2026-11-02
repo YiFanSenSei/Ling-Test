@@ -1,3 +1,4 @@
+import { craftNext, craftResult, initResultActions } from '../craft-feedback.js';
 /**
  * 技艺体验页 —— 三个可交互的技艺模拟器
  *
@@ -74,6 +75,7 @@ export async function SimulatorPage() {
         </div>
 
         ${craftGuide('embroidery')}
+        ${craftNext('embroidery')}
 
         <div class="sim-stage">
           <div class="sim-canvas-wrap">
@@ -177,6 +179,8 @@ export async function SimulatorPage() {
           </aside>
         </div>
 
+        ${craftResult('embroidery')}
+
         <div class="sim-knowledge">
           <h3>关于苏绣</h3>
           <div class="knowledge-grid">
@@ -212,6 +216,7 @@ export async function SimulatorPage() {
         </div>
 
         ${craftGuide('paper')}
+        ${craftNext('paper')}
 
         <div class="sim-stage">
           <div class="sim-canvas-wrap">
@@ -270,6 +275,8 @@ export async function SimulatorPage() {
           </aside>
         </div>
 
+        ${craftResult('paper')}
+
         <div class="sim-knowledge">
           <h3>关于宣纸</h3>
           <div class="knowledge-grid">
@@ -298,13 +305,14 @@ export async function SimulatorPage() {
         <div class="sim-intro">
           <h2>榫卯 · 三维拼合</h2>
           <p>
-            不用一根钉子，只靠木构件自身的凸凹咬合，就能立起一座经历数百年地震而不倒的木塔。
-            榫卯是中国木构建筑与家具的骨架。这个模拟器把构件做成了立体的——母件沿剖切面切开，
+            榫头与卯口通过形状配合连接木构件，是理解传统木构建筑与家具的一条线索。
+            不同榫卯对受力方向的约束并不相同。这个模拟器把构件做成了立体的——母件沿剖切面切开，
             卯眼的腔体露在外面；拖动木件沿轴向推入，看它是怎么被咬住的。
           </p>
         </div>
 
         ${craftGuide('mortise')}
+        ${craftNext('mortise')}
 
         <div class="sim-stage">
           <div class="sim-canvas-wrap">
@@ -370,6 +378,8 @@ export async function SimulatorPage() {
             </div>
           </aside>
         </div>
+
+        ${craftResult('mortise')}
 
         <div class="sim-knowledge">
           <h3>关于榫卯</h3>
@@ -443,7 +453,7 @@ export function initSimulator() {
   // ⚠️ 这个二层约定容易被改错：如果哪天把 sim 的返回值直接 return 出去，
   //    main.js 拿到的是 object 而非 function，typeof 判断为 false，
   //    清理会静默失效——而页面看上去一切正常。因此这里坚持显式适配。
-  const disposers = [];
+  const disposers = [initResultActions()];
   const initOne = (label, fn) => {
     try {
       const inst = fn();
