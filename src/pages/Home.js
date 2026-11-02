@@ -17,6 +17,7 @@ import { getMeta, getFeatured, getProjects, getInheritorStats, num, esc, categor
 import { ProjectCard, SectionTitle } from '../components/ui.js';
 import { categoryMotif, CATEGORY_ORDER } from '../icons.js';
 import { CRAFTS } from '../crafts.js';
+import { CURATION } from '../curation.js';
 import { HeroArtwork } from '../heroArt.js';
 
 export async function HomePage() {
@@ -56,7 +57,7 @@ export async function HomePage() {
    * 比省级更能说明这一件是「谁家的」。
    */
   const featuredCards = featured.slice(0, 8)
-    .map(p => ProjectCard(p))
+    .map(p => ProjectCard(p, { curation: CURATION[p.id] }))
     .join('');
 
   /* ---- 批次年表 ---- */

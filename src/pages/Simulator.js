@@ -164,12 +164,14 @@ export async function SimulatorPage() {
             <div class="tool-actions">
               <button class="btn btn-ghost btn-sm" id="undo-embroidery">撤销一步</button>
               <button class="btn btn-ghost btn-sm" id="clear-embroidery">重新开始</button>
+              <button class="btn btn-ghost btn-sm" id="restore-cleared" hidden>撤销清空</button>
               <button class="btn btn-primary btn-sm" id="save-embroidery">保存作品</button>
             </div>
 
             <p class="tool-stat">
               已绣 <strong id="stitch-count">0</strong> <span id="stitch-unit">格</span>
             </p>
+            <p class="tool-note" id="draft-status" role="status">落针后自动保存草稿，每幅图纸分别保留。</p>
             <!-- 读屏软件听不见 canvas 里画了什么，进度只能靠这里播报 -->
             <p id="sr-stitch" class="sr-only" role="status" aria-live="polite"></p>
           </aside>

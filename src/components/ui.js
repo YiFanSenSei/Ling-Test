@@ -77,7 +77,7 @@ export function categoryPattern(category) {
  *    它把「为什么列表里有好几张同名卡片」直接写在卡片上，
  *    而不是让读者自己猜是不是抓重了。
  */
-export function ProjectCard(p, { showRegion = true, showVariantBadge = true } = {}) {
+export function ProjectCard(p, { showRegion = true, showVariantBadge = true, curation = null } = {}) {
   const glyph = categoryGlyph(p.category);
   const where = p.unit || p.region || '';
   const variants = Number(p.variantCount) || 1;
@@ -92,6 +92,7 @@ export function ProjectCard(p, { showRegion = true, showVariantBadge = true } = 
     </div>
     <div class="pcard-body">
       <h3 class="pcard-name">${esc(p.name)}</h3>
+      ${curation ? `<p class="pcard-curation">${esc(curation.reason)}</p><p class="pcard-question">带着问题看 · ${esc(curation.question)}</p>` : ''}
       <p class="pcard-meta">
         <span class="pcard-cat">${esc(p.category || '—')}</span>
         ${showRegion && where

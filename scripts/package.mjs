@@ -45,7 +45,8 @@ const INCLUDE = ['index.html', 'vite.config.js', 'package.json', 'pnpm-workspace
                  'pnpm-lock.yaml', 'README.md', 'public', 'src',
                  'scripts/split-details.mjs', 'scripts/fetch-data.mjs',
                  'scripts/fetch-details.mjs', 'scripts/fetch-all-details.mjs',
-                 'scripts/coverage-report.mjs', 'scripts/lib'];
+                 'scripts/coverage-report.mjs', 'scripts/lib/parse-detail.mjs',
+                 'scripts/lib/birth-summary.mjs'];
 
 /**
  * 不随作品提交的内部文件。

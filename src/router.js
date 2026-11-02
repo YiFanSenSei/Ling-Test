@@ -13,6 +13,10 @@
 const routes = [];
 let notFoundHandler = null;
 let beforeEach = null;
+let sequence = 0;
+let previousPath = '';
+let feedback = {};
+export function setRouteFeedback(handlers) { feedback = handlers; }
 
 /** 注册路由。pattern 形如 '/project/:id' */
 export function route(pattern, handler) {
@@ -95,7 +99,7 @@ function resolve(path) {
 /** 跳转 */
 export function navigate(path, { replace = false } = {}) {
   const target = `#${path}`;
-  if (window.location.hash === target) return;
+  if (window.location.hash === target && !replace) return;
   if (replace) {
     window.history.replaceState(null, '', target);
     handleRoute();
@@ -106,18 +110,22 @@ export function navigate(path, { replace = false } = {}) {
 
 /** 处理一次路由 */
 async function handleRoute() {
+  const token = ++sequence;
   const path = currentPath();
+  const fromPath = previousPath;
+  previousPath = path;
+  const context = { path, fromPath, isCurrent: () => token === sequence };
   const { handler, params } = resolve(path);
   if (beforeEach) beforeEach(path);
-  if (handler) {
-    await handler({ params, path });
-  } else if (notFoundHandler) {
-    await notFoundHandler({ path });
-  } else {
-    renderNotFound(path);
+  feedback.pending?.(context);
+  try {
+    if (handler || notFoundHandler) await (handler || notFoundHandler)({ ...context, params });
+    else renderNotFound(path);
+  } catch (error) {
+    if (context.isCurrent()) await feedback.error?.(error, context);
+  } finally {
+    if (context.isCurrent()) feedback.complete?.(context);
   }
-  // 路由切换后回到顶部（页面渲染函数自己也会滚，双重保险）
-  window.scrollTo(0, 0);
 }
 
 /**

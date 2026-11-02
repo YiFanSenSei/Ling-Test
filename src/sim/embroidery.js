@@ -1,3 +1,4 @@
+import { readLocal, writeLocal } from '../storage.js';
 /**
  * 苏绣模拟器 —— 图纸跟随（成品模板）与自由绣
  *
@@ -893,6 +894,7 @@ export function initEmbroidery() {
       countEl.textContent = String(mode === 'template' ? filled.size : stitches.length);
     }
     updateProgress();
+    scheduleDraft();
   }
 
   /**
@@ -1563,7 +1565,7 @@ export function initEmbroidery() {
         b.classList.toggle('is-active', on);
         b.setAttribute('aria-checked', String(on));
       });
-      setTemplate(btn.dataset.template);
+      switchTemplate(btn.dataset.template);
     });
   });
 
@@ -1610,9 +1612,13 @@ export function initEmbroidery() {
   });
 
   document.getElementById('clear-embroidery')?.addEventListener('click', () => {
+    if (!stitches.length) return;
+    clearedWork = snapshotDraft();
+    document.getElementById('restore-cleared').hidden = false;
     stitches = [];
     filled = new Set();
     redraw();
+    flushDraft();
     if (hint) hint.classList.remove('is-hidden');
   });
 
@@ -1628,9 +1634,116 @@ export function initEmbroidery() {
     });
   });
 
+  /* ---------- 每幅图纸独立草稿 ---------- */
+  let draftReady = false;
+  let draftTimer = null;
+  let lastDraftSignature = '';
+  let clearedWork = null;
+  const draftStatus = document.getElementById('draft-status');
+  const draftKey = key => `jz-embroidery-v1-${key}`;
+  const needleTypes = ['satin', 'flat', 'seed', 'chain'];
+  function snapshotDraft() {
+    return { version: 1, key: templateKey, stitch, thread, density,
+      cells: mode === 'template' ? stitches.map(s => ({ cell: s.cell, type: s.type })) : [],
+      free: mode === 'free' ? stitches.map(s => ({ type: s.type, color: s.color,
+        x1: s.x1 / W(), y1: s.y1 / H(), x2: s.x2 / W(), y2: s.y2 / H() })) : [] };
+  }
+  function flushDraft() {
+    clearTimeout(draftTimer);
+    if (!draftReady) return;
+    const local = writeLocal(draftKey(templateKey), JSON.stringify(snapshotDraft()));
+    writeLocal('jz-embroidery-selected-v1', templateKey);
+    if (draftStatus) draftStatus.textContent = local
+      ? '草稿已自动保存到此浏览器，可离开后继续。'
+      : '草稿已在本次浏览中暂存；浏览器未允许本地保存，请及时导出作品。';
+  }
+  function scheduleDraft() {
+    if (!draftReady) return;
+    const signature = [templateKey, stitches.length, filled.size, stitch, thread, density].join(':');
+    if (signature === lastDraftSignature) return;
+    lastDraftSignature = signature;
+    clearTimeout(draftTimer);
+    if (draftStatus) draftStatus.textContent = '正在保存草稿…';
+    draftTimer = setTimeout(flushDraft, 500);
+  }
+  function applyDraft(draft) {
+    if (!draft || draft.version !== 1 || draft.key !== templateKey ||
+        !Array.isArray(draft.cells) || !Array.isArray(draft.free) ||
+        draft.cells.length > MAX_STITCHES || draft.free.length > MAX_STITCHES) return false;
+    if (draft.cells.some(s => !/^\d+,\d+$/.test(s.cell) || !needleTypes.includes(s.type))) return false;
+    if (draft.free.some(s => !needleTypes.includes(s.type) || !Object.hasOwn(COLOR_HEX, s.color) ||
+      ['x1', 'x2', 'y1', 'y2'].some(k => !Number.isFinite(s[k]) || Math.abs(s[k]) > 10))) return false;
+    if (mode === 'template') {
+      const desired = new Map(draft.cells.map(record => [record.cell, record.type]));
+      for (const record of draft.cells) {
+        const [x, y] = record.cell.split(',').map(Number);
+        if (x < cols && y < rows) {
+          stitch = record.type;
+          const start = stitches.length;
+          stitchCell(x, y);
+          // 齐针会一次铺满整行。只恢复草稿中保留的格子与针法，
+          // 否则用户撤销的一格会在重建时被整行铺针带回来。
+          const generated = stitches.splice(start);
+          for (const saved of generated) {
+            if (desired.get(saved.cell) === saved.type) stitches.push(saved);
+            else filled.delete(saved.cell);
+          }
+        }
+      }
+    } else {
+      stitches = draft.free.map(s => ({ ...s, x1: s.x1 * W(), x2: s.x2 * W(), y1: s.y1 * H(), y2: s.y2 * H() }));
+    }
+    if (Object.hasOwn(COLOR_HEX, draft.thread)) thread = draft.thread;
+    if (Number.isFinite(draft.density)) density = Math.max(4, Math.min(22, draft.density));
+    setStitch(needleTypes.includes(draft.stitch) ? draft.stitch : stitch);
+    document.querySelectorAll('[data-thread]').forEach(b => {
+      b.classList.toggle('is-active', b.dataset.thread === thread);
+      b.setAttribute('aria-checked', String(b.dataset.thread === thread));
+    });
+    densityInput.value = String(density); densityValue.textContent = String(density);
+    return true;
+  }
+  function restoreDraft() {
+    let restored = false;
+    try { restored = applyDraft(JSON.parse(readLocal(draftKey(templateKey)))); } catch { /* 旧或损坏草稿不阻断体验 */ }
+    draftReady = true;
+    lastDraftSignature = [templateKey, stitches.length, filled.size, stitch, thread, density].join(':');
+    redraw();
+    if (draftStatus) draftStatus.textContent = restored && stitches.length
+      ? '已恢复这幅作品的草稿，可以接着绣。' : '落针后自动保存草稿，每幅图纸分别保留。';
+  }
+  function switchTemplate(key) {
+    flushDraft();
+    draftReady = false;
+    clearedWork = null;
+    document.getElementById('restore-cleared').hidden = true;
+    setTemplate(key);
+    fitCanvas();
+    restoreDraft();
+    writeLocal('jz-embroidery-selected-v1', key);
+  }
+  document.getElementById('restore-cleared')?.addEventListener('click', () => {
+    if (!clearedWork) return;
+    draftReady = false;
+    stitches = []; filled = new Set();
+    applyDraft(clearedWork);
+    clearedWork = null;
+    document.getElementById('restore-cleared').hidden = true;
+    draftReady = true;
+    redraw(); flushDraft();
+  });
+  window.addEventListener('pagehide', flushDraft);
+
   /* ---------- 启动 ---------- */
+  const selected = readLocal('jz-embroidery-selected-v1');
+  if (selected === 'free' || Object.hasOwn(TEMPLATES, selected)) templateKey = selected;
+  document.querySelectorAll('[data-template]').forEach(b => {
+    const on = b.dataset.template === templateKey;
+    b.classList.toggle('is-active', on); b.setAttribute('aria-checked', String(on));
+  });
   setTemplate(templateKey);
   fitCanvas();
+  restoreDraft();
   // 首次进入播一次开场推镜；切回本页签时再播一次（用户刚离开又回来，等于重新开场）
   cam.replay();
   const onActivate = e => {
@@ -1646,6 +1759,9 @@ export function initEmbroidery() {
   return {
     redraw,
     dispose() {
+      flushDraft();
+      clearTimeout(draftTimer);
+      window.removeEventListener('pagehide', flushDraft);
       cam.finish();
       window.removeEventListener('resize', fitCanvas);
       window.removeEventListener('sim:activate', onActivate);

@@ -13,7 +13,7 @@ import './styles/pages.css';
 // 大屏断点必须放在最后：它要覆盖前面各文件里定义的 --maxw 与栅格列数
 import './styles/wide.css';
 
-import { route, setNotFound, startRouter, navigate } from './router.js';
+import { route as registerRoute, setNotFound as registerNotFound, setRouteFeedback, startRouter, navigate } from './router.js';
 import { Header, initHeader } from './components/Header.js';
 import { Footer } from './components/Footer.js';
 import { getMeta } from './data.js';
@@ -30,6 +30,40 @@ import { AboutPage, initAbout } from './pages/About.js';
 /* ---------------- 页面骨架 ---------------- */
 
 let meta = {};
+// 每个页面持有自己的导航版本，慢请求完成时不能覆盖更新的页面。
+const guarded = handler => context => handler({ ...context,
+  render: (html, options) => context.isCurrent() ? render(html, options) : undefined });
+const route = (path, handler) => registerRoute(path, guarded(handler));
+const setNotFound = handler => registerNotFound(guarded(handler));
+let loadingTimer;
+function clearLoading() {
+  clearTimeout(loadingTimer);
+  document.getElementById('route-status')?.remove();
+  document.getElementById('app')?.removeAttribute('aria-busy');
+}
+setRouteFeedback({
+  pending() {
+    clearLoading();
+    loadingTimer = setTimeout(() => {
+      const status = document.createElement('p');
+      status.id = 'route-status'; status.className = 'route-status';
+      status.setAttribute('role', 'status');
+      status.textContent = '正在准备展馆内容，请稍候…';
+      document.getElementById('app').appendChild(status);
+      document.getElementById('app').setAttribute('aria-busy', 'true');
+    }, 250);
+  },
+  async error() {
+    clearLoading();
+    await render(EmptyState('内容暂未加载完成',
+      '请检查连接与作品文件是否完整，然后重试。',
+      '<p><button class="btn btn-primary" id="retry-route">重新加载</button> <a class="btn btn-ghost" href="#/">回到首页</a></p>'),
+      { title: '加载未完成', init: () => {
+        document.getElementById('retry-route')?.addEventListener('click', () => navigate(location.hash.slice(1) || '/', { replace: true }));
+      } });
+  },
+  complete: clearLoading,
+});
 
 /**
  * 渲染页面骨架 + 内容。
@@ -82,23 +116,24 @@ async function render(html, { title, init } = {}) {
 
   if (title) document.title = `${title} · 匠作`;
   else document.title = '匠作 · 非物质文化遗产数字展馆';
+  clearLoading();
   // 路由切换后回到页首（hash 路由不会自动滚动）
-  window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+  window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 /* ---------------- 路由表 ---------------- */
 
-route('/', async () => {
+route('/', async ({ render }) => {
   const html = await HomePage();
   await render(html);
 });
 
-route('/gallery', async () => {
+route('/gallery', async ({ render, fromPath }) => {
   const html = await GalleryPage();
-  await render(html, { title: '非遗名录', init: initGallery });
+  await render(html, { title: '非遗名录', init: () => initGallery({ restore: fromPath.startsWith('/project/') }) });
 });
 
-route('/project/:id', async ({ params }) => {
+route('/project/:id', async ({ params, render }) => {
   const { html, title, notFound } = await ProjectPage(params.id);
   if (notFound) {
     await render(EmptyState('未收录此项目',
@@ -109,17 +144,17 @@ route('/project/:id', async ({ params }) => {
   await render(html, { title });
 });
 
-route('/simulator', async () => {
+route('/simulator', async ({ render }) => {
   const html = await SimulatorPage();
   await render(html, { title: '技艺体验', init: initSimulator });
 });
 
-route('/inheritors', async () => {
+route('/inheritors', async ({ render }) => {
   const { html, init } = await InheritorsPage();
   await render(html, { title: '传承人', init });
 });
 
-route('/inheritor/:id', async ({ params }) => {
+route('/inheritor/:id', async ({ params, render }) => {
   const { html, title, notFound } = await InheritorPage(params.id);
   if (notFound) {
     await render(EmptyState('未收录此传承人',
@@ -130,17 +165,17 @@ route('/inheritor/:id', async ({ params }) => {
   await render(html, { title });
 });
 
-route('/about', async () => {
+route('/about', async ({ render }) => {
   const html = await AboutPage();
   await render(html, { title: '关于本站', init: initAbout });
 });
 
-route('/ages', async () => {
+route('/ages', async ({ render }) => {
   const { html, title } = await AgesPage();
   await render(html, { title });
 });
 
-setNotFound(async () => {
+setNotFound(async ({ render }) => {
   await render(EmptyState('此页已散佚',
     '你访问的页面不存在。或许是路径有误，或许它本就不在这座展馆里。',
     '<p style="margin-top:1.5rem"><a class="btn btn-primary" href="#/">回到展馆入口</a></p>'), { title: '页面不存在' });
@@ -148,11 +183,5 @@ setNotFound(async () => {
 
 /* ---------------- 启动 ---------------- */
 
-(async function boot() {
-  try {
-    meta = await getMeta();
-  } catch (err) {
-    console.warn('元数据加载失败，页面将使用默认值', err);
-  }
-  startRouter();
-})();
+getMeta().then(value => { meta = value; }).catch(() => { /* 页面提供失败与重试入口 */ });
+startRouter();
