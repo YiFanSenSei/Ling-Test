@@ -6,16 +6,17 @@
  *
  * 结构：
  *   一、序（Hero）—— 竖排标题 + 数据摘要
- *   二、数据看板 —— 用真实数据建立可信度
- *   三、门类十方 —— 十大门类入口
- *   四、精选馆藏 —— 有详情页的核心项目
- *   五、技艺体验 —— 引导到模拟器
+ *   二、技艺体验 —— 三门手艺的直达入口
+ *   三、数据看板 —— 用真实数据建立可信度
+ *   四、门类十方 —— 十大门类入口
+ *   五、精选馆藏 —— 有详情页的核心项目
  *   六、批次年表 —— 五批时间轴
  */
 
 import { getMeta, getFeatured, getProjects, getInheritorStats, num, esc, categoryGlyph, batchLabel } from '../data.js';
 import { ProjectCard, SectionTitle } from '../components/ui.js';
 import { categoryMotif, CATEGORY_ORDER } from '../icons.js';
+import { CRAFTS } from '../crafts.js';
 import { HeroArtwork } from '../heroArt.js';
 
 export async function HomePage() {
@@ -112,9 +113,9 @@ export async function HomePage() {
         </p>
 
         <div class="hero-actions">
-          <a class="btn btn-primary btn-lg" href="#/gallery">进入名录</a>
+          <a class="btn btn-primary btn-lg" href="#/simulator?tool=embroidery">亲手绣一朵花</a>
           <a class="btn btn-ghost btn-lg" href="#/inheritors">寻访匠人</a>
-          <a class="btn btn-ghost btn-lg" href="#/simulator">体验技艺</a>
+          <a class="btn btn-ghost btn-lg" href="#/gallery">进入名录</a>
         </div>
 
         <dl class="hero-facts">
@@ -148,6 +149,31 @@ export async function HomePage() {
     </div>
   </section>
 
+  <!-- ══════════ 五、技艺体验 ══════════ -->
+  <section class="section section-dark">
+    <div class="container sim-promo">
+      <div class="sim-promo-copy">
+        <p class="sim-promo-eyebrow">技艺互动体验</p>
+        <h2>让手艺在屏幕上动起来</h2>
+        <p>
+          名录能告诉你有多少种手艺，却说不清一门手艺究竟难在哪里。<br>
+          这里有三样可以亲手试的：<strong>苏绣</strong>的针法、
+          <strong>宣纸</strong>的帘纹、<strong>榫卯</strong>的咬合——
+          用鼠标或手指，体验经过简化的工序与结构。
+        </p>
+        <a class="btn btn-primary btn-lg" href="#/simulator">开始体验</a>
+      </div>
+      <ul class="sim-promo-list">
+        ${CRAFTS.map((c, i) => `<li><a class="craft-entry" href="#/simulator?tool=${c.key}">
+          <span class="sim-promo-idx">0${i + 1}</span>
+          <span class="sim-promo-glyph" aria-hidden="true">${c.glyph}</span>
+          <span><strong class="sim-promo-name">${c.name} · ${c.action}</strong><span class="craft-entry-desc">${c.description}</span></span>
+          <span class="craft-entry-arrow" aria-hidden="true">↗</span>
+        </a></li>`).join('')}
+      </ul>
+    </div>
+  </section>
+
   <!-- ══════════ 二、数据看板 ══════════ -->
   <section class="section" id="data">
     <div class="container">
@@ -170,9 +196,9 @@ export async function HomePage() {
           <div class="stat-note">文学至民俗</div>
         </div>
         <div class="stat">
-          <div class="stat-num">${num(meta.byRegion?.length || 34)}<em>区</em></div>
+          <div class="stat-num">${num(regionSorted.length)}<em>区</em></div>
           <div class="stat-label">覆盖省级行政区</div>
-          <div class="stat-note">含中直单位及机构</div>
+          <div class="stat-note">另列中直单位及机构</div>
         </div>
         <div class="stat">
           <div class="stat-num">${num(official.totalArtisans || 3998)}<em>位</em></div>
@@ -181,8 +207,8 @@ export async function HomePage() {
         </div>
         <div class="stat stat-link">
           <a href="#/inheritors">
-            <div class="stat-num">${num(inhStats.total)}<em>位</em></div>
-            <div class="stat-label">本站已建档传承人</div>
+            <div class="stat-num">${num(inhStats.total)}<em>条</em></div>
+            <div class="stat-label">本站传承人档案记录</div>
             <div class="stat-note">可逐人查阅 →</div>
           </a>
         </div>
@@ -208,48 +234,11 @@ export async function HomePage() {
   <!-- ══════════ 四、精选馆藏 ══════════ -->
   <section class="section">
     <div class="container">
-      ${SectionTitle({ num: '叁', title: '精选馆藏', sub: '从名录里选出八件代表性项目——从织绣、陶瓷到民俗，每一件都有官方项目介绍与传承人档案。' })}
+      ${SectionTitle({ num: '叁', title: '精选馆藏', sub: '从一根丝、一张纸到一座屋，循着材料与生活认识八项非遗。打开档案，继续寻访守护它们的人。' })}
       <div class="card-grid">${featuredCards}</div>
       <div class="section-more">
         <a class="btn btn-ghost" href="#/gallery">查看全部 ${num(projects.length)} 条子项 →</a>
       </div>
-    </div>
-  </section>
-
-  <!-- ══════════ 五、技艺体验 ══════════ -->
-  <section class="section section-dark">
-    <div class="container sim-promo">
-      <div class="sim-promo-copy">
-        <p class="sim-promo-eyebrow">技艺互动体验</p>
-        <h2>让手艺在屏幕上动起来</h2>
-        <p>
-          名录能告诉你有多少种手艺，却说不清一门手艺究竟难在哪里。<br>
-          这里有三样可以亲手试的：<strong>苏绣</strong>的针法、
-          <strong>宣纸</strong>的帘纹、<strong>榫卯</strong>的咬合——
-          用鼠标当工具，还原它们最核心的那几道工序。
-        </p>
-        <a class="btn btn-primary btn-lg" href="#/simulator">开始体验</a>
-      </div>
-      <ul class="sim-promo-list">
-        <li>
-          <span class="sim-promo-idx">01</span>
-          <span class="sim-promo-glyph">绣</span>
-          <span class="sim-promo-name">苏绣 · 平针与打籽</span>
-          <span class="sim-promo-tag">精品</span>
-        </li>
-        <li>
-          <span class="sim-promo-idx">02</span>
-          <span class="sim-promo-glyph">纸</span>
-          <span class="sim-promo-name">宣纸 · 捞纸与帘纹</span>
-          <span class="sim-promo-tag">简化</span>
-        </li>
-        <li>
-          <span class="sim-promo-idx">03</span>
-          <span class="sim-promo-glyph">卯</span>
-          <span class="sim-promo-name">榫卯 · 燕尾与直角</span>
-          <span class="sim-promo-tag">简化</span>
-        </li>
-      </ul>
     </div>
   </section>
 

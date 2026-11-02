@@ -238,24 +238,17 @@ body.nav-open { overflow: hidden; }
 }
 .section-num {
   flex: none;
-  font-size: var(--fs-2xl);
-  color: var(--cinnabar);
-  /*
-   * 原本是 opacity: 0.25。它把朱砂的 5.27:1 压到 1.6:1 左右，
-   * 序号既读不清、又不像「设计」，更像一块洗淡了的红。
-   * 改成描边数字：字面透明、只留 1px 朱砂笔画轮廓——
-   * 既是结构线索（章节索引），又不会和真正的强调色抢注意力。
-   * Chrome 129 支持 -webkit-text-stroke，file:// 下不依赖任何资源。
-   */
-  opacity: 0.62;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--cinnabar);
+  font-family: var(--font-serif);
+  font-size: 22px;
   font-weight: 400;
   line-height: 1;
-  color: transparent;
-  -webkit-text-stroke: 1px var(--cinnabar);
-}
-/* 描边不可用时退回实心朱砂，不能变成「看不见的字」 */
-@supports not (-webkit-text-stroke: 1px red) {
-  .section-num { color: var(--cinnabar); }
+  color: var(--cinnabar);
 }
 .section-head h2, .section-head h1 { font-size: clamp(1.75rem, 3.2vw, 2.5rem); }
 .section-sub {

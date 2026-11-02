@@ -28,6 +28,7 @@ rmSync(PROFILE, { recursive: true, force: true });
 mkdirSync(PROFILE, { recursive: true });
 
 const chrome = spawn(CHROME, [
+  ...(process.env.HEADLESS === '1' ? ['--headless=new'] : []),
   `--remote-debugging-port=${PORT}`,
   '--user-data-dir=' + PROFILE,
   '--no-first-run', '--no-default-browser-check',

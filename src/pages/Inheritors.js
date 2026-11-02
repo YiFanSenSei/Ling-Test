@@ -57,7 +57,7 @@ export async function InheritorsPage() {
       <h1 class="page-title">传承人</h1>
       <p class="page-lede">
         一门手艺的存续，最后落在具体的人身上。这里是本站收录的
-        <strong>${num(stats.total)}</strong> 位国家级代表性传承人，
+        <strong>${num(stats.total)}</strong> 条国家级代表性传承人档案记录（同一人可能关联多个项目），
         分布在 <strong>${num(stats.projects)}</strong> 个项目、
         <strong>${stats.categories}</strong> 个门类之中。
       </p>
@@ -69,15 +69,15 @@ export async function InheritorsPage() {
     <div class="inh-stats">
       <div class="inh-stat">
         <span class="inh-stat-num">${num(stats.total)}</span>
-        <span class="inh-stat-label">位传承人</span>
+        <span class="inh-stat-label">条传承人档案</span>
       </div>
       <div class="inh-stat">
         <span class="inh-stat-num">${num(stats.withBirth)}</span>
-        <span class="inh-stat-label">位有明确出生年份</span>
+        <span class="inh-stat-label">条有明确出生年份</span>
       </div>
       <div class="inh-stat">
         <span class="inh-stat-num">${num(stats.withCode)}</span>
-        <span class="inh-stat-label">位有官方编号</span>
+        <span class="inh-stat-label">条有官方编号</span>
       </div>
       <div class="inh-stat">
         <span class="inh-stat-num">${stats.ethnicities}</span>
@@ -120,7 +120,7 @@ export async function InheritorsPage() {
 
     <!-- 结果 -->
     <div class="result-bar">
-      <p class="result-count" id="inh-count">共 <strong>${num(total)}</strong> 位传承人</p>
+      <p class="result-count" id="inh-count">共 <strong>${num(total)}</strong> 条传承人档案</p>
       <p class="result-page" id="inh-page">第 ${page} / ${totalPages} 页</p>
     </div>
 
@@ -221,8 +221,8 @@ export function initInheritors() {
     if (countEl) {
       const filtered = state.q || state.category;
       countEl.innerHTML = filtered
-        ? `共 <strong>${num(res.total)}</strong> 位传承人 <span class="result-filtered">（已筛选）</span>`
-        : `共 <strong>${num(res.total)}</strong> 位传承人`;
+        ? `共 <strong>${num(res.total)}</strong> 条传承人档案 <span class="result-filtered">（已筛选）</span>`
+        : `共 <strong>${num(res.total)}</strong> 条传承人档案`;
     }
     if (pageEl) pageEl.textContent = `第 ${res.page} / ${res.totalPages} 页`;
     if (pagerEl) pagerEl.innerHTML = renderPager(res.page, res.totalPages);

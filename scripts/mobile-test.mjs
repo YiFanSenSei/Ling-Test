@@ -41,9 +41,10 @@ mkdirSync(PROFILE, { recursive: true });
 mkdirSync(OUT, { recursive: true });
 
 const chrome = spawn(CHROME, [
+  ...(process.env.HEADLESS === '1' ? ['--headless=new'] : []),
   `--remote-debugging-port=${PORT}`, `--user-data-dir=${PROFILE}`,
   '--no-first-run', '--no-default-browser-check', '--disable-crashpad',
-  '--allow-file-access-from-files', 'about:blank',
+  'about:blank',
 ], { stdio: 'ignore' });
 
 let ws, msgId = 0;
@@ -102,7 +103,8 @@ async function main() {
   const rectOf = async sel => JSON.parse(await evalJS(`(() => {
     const el = document.querySelector(${JSON.stringify(sel)});
     if (!el) return 'null';
-    el.scrollIntoView({ block: 'center' });
+    // 坐标读取必须在滚动完成之后；页面的 smooth 滚动会让触摸落点漂移。
+    el.scrollIntoView({ block: 'center', behavior: 'instant' });
     const b = el.getBoundingClientRect();
     return JSON.stringify({ x: b.x, y: b.y, w: b.width, h: b.height });
   })()`) || 'null');

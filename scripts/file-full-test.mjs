@@ -7,6 +7,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import assert from 'node:assert/strict';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createRequire } from 'node:module';
 import { mkdirSync, rmSync } from 'node:fs';
@@ -28,6 +29,7 @@ rmSync(PROFILE, { recursive: true, force: true });
 mkdirSync(PROFILE, { recursive: true });
 
 const chrome = spawn(CHROME, [
+  ...(process.env.HEADLESS === '1' ? ['--headless=new'] : []),
   `--remote-debugging-port=${PORT}`,
   '--user-data-dir=' + PROFILE,
   '--no-first-run', '--no-default-browser-check',
@@ -271,6 +273,35 @@ async function main() {
     morResult = `${state} 完成度 ${prog} 沿轴推时侧向位移 ${Number(drift).toFixed(2)}`;
   }
   results.push(['榫卯咬合', morResult]);
+
+  // 通过实际入口串起：首页 → 对应技艺 → 馆藏 → 对应技艺。
+  const waitFor = async expression => {
+    for (let i = 0; i < 60; i++) {
+      if (await evalJS(`return Boolean(${expression});`) === true) return;
+      await sleep(100);
+    }
+    throw new Error(`等待页面状态超时：${expression}`);
+  };
+  for (const [tool, id] of [['embroidery', '13978'], ['paper', '14376'], ['mortise', '14306']]) {
+    await evalJS(`location.hash = '#/';`);
+    await waitFor(`document.querySelector('.craft-entry')`);
+    await evalJS(`document.querySelector('.craft-entry[href$="tool=${tool}"]').click();`);
+    await waitFor(`document.querySelector('#panel-${tool}.is-active')`);
+    await evalJS(`document.querySelector('#panel-${tool} summary').click();`);
+    assert.equal(await evalJS(`return document.querySelector('#panel-${tool} details').open;`), true);
+    await evalJS(`document.querySelector('#panel-${tool} .craft-guide a').click();`);
+    await waitFor(`document.querySelector('.project-head')`);
+    assert.equal(await evalJS(`return location.hash;`), `#/project/${id}`);
+    await evalJS(`document.querySelector('.aside-link[href$="tool=${tool}"]').click();`);
+    await waitFor(`document.querySelector('#panel-${tool}.is-active')`);
+    results.push([`导览-${tool}`, '入口、操作提示、馆藏往返通过']);
+  }
+  await evalJS(`document.querySelector('#tab-paper').click();`);
+  assert.equal(await evalJS(`return location.hash;`), '#/simulator?tool=paper');
+  await send('Page.reload');
+  await sleep(800);
+  await waitFor(`document.querySelector('#panel-paper.is-active')`);
+  assert.equal(errors.length, 0, errors.join('\n'));
 
   console.log('=== file:// 下功能验证（模拟评委双击打开）===\n');
   for (const [label, val] of results) {

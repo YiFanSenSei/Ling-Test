@@ -607,6 +607,38 @@ strong { font-size: inherit; line-height: inherit; }
   background: rgba(245, 241, 232, 0.03);
 }
 
+/* 首页的三门手艺各自直达对应画布，整行均可点击。 */
+.sim-promo-list li:has(.craft-entry) { display: block; padding: 0; }
+.craft-entry {
+  display: grid;
+  grid-template-columns: 24px 34px minmax(0, 1fr) 20px;
+  gap: 16px;
+  align-items: center;
+  padding: 24px;
+  text-decoration: none;
+  color: var(--paper);
+  transition: background var(--dur) var(--ease);
+}
+.craft-entry:hover { background: rgba(245, 241, 232, .08); }
+.craft-entry:focus-visible { outline-color: var(--gold); outline-offset: -4px; }
+.craft-entry .sim-promo-idx { color: rgba(245, 241, 232, .7); }
+.craft-entry-desc { display: block; margin-top: 8px; color: rgba(245, 241, 232, .75); font-size: 13px; line-height: 1.8; }
+.craft-entry-arrow { color: var(--gold); font-size: 20px; }
+.craft-guide { margin: 0 0 24px; border: 1px solid var(--rule); background: var(--paper-light); padding: 16px 20px; }
+.craft-guide summary { display: flex; flex-wrap: wrap; gap: 8px 24px; cursor: pointer; font-size: 14px; }
+.craft-guide summary span:first-child { color: var(--cinnabar); font-weight: 600; }
+.craft-guide summary span:first-child::before { content: '+ '; }
+.craft-guide[open] summary span:first-child::before { content: '− '; }
+.craft-guide ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; padding-left: 20px; margin: 20px 0; font-size: 14px; line-height: 1.9; }
+.craft-guide li::marker { color: var(--cinnabar); }
+.craft-guide p { font-size: 14px; line-height: 1.9; color: var(--ink-soft); margin-bottom: 12px; }
+.craft-guide a { display: inline-block; padding: 8px 0; color: var(--cinnabar); font-size: 14px; }
+@media (max-width: 720px) {
+  .craft-entry { grid-template-columns: 20px minmax(0, 1fr) 20px; padding: 20px 16px; gap: 12px; }
+  .craft-entry .sim-promo-glyph { display: none; }
+  .craft-guide ol { grid-template-columns: 1fr; gap: 8px; }
+}
+
 .sim-promo-idx {
   font-size: 10px;
   letter-spacing: 0.16em;
