@@ -65,43 +65,21 @@ const linkedProjects = new Set(INH.map(p => p.projectId).filter(Boolean));
 check('stats.projects == 有传承人的项目数', stats.projects === linkedProjects.size,
   { stats: stats.projects, computed: linkedProjects.size });
 
-console.log('\n[4] 年龄统计自洽');
-const a = stats.age;
-const histSum = a.histogram.reduce((x, y) => x + y.count, 0);
-check('年龄直方图合计 == counted', histSum === a.counted, { histSum, counted: a.counted });
-check('counted == withBirth', a.counted === stats.withBirth, { counted: a.counted, withBirth: stats.withBirth });
-check('over80 <= over70 <= counted', a.over80 <= a.over70 && a.over70 <= a.counted, { over70: a.over70, over80: a.over80, counted: a.counted });
-const pct70 = +(a.over70 / a.counted * 100).toFixed(1);
-check('页面展示的 70+ 百分比算得对（应为 81.2%）', Math.abs(pct70 - 81.2) < 0.15, pct70);
-const pct80 = +(a.over80 / a.counted * 100).toFixed(1);
-check('页面展示的 80+ 百分比算得对（应为 58.7%）', Math.abs(pct80 - 58.7) < 0.15, pct80);
-check('min/max 落在合理范围', a.min > 0 && a.max < 130 && a.min <= a.max, { min: a.min, max: a.max });
-check('median 在 min 与 max 之间', a.median >= a.min && a.median <= a.max, { median: a.median });
-const minYear = Math.min(...INH.map(p => +String(p.birth).match(/(\d{4})/)?.[1] || 9999));
-check('2026 - 最老出生年 == max 年龄', 2026 - minYear === a.max, { minYear, expected: 2026 - minYear, actual: a.max });
-check('40 岁以下确为 0 人（页面要显示 0，不能空着）',
-  a.histogram.find(h => h.key === 'lt40' || h.label?.includes('40岁以下'))?.count === 0,
-  a.histogram.map(h => `${h.label || h.key}:${h.count}`));
-
-console.log('\n[5] 批次覆盖率表');
-const byBatchRaw = {};
-for (const p of INH) {
-  const b = p.batch; if (!b) continue;
-  byBatchRaw[b] = byBatchRaw[b] || { total: 0, born: 0 };
-  byBatchRaw[b].total++;
-  if (/\d{4}/.test(String(p.birth || ''))) byBatchRaw[b].born++;
-}
-let covOk = true; const covDetail = [];
-for (const row of a.byBatch) {
-  const raw = byBatchRaw[row.batch];
-  if (!raw) { covOk = false; covDetail.push(`批${row.batch} 无原始数据`); continue; }
-  if (raw.total !== row.total || raw.born !== row.born) covOk = false;
-  covDetail.push(`批${row.batch}: ${row.born}/${row.total} (${(row.born / row.total * 100).toFixed(1)}%)`);
-}
-check('分批次 total/born 与原始数据逐条相符', covOk, covDetail);
-check('第 4、5 批确为 0% 覆盖（页面据此说明，不能变）',
-  a.byBatch.filter(r => r.batch >= 4).every(r => r.born === 0),
-  a.byBatch.filter(r => r.batch >= 4).map(r => `${r.batch}:${r.born}/${r.total}`));
+console.log('\n[4] 出生年代统计与原始档案一致');
+const birth = stats.birth;
+const years = INH.map(p => Number(String(p.birth || '').match(/(\d{4})/)?.[1])).filter(y => y >= 1800 && y <= 2026).sort((a, b) => a - b);
+check('有效出生年份记录数一致', birth.counted === years.length, birth.counted);
+check('缺失数与记录总量相符', birth.missing + birth.counted === INH.length, birth.missing);
+check('最早、最晚年份正确', birth.earliest === years[0] && birth.latest === years.at(-1), [birth.earliest, birth.latest]);
+check('每个年代计数均与原始数据相符', birth.histogram.every(h => h.count === years.filter(y => y >= h.start && y <= h.end).length));
+check('各年代合计等于有效记录数', birth.histogram.reduce((n, h) => n + h.count, 0) === years.length);
+check('中位出生年份按偶数样本取平均', birth.median === (years[Math.floor((years.length - 1) / 2)] + years[Math.floor(years.length / 2)]) / 2, birth.median);
+console.log('\n[5] 分批次出生信息覆盖率');
+check('每批次覆盖率对应原始记录', birth.byBatch.every(row => {
+  const group = INH.filter(p => String(p.batch) === row.batch);
+  const valid = group.filter(p => { const y = Number(String(p.birth || '').match(/(\d{4})/)?.[1]); return y >= 1800 && y <= 2026; });
+  return row.total === group.length && row.born === valid.length && row.coverage === Math.round(valid.length / group.length * 1000) / 10;
+}));
 
 console.log('\n[6] 首页精选与详情可用性');
 // featured.json 的结构是 { ids: [...] }，不是数组——又一个字段结构陷阱

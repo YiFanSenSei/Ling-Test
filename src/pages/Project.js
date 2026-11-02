@@ -1,3 +1,4 @@
+import { galleryReturn } from '../browse-state.js';
 /**
  * 项目详情页
  *
@@ -8,6 +9,7 @@
 
 import { getProjectDetail, getSiblings, getProjectVariants, getProjects, getDetailCoverage, getSharedIntro, esc, num, batchLabel, birthYear, categoryGlyph } from '../data.js';
 import { CRAFTS } from '../crafts.js';
+import { CURATION } from '../curation.js';
 import { categoryPattern } from '../components/ui.js';
 
 export async function ProjectPage(id) {
@@ -19,8 +21,10 @@ export async function ProjectPage(id) {
     getProjectVariants(detail),
   ]);
 
+  const backToGallery = galleryReturn()?.hash || '#/gallery';
   const name = detail.name || '未知项目';
   const craft = CRAFTS.find(c => c.projectId === String(id));
+  const curation = CURATION[id];
   const glyph = categoryGlyph(detail.category);
 
   /* ---- 档案卡字段 ---- */
@@ -209,7 +213,7 @@ export async function ProjectPage(id) {
         <nav class="breadcrumb" aria-label="面包屑导航">
           <a href="#/">首页</a>
           <span aria-hidden="true">/</span>
-          <a href="#/gallery">非遗名录</a>
+          <a href="${esc(backToGallery)}">返回名录</a>
           <span aria-hidden="true">/</span>
           <a href="#/gallery?category=${encodeURIComponent(detail.category || '')}">${esc(detail.category || '未分类')}</a>
           <span aria-hidden="true">/</span>
@@ -242,6 +246,11 @@ export async function ProjectPage(id) {
       <div class="project-layout">
         <!-- 主栏 -->
         <div class="project-main">
+          ${curation ? `<aside class="curation-note" aria-label="本站策展手记">
+            <p class="curation-label">策展手记 · 带着问题看</p>
+            <h2>${esc(curation.question)}</h2>
+            <p>${esc(curation.reason)}</p><p>${esc(curation.observe)}</p>
+          </aside>` : ''}
           <section class="project-section">
             <h2 class="ps-title"><span class="ps-mark">项目介绍</span></h2>
             ${paragraphs.length

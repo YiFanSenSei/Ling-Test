@@ -1,3 +1,4 @@
+import { fetchJSON, loadDataScript } from './loading.js';
 /**
  * 数据层：统一加载与查询非遗数据。
  *
@@ -44,9 +45,9 @@ async function loadJSON(name) {
     return p;
   }
 
-  const p = fetch(`${DATA_BASE}/${name}.json`).then(res => {
-    if (!res.ok) throw new Error(`数据加载失败：${name}.json（HTTP ${res.status}）`);
-    return res.json();
+  const p = fetchJSON(`${DATA_BASE}/${name}.json`).catch(error => {
+    cache.delete(name);
+    throw error;
   });
   cache.set(name, p);
   return p;
@@ -133,16 +134,8 @@ async function withVariantCount(list) {
 /** 注入第 k 片（同一片并发只注入一次） */
 function loadShard(k) {
   if (_shardPromises.has(k)) return _shardPromises.get(k);
-  const p = new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = `${DATA_BASE}/detail-${k}.js`;
-    s.onload = () => resolve();
-    s.onerror = () => {
-      _shardPromises.delete(k);
-      reject(new Error(`详情分片加载失败：detail-${k}.js`));
-    };
-    document.head.appendChild(s);
-  });
+  const p = loadDataScript(`${DATA_BASE}/detail-${k}.js`, () => Boolean(window.__JZ_DETAILS__))
+    .catch(error => { _shardPromises.delete(k); throw error; });
   _shardPromises.set(k, p);
   return p;
 }
@@ -154,14 +147,11 @@ export async function getProjectDetail(id) {
   const pos = idx.ids.indexOf(key);
 
   if (pos >= 0) {
-    try {
-      await loadShard(Math.floor(pos / idx.shardSize));
-      const detail = window.__JZ_DETAILS__ && window.__JZ_DETAILS__[key];
-      if (detail) return detail;
-    } catch (err) {
-      // 分片没拿到不该让整页崩掉：退到档案卡形态，页面仍然可读
-      console.warn(err.message);
-    }
+    await loadShard(Math.floor(pos / idx.shardSize));
+    const detail = window.__JZ_DETAILS__?.[key];
+    if (detail) return detail;
+    _shardPromises.delete(Math.floor(pos / idx.shardSize));
+    throw new Error('项目内容未完整加载');
   }
 
   // 降级：仅在列表数据里（无正文），仍可展示基础信息
@@ -449,16 +439,8 @@ async function loadInheritors() {
       const inline = typeof window !== 'undefined' && window.__JZ_DATA__ && window.__JZ_DATA__.inheritors;
       if (inline) return inline;
       // 与详情分片同理：普通 <script> 注入，file:// 下也能用
-      await new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = `${DATA_BASE}/inheritors.js`;
-        s.onload = () => resolve();
-        s.onerror = () => {
-          _inheritorPromise = null;
-          reject(new Error('传承人索引加载失败：inheritors.js'));
-        };
-        document.head.appendChild(s);
-      });
+      await loadDataScript(`${DATA_BASE}/inheritors.js`, () => Array.isArray(window.__JZ_INHERITORS__))
+        .catch(error => { _inheritorPromise = null; throw error; });
       return window.__JZ_INHERITORS__ || [];
     })();
   }

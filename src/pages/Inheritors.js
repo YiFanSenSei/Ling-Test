@@ -84,8 +84,8 @@ export async function InheritorsPage() {
         <span class="inh-stat-label">个民族</span>
       </div>
       <a class="inh-stat inh-stat-link" href="#/ages">
-        <span class="inh-stat-num">${stats.age?.median ?? '—'}<em>岁</em></span>
-        <span class="inh-stat-label">中位年龄 · 看年龄结构 →</span>
+        <span class="inh-stat-num">${stats.birth?.median ?? '—'}<em>年</em></span>
+        <span class="inh-stat-label">出生年份中位数 · 看年代分布 →</span>
       </a>
     </div>
 
@@ -136,7 +136,7 @@ export async function InheritorsPage() {
       说明：本站传承人数据取自中国非物质文化遗产网各项目详情页的公开表格。
       官网原表中第五批（2021）公布的传承人未标注编号与出生年份，
       此处照实留空（显示为「—」），不作推测填补。
-      <a class="result-more" href="#/ages">看看这一代人的年龄结构 →</a>
+      <a class="result-more" href="#/ages">查看档案的出生年代分布 →</a>
     </p>
   </div>`;
 

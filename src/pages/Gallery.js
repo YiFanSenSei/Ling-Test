@@ -1,3 +1,4 @@
+import { rememberGallery, galleryReturn } from '../browse-state.js';
 /**
  * 名录页 —— 全量检索、筛选、分页
  *
@@ -263,8 +264,25 @@ export async function GalleryPage() {
  *    `app.innerHTML = ...` 不会带走它们。漏掉的症状是：
  *    每进出一次名录页就多留一份监听，拖动时越来越卡。
  */
-export function initGallery() {
+export function initGallery({ restore = false } = {}) {
   const cleanups = [];
+  const onProjectClick = e => {
+    const card = e.target.closest('.pcard');
+    if (card) rememberGallery(card.getAttribute('href').split('/').pop());
+  };
+  document.getElementById('main').addEventListener('click', onProjectClick);
+  const main = document.getElementById('main');
+  cleanups.push(() => main.removeEventListener('click', onProjectClick));
+  const saved = restore ? galleryReturn() : null;
+  if (saved?.hash === location.hash) {
+    const frame = requestAnimationFrame(() => {
+      if (saved.expanded) document.getElementById('region-more')?.click();
+      const card = [...document.querySelectorAll('.pcard')].find(c => c.getAttribute('href') === `#/project/${saved.projectId}`);
+      card?.focus({ preventScroll: true });
+      window.scrollTo({ top: saved.y, behavior: 'instant' });
+    });
+    cleanups.push(() => cancelAnimationFrame(frame));
+  }
 
   const disposeShelf = initShelf();
   if (typeof disposeShelf === 'function') cleanups.push(disposeShelf);
