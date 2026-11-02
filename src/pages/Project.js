@@ -7,6 +7,7 @@
  */
 
 import { getProjectDetail, getSiblings, getProjectVariants, getProjects, getDetailCoverage, getSharedIntro, esc, num, batchLabel, birthYear, categoryGlyph } from '../data.js';
+import { CRAFTS } from '../crafts.js';
 import { categoryPattern } from '../components/ui.js';
 
 export async function ProjectPage(id) {
@@ -19,6 +20,7 @@ export async function ProjectPage(id) {
   ]);
 
   const name = detail.name || '未知项目';
+  const craft = CRAFTS.find(c => c.projectId === String(id));
   const glyph = categoryGlyph(detail.category);
 
   /* ---- 档案卡字段 ---- */
@@ -284,8 +286,8 @@ export async function ProjectPage(id) {
               <span>同地区项目</span>
               <span class="aside-arrow">→</span>
             </a>
-            <a class="aside-link" href="#/simulator">
-              <span>技艺互动体验</span>
+            <a class="aside-link" href="#/simulator${craft ? `?tool=${craft.key}` : ''}">
+              <span>${craft ? craft.action : '技艺互动体验'}</span>
               <span class="aside-arrow">→</span>
             </a>
           </div>

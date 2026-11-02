@@ -1,6 +1,6 @@
 # 《匠作》非遗数字展馆 · 无障碍审计报告（WCAG 2.1 AA）
 
-**审计对象**：C:\Users\你好\Documents\deepseek-harness\default-workspace\jiangzuo（含 `dist/index.html` 单文件构建产物，file:// 直接打开）  
+**审计对象**：项目工作区（含 `dist/index.html` 单文件构建产物，file:// 直接打开）
 **标准**：WCAG 2.1 Level AA（对 2.2 新增条款另有标注）  
 **页面覆盖**：首页 / 名录（3614 条，筛选 + 分页）/ 项目档案 / 传承人名录（4032 人）/ 传承人档案 / 年龄结构 / 技艺体验（三个 Canvas 模拟器）/ 关于 / 404  
 **审计方法**：逐行审阅源码标记（`src/**/*.js`）、逐条审阅样式（`src/styles/*.css`，含 `pages.css` 2781 行）、按 WCAG 2.1 相对亮度公式**实算全部文字/背景组合**（脚本 `_audit_contrast.py` 可复跑）、对白卡/卡片/页头的半透明底色做 alpha 合成后再算、对移动端媒体查询逐块比对命中顺序。

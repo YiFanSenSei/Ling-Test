@@ -9,6 +9,7 @@
  *   3. 榫卯 · 燕尾与直角（简化）—— 部件拖拽与咬合判定
  */
 
+import { craftGuide } from '../crafts.js';
 import { esc } from '../data.js';
 import { SectionTitle } from '../components/ui.js';
 import { initEmbroidery } from '../sim/embroidery.js';
@@ -27,7 +28,7 @@ export async function SimulatorPage() {
       ${SectionTitle({
         num: '肆',
         title: '技艺体验',
-        sub: '选一门手艺，亲手做一遍。这里的每一道工序，都按真实技艺的规则实现。',
+        sub: '选一门手艺，亲手做一遍。通过简化的互动，认识针法、抄纸与木构连接的原理。',
       })}
     </div>
   </section>
@@ -71,6 +72,8 @@ export async function SimulatorPage() {
             这里备了四幅图纸——挑一幅，照着格子把线色与针法绣对，绣满即成作品。
           </p>
         </div>
+
+        ${craftGuide('embroidery')}
 
         <div class="sim-stage">
           <div class="sim-canvas-wrap">
@@ -206,6 +209,8 @@ export async function SimulatorPage() {
           </p>
         </div>
 
+        ${craftGuide('paper')}
+
         <div class="sim-stage">
           <div class="sim-canvas-wrap">
             <canvas id="canvas-paper" width="900" height="640" tabindex="0"
@@ -296,6 +301,8 @@ export async function SimulatorPage() {
             卯眼的腔体露在外面；拖动木件沿轴向推入，看它是怎么被咬住的。
           </p>
         </div>
+
+        ${craftGuide('mortise')}
 
         <div class="sim-stage">
           <div class="sim-canvas-wrap">
@@ -396,6 +403,7 @@ export function initSimulator() {
   const panels = [...document.querySelectorAll('.sim-panel')];
 
   function activate(key) {
+    window.history.replaceState(null, '', `#/simulator?tool=${key}`);
     tabs.forEach(t => {
       const on = t.dataset.sim === key;
       t.classList.toggle('is-active', on);
@@ -445,15 +453,16 @@ export function initSimulator() {
   initOne('榫卯模拟器', initMortise);
 
   /* ---- URL 参数直达某个模拟器：/simulator?tool=paper ---- */
-  const hash = window.location.hash;
-  const m = hash.match(/tool=(\w+)/);
-  if (m && ['embroidery', 'paper', 'mortise'].includes(m[1])) {
-    activate(m[1]);
-    requestAnimationFrame(() => document.getElementById(`panel-${m[1]}`)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  const tool = new URLSearchParams(window.location.hash.split('?')[1] || '').get('tool');
+  let scrollFrame = null;
+  if (['embroidery', 'paper', 'mortise'].includes(tool)) {
+    activate(tool);
+    scrollFrame = requestAnimationFrame(() => document.getElementById(`panel-${tool}`)
+      ?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' }));
   }
 
   return () => {
+    if (scrollFrame !== null) cancelAnimationFrame(scrollFrame);
     for (const d of disposers) {
       try { d(); } catch (e) { console.error('模拟器清理失败', e); }
     }

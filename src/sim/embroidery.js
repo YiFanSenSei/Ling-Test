@@ -1353,7 +1353,11 @@ export function initEmbroidery() {
   }
 
   /* ---------- 事件 ---------- */
+  let activePointer = null;
   function onDown(e) {
+    if (e.isPrimary === false || activePointer !== null) return;
+    activePointer = e.pointerId;
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* 兼容旧浏览器 */ }
     /*
      * 开场镜头还在推的时候，画布的屏幕坐标和绘制坐标差着一个比例，
      * 这时候落针会落到离手指很远的地方。与其算补偿（三分之一的概率算错），
@@ -1376,7 +1380,7 @@ export function initEmbroidery() {
   }
 
   function onMove(e) {
-    if (!drawing) return;
+    if (!drawing || e.pointerId !== activePointer) return;
     e.preventDefault();
     const p = pos(e);
 
@@ -1400,13 +1404,18 @@ export function initEmbroidery() {
     }
   }
 
-  function onUp() { drawing = false; last = null; lastCell = null; }
+  function onUp(e) {
+    if (e && e.pointerId !== activePointer) return;
+    activePointer = null;
+    drawing = false; last = null; lastCell = null;
+  }
 
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerup', onUp);
   canvas.addEventListener('pointerleave', onUp);
   canvas.addEventListener('pointercancel', onUp);
+  canvas.addEventListener('lostpointercapture', onUp);
   // 触摸时阻止页面滚动
   canvas.style.touchAction = 'none';
 

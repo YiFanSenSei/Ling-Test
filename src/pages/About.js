@@ -76,11 +76,11 @@ export async function AboutPage() {
           <p>
             全站内容取自中国非物质文化遗产网公开信息，共收录
             <strong>${num(projects.length)} 条</strong>按申报地区拆分的子项记录，
-            覆盖十大门类、${num(meta.byRegion?.length || 34)} 个省级行政区与五批公布年表。
+            覆盖十大门类、${num((meta.byRegion || []).filter(r => r.region !== '中直单位及机构').length)} 个省级行政区与五批公布年表。
             ${coverage.withIntro >= projects.length
               ? '每一条都建有完整详情页，转录了官方的项目介绍与国家级代表性传承人档案；'
               : `其中 <strong>${num(coverage.withIntro)} 条</strong>建有完整详情页，转录了官方的项目介绍与国家级代表性传承人档案；`}
-            站内另为 <strong>${num(inhStats.total)} 位传承人</strong>建立了可检索、可逐人翻阅的独立档案页。
+            站内另为 <strong>${num(inhStats.total)} 条传承人记录</strong>建立了可检索、可逐人翻阅的独立档案页。
           </p>
           <p>
             此外，本站把三门手艺做成了可交互的体验：
@@ -117,7 +117,7 @@ export async function AboutPage() {
                 <tr>
                   <th scope="row">国家级代表性传承人</th>
                   <td>${num(official.totalArtisans || 3998)} 位</td>
-                  <td>${num(inhStats.total)} 位已建档</td>
+                  <td>${num(inhStats.total)} 条档案记录</td>
                 </tr>
                 <tr>
                   <th scope="row">列入联合国教科文组织名录</th>
