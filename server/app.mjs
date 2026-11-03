@@ -5,10 +5,10 @@ import { mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { resolve, join, sep } from 'node:path';
 
 const crafts = new Set(['embroidery', 'paper', 'mortise']);
-const uuid = /^[a-f0-9-]{36}$/;
+const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const hash = value => createHash('sha256').update(value).digest('hex');
 export function createApp({ dataDir, distDir, adminPassword, publicOrigin, secureCookie = false }) {
-  if (typeof adminPassword !== 'string' || adminPassword.length < 12) throw new Error('请设置至少 12 位的 ADMIN_PASSWORD');
+  if (typeof adminPassword !== 'string' || adminPassword.length < 12 || adminPassword.length > 256) throw new Error('请设置 12 至 256 位的 ADMIN_PASSWORD');
   if (publicOrigin && new URL(publicOrigin).origin !== publicOrigin) throw new Error('PUBLIC_ORIGIN 只填写源地址，不包含路径或末尾斜线');
   dataDir = resolve(dataDir); distDir = resolve(distDir);
   mkdirSync(join(dataDir, 'images'), { recursive: true });
@@ -39,7 +39,7 @@ export function createApp({ dataDir, distDir, adminPassword, publicOrigin, secur
     limits.set(key, entry);
   };
   const body = async req => {
-    if (!String(req.headers['content-type']).startsWith('application/json')) fail(415, '请发送 JSON 内容');
+    if (String(req.headers['content-type']).split(';')[0].trim().toLowerCase() !== 'application/json') fail(415, '请发送 JSON 内容');
     let bytes = 0; const chunks = [];
     for await (const chunk of req) { bytes += chunk.length; if (bytes > 6 * 1024 * 1024) fail(413, '作品过大，请缩小图片'); chunks.push(chunk); }
     try { const value = JSON.parse(Buffer.concat(chunks).toString()); if (!value || typeof value !== 'object' || Array.isArray(value)) throw 0; return value; }
@@ -87,14 +87,15 @@ export function createApp({ dataDir, distDir, adminPassword, publicOrigin, secur
         if (path === '/api/admin/session' && req.method === 'GET') return json(200, { authenticated: true });
         const match = path.match(/^\/api\/admin\/works\/([a-f0-9-]{36})$/);
         if (match && req.method === 'PATCH') {
-          const { status } = await body(req);
-          if (!['approved', 'rejected'].includes(status)) fail(400, '审核状态不正确');
+          const { status, expectedStatus = 'pending' } = await body(req);
+          const transitions = { pending: ['approved', 'rejected'], approved: ['rejected'], rejected: ['pending'] };
+          if (typeof expectedStatus !== 'string' || typeof status !== 'string' || !Object.hasOwn(transitions, expectedStatus) || !transitions[expectedStatus].includes(status)) fail(400, '审核状态变更不正确');
           const date = new Date().toISOString();
           db.exec('BEGIN IMMEDIATE');
           try {
-            const changed = db.prepare('UPDATE works SET status=?, reviewed_at=? WHERE id=? AND status=\'pending\'').run(status, date, match[1]);
+            const changed = db.prepare('UPDATE works SET status=?, reviewed_at=? WHERE id=? AND status=?').run(status, date, match[1], expectedStatus);
             if (!changed.changes) fail(409, '作品已处理或不存在，请刷新');
-            db.prepare('INSERT INTO review_events(work_id,action,created_at) VALUES(?,?,?)').run(match[1], status, date);
+            db.prepare('INSERT INTO review_events(work_id,action,created_at) VALUES(?,?,?)').run(match[1], `${expectedStatus}->${status}`, date);
             db.exec('COMMIT');
           } catch (error) { db.exec('ROLLBACK'); throw error; }
           return json(200, { status });
@@ -102,7 +103,7 @@ export function createApp({ dataDir, distDir, adminPassword, publicOrigin, secur
       }
       if (path === '/api/works' && req.method === 'POST') {
         const input = await body(req);
-        if (!crafts.has(input.craft) || !uuid.test(input.requestId || '')) fail(400, '作品类型或请求编号不正确');
+        if (!crafts.has(input.craft) || typeof input.requestId !== 'string' || !uuid.test(input.requestId)) fail(400, '作品类型或请求编号不正确');
         const title = text(input.title, 80), nickname = text(input.nickname, 32, true), metrics = text(input.metrics || '', 200, true);
         if (typeof input.image !== 'string' || !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(input.image)) fail(400, '请提交 PNG 图片');
         const image = Buffer.from(input.image.split(',')[1], 'base64');
@@ -140,8 +141,11 @@ export function createApp({ dataDir, distDir, adminPassword, publicOrigin, secur
       if (imageMatch && req.method === 'GET') {
         const row = db.prepare('SELECT status FROM works WHERE id=?').get(imageMatch[1]);
         if (!row || (row.status !== 'approved' && !authenticated(req))) fail(404, '作品尚未公开');
+        let image;
+        try { image = readFileSync(join(dataDir, 'images', `${imageMatch[1]}.png`)); }
+        catch (error) { if (error.code === 'ENOENT') fail(404, '作品图片暂不可用'); throw error; }
         res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'private, no-store' });
-        return res.end(readFileSync(join(dataDir, 'images', `${imageMatch[1]}.png`)));
+        return res.end(image);
       }
       if (path.startsWith('/api/')) fail(404, '接口不存在');
       if (!['GET', 'HEAD'].includes(req.method)) fail(405, '请求方法不支持');
@@ -151,7 +155,9 @@ export function createApp({ dataDir, distDir, adminPassword, publicOrigin, secur
         res.setHeader('Content-Type', file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html; charset=utf-8');
         return res.end(readFileSync(new URL(file, import.meta.url)));
       }
-      const file = resolve(distDir, '.' + decodeURIComponent(path === '/' ? '/index.html' : path));
+      let decoded;
+      try { decoded = decodeURIComponent(path === '/' ? '/index.html' : path); } catch { fail(400, '文件地址格式不正确'); }
+      const file = resolve(distDir, '.' + decoded);
       if (!file.startsWith(distDir + sep)) fail(404, '文件不存在');
       res.setHeader('Content-Type', file.endsWith('.js') ? 'text/javascript' : file.endsWith('.json') ? 'application/json' : file.endsWith('.css') ? 'text/css' : 'text/html; charset=utf-8');
       try { res.end(readFileSync(file)); } catch { fail(404, '文件不存在，请先构建'); }
