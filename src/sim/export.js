@@ -19,6 +19,32 @@ function today(d = new Date()) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/** 先稳定模拟器，再冻结画布；预览期间编辑标题不会改变作品本体。 */
+export function captureWork(canvas, fallback = {}) {
+  const meta = { ...fallback, ...canvas.prepareWork?.() };
+  const frozen = document.createElement('canvas');
+  frozen.width = canvas.width; frozen.height = canvas.height;
+  frozen.dataset.w = canvas.dataset.w || String(canvas.width / Math.min(window.devicePixelRatio || 1, 2));
+  frozen.getContext('2d').drawImage(canvas, 0, 0);
+  return { canvas: frozen, meta };
+}
+
+function wrapText(ctx, text, width, limit) {
+  const lines = []; let line = '';
+  for (const character of String(text || '')) {
+    if (character === '\n' || (line && ctx.measureText(line + character).width > width)) {
+      lines.push(line); line = character === '\n' ? '' : character;
+    } else line += character;
+  }
+  if (line) lines.push(line);
+  if (lines.length > limit) {
+    lines.length = limit;
+    while (ctx.measureText(lines[limit - 1] + '…').width > width) lines[limit - 1] = lines[limit - 1].slice(0, -1);
+    lines[limit - 1] += '…';
+  }
+  return lines;
+}
+
 /**
  * 给画布套上纸底与信息条，返回新画布（不改动原画布）。
  *
@@ -26,15 +52,19 @@ function today(d = new Date()) {
  * @param {{ title: string, note?: string }} meta 作品名与副行说明
  */
 export function composeWork(canvas, { title, note }) {
-  const scale = Math.min(window.devicePixelRatio || 1, 2);
+  const scale = canvas.width / (Number(canvas.dataset.w) || canvas.width / Math.min(window.devicePixelRatio || 1, 2));
   const px = n => Math.round(n * scale);
   const pad = px(26);
-  const bar = px(78);
 
   const out = document.createElement('canvas');
   out.width = canvas.width + pad * 2;
-  out.height = canvas.height + pad + bar;
   const ctx = out.getContext('2d');
+  const available = canvas.width;
+  ctx.font = `${px(19)}px ${SERIF}`;
+  const titles = wrapText(ctx, title || '我的练习', Math.max(px(25), available - px(36)), 8);
+  ctx.font = `${px(12)}px ${SERIF}`;
+  const notes = wrapText(ctx, note || '匠作 · 非物质文化遗产数字展馆', available, 8);
+  out.height = canvas.height + pad + px(24 + titles.length * 27 + notes.length * 19 + 32);
 
   // 纸底
   ctx.fillStyle = PAPER;
@@ -53,17 +83,18 @@ export function composeWork(canvas, { title, note }) {
   ctx.textAlign = 'left';
   ctx.fillStyle = INK;
   ctx.font = `${px(19)}px ${SERIF}`;
-  ctx.fillText(title, pad, baseY);
+  titles.forEach((line, i) => ctx.fillText(line, pad, baseY + px(i * 27)));
 
   ctx.fillStyle = INK_FAINT;
   ctx.font = `${px(12)}px ${SERIF}`;
-  ctx.fillText(note || '匠作 · 非物质文化遗产数字展馆', pad, baseY + px(21));
+  const noteY = baseY + px(titles.length * 27);
+  notes.forEach((line, i) => ctx.fillText(line, pad, noteY + px(i * 19)));
 
   // 右侧日期
   ctx.textAlign = 'right';
   ctx.fillStyle = INK_FAINT;
   ctx.font = `${px(12)}px ${SERIF}`;
-  ctx.fillText(today(), out.width - pad, baseY + px(21));
+  ctx.fillText(today(), out.width - pad, noteY + px(notes.length * 19 + 4));
 
   // 朱印：方印「匠」，与站点的图标一致
   const s = px(22);
@@ -81,9 +112,10 @@ export function composeWork(canvas, { title, note }) {
 
 /** 组合并触发下载 */
 export function downloadWork(canvas, { title, note, filename }) {
-  const out = composeWork(canvas, { title, note });
+  const captured = captureWork(canvas, { title, note });
+  const out = composeWork(captured.canvas, captured.meta);
   const a = document.createElement('a');
-  a.download = filename || `匠作-${title}-${today()}.png`;
+  a.download = filename || `匠作-${captured.meta.title}-${today()}.png`;
   a.href = out.toDataURL('image/png');
   a.click();
 }

@@ -1,6 +1,10 @@
 # 依赖与构建产物
 node_modules/
 dist/
+server-data/
+.env
+.env.*
+!.env.example
 
 # 由 scripts/split-details.mjs 从 details.json 生成的详情分片与小索引。
 # 它们是构建中间产物（内容与 details.json 重复），不入库；

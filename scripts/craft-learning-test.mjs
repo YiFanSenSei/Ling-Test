@@ -50,14 +50,14 @@ try {
   assert.equal(await run("document.getElementById('grade-even').textContent"), '—');
   await sleep(500);
   assert.equal(await run("document.getElementById('grade-even').textContent"), '—');
-  const paper = await run(`(() => {const c=document.getElementById('canvas-paper');c.scrollIntoView({block:'center',behavior:'instant'});const r=c.getBoundingClientRect();return {x:r.x+r.width*.35,y:r.y+r.height*.6,w:r.width};})()`);
+  const paper = await run(`(() => {const c=document.getElementById('canvas-paper');c.scrollIntoView({block:'center',behavior:'instant'});const r=c.getBoundingClientRect();return {x:r.x+r.width*.35,y:r.y+r.height*.6,w:r.width,h:r.height};})()`);
   await send('Input.dispatchMouseEvent', { type: 'mousePressed', x:paper.x, y:paper.y, button:'left',buttons:1,clickCount:1 });
   for (let i = 0; i < 24; i++) {
     await send('Input.dispatchMouseEvent', {type:'mouseMoved',x:paper.x+Math.sin(i*.4)*paper.w*.15,y:paper.y,buttons:1}); await sleep(45);
   }
-  await send('Input.dispatchMouseEvent', {type:'mouseMoved',x:paper.x,y:paper.y-40,buttons:1});
+  await send('Input.dispatchMouseEvent', {type:'mouseMoved',x:paper.x,y:paper.y-paper.h*.15,buttons:1});
   await sleep(1500);
-  await send('Input.dispatchMouseEvent', {type:'mouseReleased',x:paper.x,y:paper.y-40,button:'left',buttons:0,clickCount:1});
+  await send('Input.dispatchMouseEvent', {type:'mouseReleased',x:paper.x,y:paper.y-paper.h*.15,button:'left',buttons:0,clickCount:1});
   await wait("!document.getElementById('craft-result-paper').hidden");
   assert((await run("document.querySelector('#craft-result-paper .craft-result-metrics').textContent")).includes('匀度'));
   await click('#reset-paper');

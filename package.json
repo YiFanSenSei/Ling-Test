@@ -13,7 +13,9 @@
     "data": "node scripts/fetch-data.mjs && node scripts/fetch-details.mjs",
     "data:all": "node scripts/fetch-all-details.mjs",
     "data:split": "node scripts/split-details.mjs",
-    "data:coverage": "node scripts/coverage-report.mjs"
+    "data:coverage": "node scripts/coverage-report.mjs",
+    "server": "node --env-file-if-exists=.env server/index.mjs",
+    "test:server": "node --test server/app.test.mjs"
   },
   "devDependencies": {
     "@esbuild/win32-x64": "^0.25.12",

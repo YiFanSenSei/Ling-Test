@@ -1,3 +1,4 @@
+import { WorksPage } from './pages/Works.js';
 /**
  * 匠作 · 应用入口
  *
@@ -179,6 +180,12 @@ setNotFound(async ({ render }) => {
   await render(EmptyState('此页已散佚',
     '你访问的页面不存在。或许是路径有误，或许它本就不在这座展馆里。',
     '<p style="margin-top:1.5rem"><a class="btn btn-primary" href="#/">回到展馆入口</a></p>'), { title: '页面不存在' });
+});
+
+route('/works', async ({ render }) => {
+  await render(await WorksPage(), { title: '作品墙', init: () => {
+    document.getElementById('retry-works')?.addEventListener('click', () => navigate(location.hash.slice(1), { replace: true }));
+  } });
 });
 
 /* ---------------- 启动 ---------------- */

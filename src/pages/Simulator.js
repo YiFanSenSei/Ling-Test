@@ -1,3 +1,4 @@
+import { submissionDialog, initSubmission } from '../work-submission.js';
 import { craftNext, craftResult, initResultActions } from '../craft-feedback.js';
 /**
  * 技艺体验页 —— 三个可交互的技艺模拟器
@@ -81,7 +82,7 @@ export async function SimulatorPage() {
           <div class="sim-canvas-wrap">
             <canvas id="canvas-embroidery" width="900" height="640" tabindex="0"
                     role="application"
-                    aria-label="苏绣刺绣画布。鼠标按住拖动即可刺绣；键盘用户可用方向键移动光标格，空格键落针，Delete 撤销一针"></canvas>
+                    aria-label="苏绣刺绣画布。鼠标按住拖动即可刺绣；图纸模式可用方向键移动光标格，空格键落针，Delete 拆除光标所在格"></canvas>
             <div class="sim-hint" id="hint-embroidery">
               <span class="sim-hint-icon" aria-hidden="true">✦</span>
               <span>按住并拖动，沿图纸格子落针</span>
@@ -103,6 +104,8 @@ export async function SimulatorPage() {
 
             <div class="tool-group">
               <h3 class="tool-title">针法</h3>
+              <label class="sim-check"><input type="checkbox" id="auto-stitch" checked> 跟随图纸推荐针法</label>
+              <p class="tool-note">开启时自动换针；关闭后可比较针法，绣错可拆除重绣。</p>
               <div class="tool-options" role="radiogroup" aria-label="选择针法">
                 <button class="tool-opt is-active" role="radio" aria-checked="true" data-stitch="satin">
                   <span class="tool-opt-name">齐针（缎面）</span>
@@ -165,6 +168,7 @@ export async function SimulatorPage() {
 
             <div class="tool-actions">
               <button class="btn btn-ghost btn-sm" id="undo-embroidery">撤销一步</button>
+              <button class="btn btn-ghost btn-sm" id="repair-embroidery" disabled>拆除错针</button>
               <button class="btn btn-ghost btn-sm" id="clear-embroidery">重新开始</button>
               <button class="btn btn-ghost btn-sm" id="restore-cleared" hidden>撤销清空</button>
               <button class="btn btn-primary btn-sm" id="save-embroidery">保存作品</button>
@@ -222,10 +226,13 @@ export async function SimulatorPage() {
           <div class="sim-canvas-wrap">
             <canvas id="canvas-paper" width="900" height="640" tabindex="0"
                     role="application"
-                    aria-label="宣纸抄造画布。鼠标按住左右荡动纸帘；键盘用户可用左右方向键荡帘"></canvas>
-            <div class="sim-hint" id="hint-paper">
-              <span class="sim-hint-icon" aria-hidden="true">✦</span>
-              <span>按住鼠标左右荡动，让纸浆均匀附着在帘上</span>
+                    aria-label="宣纸抄造画布。按住左右荡动纸帘，积浆后向上提帘；键盘左右方向键荡帘，Enter 提帘。也可使用画布下方按钮。"></canvas>
+
+            <div class="sim-direct-controls" aria-label="抄纸操作">
+              <button class="btn btn-ghost btn-sm" id="swing-paper-left">向左荡帘</button>
+              <button class="btn btn-ghost btn-sm" id="swing-paper-right">向右荡帘</button>
+              <button class="btn btn-primary btn-sm" id="lift-paper" disabled>提帘沥水</button>
+              <p id="paper-live" role="status">左右交替荡帘，积浆后可提帘。</p>
             </div>
           </div>
 
@@ -268,10 +275,12 @@ export async function SimulatorPage() {
 
             <div class="paper-grade">
               <h3 class="tool-title">成品评价</h3>
+              <p class="grade-line"><span>积浆进度</span><strong id="paper-deposit">0%</strong></p>
               <p class="grade-line"><span>匀度</span><strong id="grade-even">—</strong></p>
               <p class="grade-line"><span>厚度</span><strong id="grade-thick">—</strong></p>
               <p class="grade-line"><span>品级</span><strong id="grade-rank">未完成</strong></p>
             </div>
+            <p class="tool-note" id="paper-draft-status" role="status">抄造进度会自动保存在此浏览器。</p>
           </aside>
         </div>
 
@@ -318,10 +327,13 @@ export async function SimulatorPage() {
           <div class="sim-canvas-wrap">
             <canvas id="canvas-mortise" width="900" height="640" tabindex="0"
                     role="application"
-                    aria-label="榫卯拼合画布。拖动木件沿轴向推入卯眼，拖动空白处旋转视角；键盘用户可用上下方向键推入或拔出木件"></canvas>
-            <div class="sim-hint" id="hint-mortise">
-              <span class="sim-hint-icon" aria-hidden="true">✦</span>
-              <span>拖动木件沿轴向推进 · 拖动空白处旋转视角</span>
+                    aria-label="榫卯拼合画布。拖动木件沿轴向推入卯眼，拖动空白处旋转视角。键盘上方向键推进，下方向键拔出，左右方向键旋转，空格试提。也可使用画布下方按钮。"></canvas>
+
+            <div class="sim-direct-controls" aria-label="榫卯操作">
+              <button class="btn btn-ghost btn-sm" id="withdraw-mortise">拔出一段</button>
+              <button class="btn btn-primary btn-sm" id="advance-mortise">推进一段</button>
+              <button class="btn btn-ghost btn-sm" id="pull-mortise" disabled>试提 · 观察防脱</button>
+              <p id="mortise-live" role="status">沿轴向推进后，试提比较三种结构。</p>
             </div>
           </div>
 
@@ -376,6 +388,7 @@ export async function SimulatorPage() {
                 <span id="joint-progress" style="width:0%"></span>
               </div>
             </div>
+            <p class="tool-note" id="mortise-draft-status" role="status">构件、视角与拼合进度会自动保存在此浏览器。</p>
           </aside>
         </div>
 
@@ -405,7 +418,8 @@ export async function SimulatorPage() {
       </div>
 
     </div>
-  </section>`;
+  </section>
+  ${submissionDialog()}`;
 }
 
 /** 初始化三个模拟器与页签切换 */
@@ -453,7 +467,7 @@ export function initSimulator() {
   // ⚠️ 这个二层约定容易被改错：如果哪天把 sim 的返回值直接 return 出去，
   //    main.js 拿到的是 object 而非 function，typeof 判断为 false，
   //    清理会静默失效——而页面看上去一切正常。因此这里坚持显式适配。
-  const disposers = [initResultActions()];
+  const disposers = [initResultActions(), initSubmission()];
   const initOne = (label, fn) => {
     try {
       const inst = fn();

@@ -463,6 +463,12 @@ const TEMPLATES = {
 export function initEmbroidery() {
   const canvas = document.getElementById('canvas-embroidery');
   if (!canvas) return;
+  let alive = true;
+  const layoutFrames = new Set();
+  function afterLayout(callback) {
+    const frame = requestAnimationFrame(() => { layoutFrames.delete(frame); if (alive) callback(); });
+    layoutFrames.add(frame);
+  }
   const ctx = canvas.getContext('2d');
   const hint = document.getElementById('hint-embroidery');
   const countEl = document.getElementById('stitch-count');
@@ -486,6 +492,15 @@ export function initEmbroidery() {
   let cols = 0;
   let rows = 0;
   let targetCount = 0;
+  let undoHistory = [];
+  function rememberStep() {
+    undoHistory.push(stitches.slice());
+    if (undoHistory.length > 40) undoHistory.shift();
+  }
+  function followPlan(cx, cy) {
+    const cell = grid[cy]?.[cx];
+    if (cell && document.getElementById('auto-stitch')?.checked && stitch !== cell.stitch) setStitch(cell.stitch);
+  }
 
   /**
    * 针脚数上限。
@@ -508,6 +523,25 @@ export function initEmbroidery() {
     const rect = canvas.getBoundingClientRect();
     const w = rect.width || 900;
     const h = rect.height || 640;
+    const previousW = Number(canvas.dataset.w), previousH = Number(canvas.dataset.h);
+    if (previousW && previousH && (previousW !== w || previousH !== h)) {
+      const sx = w / previousW, sy = h / previousH;
+      const oldGrid = mode === 'template' ? geom() : null;
+      const newGrid = mode === 'template' ? geom(w, h) : null;
+      const scaled = new WeakMap();
+      const scaleStitch = s => {
+        const factor = oldGrid ? newGrid.size / oldGrid.size : Math.min(sx, sy);
+        const x = value => oldGrid ? newGrid.ox + (value - oldGrid.ox) * factor : value * sx;
+        const y = value => oldGrid ? newGrid.oy + (value - oldGrid.oy) * factor : value * sy;
+        if (!scaled.has(s)) scaled.set(s, { ...s, x1: x(s.x1), x2: x(s.x2), y1: y(s.y1), y2: y(s.y2),
+          ...(s.w != null ? { w: s.w * factor } : {}),
+          ...(s.r != null ? { r: s.r * factor } : {}) });
+        return scaled.get(s);
+      };
+      stitches = stitches.map(scaleStitch);
+      undoHistory = undoHistory.map(history => history.map(scaleStitch));
+      drawing = false; last = null; lastCell = null;
+    }
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -562,8 +596,7 @@ export function initEmbroidery() {
   }
 
   /** 网格几何：格子取正方形，整幅居中，四周留出绣绷的边 */
-  function geom() {
-    const w = W(), h = H();
+  function geom(w = W(), h = H()) {
     const pad = Math.max(26, Math.min(w, h) * 0.08);
     const size = Math.min((w - pad * 2) / cols, (h - pad * 2) / rows);
     const ox = (w - cols * size) / 2;
@@ -770,7 +803,7 @@ export function initEmbroidery() {
         Math.atan2(s.y2 - s.y1, s.x2 - s.x1), 0, Math.PI * 2);
       ctx.stroke();
 
-    } else if (s.type === 'satin' || s.type === 'flatrow') {
+    } else if (s.type === 'satin' || s.type === 'flatrow' || (s.exact && s.type === 'flat')) {
       /*
        * 缎面（齐针 / 图纸平针）：第九版 —— 逐格上色，整块共用一片光。
        *
@@ -913,7 +946,7 @@ export function initEmbroidery() {
     // 按区域 + 颜色归组：一组一片光
     const groups = new Map();
     for (const s of stitches) {
-      if (s.type !== 'satin' && s.type !== 'flatrow') continue;
+      if (s.type !== 'satin' && s.type !== 'flatrow' && !(s.exact && s.type === 'flat')) continue;
       if (!s.region) continue;
       // 一个形状一片光：同一颜色里的梅枝与花瓣必须分开，否则包围盒会把整条枝包进去
       const key = `${s.shape}|${s.color}|${s.region.x0},${s.region.y0},${s.region.x1},${s.region.y1}`;
@@ -1098,9 +1131,9 @@ export function initEmbroidery() {
           y2: y + size * 1.16,
           w: size * 1.06,
           color: cell.color,
-          type: 'satin',
+          type: stitch,
           exact: true,
-          fit: true,
+          fit: cell.stitch === stitch,
           cell: `${k},${cy}`,
           // 一行铺完后统一记录：phase 存行号与连通段，span 存整段的左右列
           cov: cell.cov == null ? 1 : cell.cov,
@@ -1112,7 +1145,6 @@ export function initEmbroidery() {
           span: { left: span.left, right: span.right, row: cy },
         });
       }
-      updateStateAfterStitch();
       return true;
     } else if (stitch === 'chain') {
       segs = [{ x1: x + inset, y1: midY, x2: x + size - inset, y2: midY, w: Math.max(1.6, size * 0.12) }];
@@ -1148,7 +1180,6 @@ export function initEmbroidery() {
           span: { left: span.left, right: span.right, row: cy },
         });
       }
-      updateStateAfterStitch();
       return true;
     }
 
@@ -1157,7 +1188,6 @@ export function initEmbroidery() {
       stitches.push({ ...sg, color: cell.color, type: stitch, exact: true, fit, cell: key });
     }
     filled.add(key);
-    updateStateAfterStitch();
     return true;
   }
 
@@ -1190,12 +1220,6 @@ export function initEmbroidery() {
     return { x0, y0, x1, y1 };
   }
 
-  /** 落针之后的共同收尾：重绘与播报。齐针按整段铺面时也要走这一遍 */
-  function updateStateAfterStitch() {
-    redraw();
-    announce();
-  }
-
   /**
    * 这一格左右能连到多远（同色 + 同推荐针法的连续格子）。
    * 齐针按段铺面要靠它——一朵花瓣通常就是一整段连通的格子。
@@ -1216,6 +1240,7 @@ export function initEmbroidery() {
 
   /* ---------- 自由绣的落针逻辑 ---------- */
   function addStitch(from, to) {
+    if (stitches.length >= MAX_STITCHES) return false;
     const dx = to.x - from.x, dy = to.y - from.y;
     const dist = Math.hypot(dx, dy);
 
@@ -1265,6 +1290,9 @@ export function initEmbroidery() {
     const covered = document.getElementById('emb-covered');
     const fitEl = document.getElementById('emb-stitchfit');
     const rankEl = document.getElementById('emb-rank');
+    const wrong = stitches.filter(s => s.exact && !s.fit).length;
+    const repair = document.getElementById('repair-embroidery');
+    if (repair) { repair.disabled = !wrong; repair.textContent = wrong ? `拆除错针（${wrong} 格）` : '拆除错针'; }
     if (unitEl) unitEl.textContent = mode === 'template' ? '格' : '针';
 
     if (mode !== 'template') {
@@ -1293,7 +1321,7 @@ export function initEmbroidery() {
     if (fitEl) fitEl.textContent = done ? `${Math.round(fitPct * 100)}%` : '—';
     if (rankEl) rankEl.textContent = rankOf(coverPct, fitPct);
     updateCraftFeedback('embroidery', {
-      hint: coverPct >= 0.999 ? '图纸已绣满，向下查看作品札记，保存后可继续了解苏绣。' : `沿图纸落针，还剩 ${targetCount - done} 格；不同针法会留下不同质感。`,
+      hint: wrong ? `有 ${wrong} 格针法与图纸不同，可点击「拆除错针」后重绣。` : coverPct >= 0.999 ? '图纸已绣满，向下查看作品札记，保存后可继续了解苏绣。' : `沿图纸落针，还剩 ${targetCount - done} 格；开启跟随图纸可自动换针。`,
       complete: coverPct >= 0.999, title: '一幅绣品，从针脚中成形',
       metrics: [`覆盖 ${Math.round(coverPct * 100)}%`, `针法契合 ${Math.round(fitPct * 100)}%`, rankOf(coverPct, fitPct)],
     });
@@ -1322,6 +1350,7 @@ export function initEmbroidery() {
     mode = key === 'free' ? 'free' : 'template';
     templateKey = key;
     stitches = [];
+    undoHistory = [];
     filled = new Set();
     last = null;
     lastCell = null;
@@ -1356,7 +1385,7 @@ export function initEmbroidery() {
      * 表现是「第一张图纸怎么点都没反应，换一张又好了」。
      * 布局稳定后量一次尺寸，有变化就重绘。
      */
-    requestAnimationFrame(() => {
+    afterLayout(() => {
       fitCanvas();
       redraw();
     });
@@ -1365,7 +1394,8 @@ export function initEmbroidery() {
   /* ---------- 事件 ---------- */
   let activePointer = null;
   function onDown(e) {
-    if (e.isPrimary === false || activePointer !== null) return;
+    if (e.isPrimary === false || e.button !== 0 || activePointer !== null) return;
+    rememberStep();
     activePointer = e.pointerId;
     try { canvas.setPointerCapture(e.pointerId); } catch { /* 兼容旧浏览器 */ }
     /*
@@ -1383,7 +1413,8 @@ export function initEmbroidery() {
     if (mode === 'template') {
       const c = cellAt(p);
       lastCell = c;
-      if (c && stitchCell(c.cx, c.cy)) redraw();
+      if (c) followPlan(c.cx, c.cy);
+      if (c && stitchCell(c.cx, c.cy)) { redraw(); announce(); }
       return;
     }
     lastCell = null;
@@ -1400,10 +1431,11 @@ export function initEmbroidery() {
       let changed = false;
       // 补上两点之间被采样跳过的格子，绣出来才是连贯的一笔
       for (const [cx, cy] of lineCells(lastCell || c, c)) {
+        followPlan(cx, cy);
         if (stitchCell(cx, cy)) changed = true;
       }
       lastCell = c;
-      if (changed) redraw();
+      if (changed) { redraw(); announce(); }
       return;
     }
 
@@ -1524,6 +1556,8 @@ export function initEmbroidery() {
       case 'ArrowDown':  keyCursor.cy += 1; break;
       case ' ':
       case 'Enter': {
+        rememberStep();
+        followPlan(keyCursor.cx, keyCursor.cy);
         // 空格默认会滚动页面，必须拦住
         if (stitchCell(keyCursor.cx, keyCursor.cy)) {
           redraw();
@@ -1535,6 +1569,7 @@ export function initEmbroidery() {
       case 'Backspace': {
         const key = `${keyCursor.cx},${keyCursor.cy}`;
         if (filled.has(key)) {
+          rememberStep();
           filled.delete(key);
           stitches = stitches.filter(s => s.cell !== key);
           redraw();
@@ -1578,8 +1613,13 @@ export function initEmbroidery() {
   });
 
   document.querySelectorAll('[data-stitch]').forEach(btn => {
-    btn.addEventListener('click', () => setStitch(btn.dataset.stitch));
+    btn.addEventListener('click', () => {
+      document.getElementById('auto-stitch').checked = false;
+      setStitch(btn.dataset.stitch);
+      redraw();
+    });
   });
+  document.getElementById('auto-stitch').addEventListener('change', redraw);
 
   document.querySelectorAll('[data-thread]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1602,8 +1642,12 @@ export function initEmbroidery() {
   }
 
   document.getElementById('undo-embroidery')?.addEventListener('click', () => {
-    if (!stitches.length) return;
-    if (mode === 'template') {
+    if (!stitches.length && !undoHistory.length) return;
+    while (undoHistory.length && undoHistory.at(-1).length === stitches.length && undoHistory.at(-1).every((s, i) => s === stitches[i])) undoHistory.pop();
+    if (undoHistory.length) {
+      stitches = undoHistory.pop();
+      filled = new Set(stitches.map(s => s.cell).filter(Boolean));
+    } else if (mode === 'template') {
       // 图纸模式下一格可能落了不止一针（齐针是并排两针），要整格退回
       const cell = stitches[stitches.length - 1].cell;
       stitches = stitches.filter(s => s.cell !== cell);
@@ -1619,9 +1663,18 @@ export function initEmbroidery() {
     redraw();
   });
 
+  document.getElementById('repair-embroidery')?.addEventListener('click', () => {
+    rememberStep();
+    stitches = stitches.filter(s => !s.exact || s.fit);
+    filled = new Set(stitches.map(s => s.cell).filter(Boolean));
+    redraw();
+    flushDraft();
+  });
+
   document.getElementById('clear-embroidery')?.addEventListener('click', () => {
     if (!stitches.length) return;
     clearedWork = snapshotDraft();
+    undoHistory = [];
     document.getElementById('restore-cleared').hidden = false;
     stitches = [];
     filled = new Set();
@@ -1630,16 +1683,20 @@ export function initEmbroidery() {
     if (hint) hint.classList.remove('is-hidden');
   });
 
-  document.getElementById('save-embroidery')?.addEventListener('click', () => {
+  canvas.prepareWork = () => {
+    cam.finish(); keyActive = false; redraw();
     // 导出为 PNG：绣布、绣品与作品信息一起存下来
     const label = mode === 'template' ? TEMPLATES[templateKey].label : '自由绣';
     const progress = mode === 'template'
       ? `已绣 ${filled.size} / ${targetCount} 格`
       : `已绣 ${stitches.length} 针`;
-    downloadWork(canvas, {
+    return {
       title: `苏绣 · ${label}`,
       note: `匠作 · 非物质文化遗产数字展馆　${progress}`,
-    });
+    };
+  };
+  document.getElementById('save-embroidery')?.addEventListener('click', () => {
+    downloadWork(canvas, {});
   });
 
   /* ---------- 每幅图纸独立草稿 ---------- */
@@ -1651,8 +1708,8 @@ export function initEmbroidery() {
   const draftKey = key => `jz-embroidery-v1-${key}`;
   const needleTypes = ['satin', 'flat', 'seed', 'chain'];
   function snapshotDraft() {
-    return { version: 1, key: templateKey, stitch, thread, density,
-      cells: mode === 'template' ? stitches.map(s => ({ cell: s.cell, type: s.type })) : [],
+    return { version: 1, key: templateKey, stitch, thread, density, auto: document.getElementById('auto-stitch').checked,
+      cells: mode === 'template' ? stitches.map(s => ({ cell: s.cell, type: s.type === 'flatrow' ? 'flat' : s.type })) : [],
       free: mode === 'free' ? stitches.map(s => ({ type: s.type, color: s.color,
         x1: s.x1 / W(), y1: s.y1 / H(), x2: s.x2 / W(), y2: s.y2 / H() })) : [] };
   }
@@ -1667,7 +1724,7 @@ export function initEmbroidery() {
   }
   function scheduleDraft() {
     if (!draftReady) return;
-    const signature = [templateKey, stitches.length, filled.size, stitch, thread, density].join(':');
+    const signature = [templateKey, stitches.length, filled.size, stitch, thread, density, document.getElementById('auto-stitch').checked].join(':');
     if (signature === lastDraftSignature) return;
     lastDraftSignature = signature;
     clearTimeout(draftTimer);
@@ -1703,6 +1760,7 @@ export function initEmbroidery() {
     }
     if (Object.hasOwn(COLOR_HEX, draft.thread)) thread = draft.thread;
     if (Number.isFinite(draft.density)) density = Math.max(4, Math.min(22, draft.density));
+    if (typeof draft.auto === 'boolean') document.getElementById('auto-stitch').checked = draft.auto;
     setStitch(needleTypes.includes(draft.stitch) ? draft.stitch : stitch);
     document.querySelectorAll('[data-thread]').forEach(b => {
       b.classList.toggle('is-active', b.dataset.thread === thread);
@@ -1715,7 +1773,7 @@ export function initEmbroidery() {
     let restored = false;
     try { restored = applyDraft(JSON.parse(readLocal(draftKey(templateKey)))); } catch { /* 旧或损坏草稿不阻断体验 */ }
     draftReady = true;
-    lastDraftSignature = [templateKey, stitches.length, filled.size, stitch, thread, density].join(':');
+    lastDraftSignature = [templateKey, stitches.length, filled.size, stitch, thread, density, document.getElementById('auto-stitch').checked].join(':');
     redraw();
     if (draftStatus) draftStatus.textContent = restored && stitches.length
       ? '已恢复这幅作品的草稿，可以接着绣。' : '落针后自动保存草稿，每幅图纸分别保留。';
@@ -1756,7 +1814,7 @@ export function initEmbroidery() {
   cam.replay();
   const onActivate = e => {
     if (e.detail.key === 'embroidery') {
-      requestAnimationFrame(() => { fitCanvas(); cam.replay(); });
+      afterLayout(() => { fitCanvas(); cam.replay(); });
     }
   };
   window.addEventListener('resize', fitCanvas);
@@ -1767,6 +1825,9 @@ export function initEmbroidery() {
   return {
     redraw,
     dispose() {
+      alive = false;
+      for (const frame of layoutFrames) cancelAnimationFrame(frame);
+      layoutFrames.clear();
       flushDraft();
       clearTimeout(draftTimer);
       window.removeEventListener('pagehide', flushDraft);
