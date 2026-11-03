@@ -1,4 +1,5 @@
 import { updateCraftFeedback } from '../craft-feedback.js';
+import { createDraft } from './draft.js';
 /**
  * 宣纸模拟器 —— 捞纸与帘纹
  *
@@ -26,6 +27,7 @@ export function initPaper() {
   let barkRatio = 60;      // 青檀皮比例
   let lineCount = 20;      // 帘纹密度
   let step = 'dip';        // 当前工序
+  let draft = null;
   let swinging = false;
   let swingPhase = 0;
 
@@ -272,6 +274,7 @@ export function initPaper() {
         deposit[r][c] = Math.min(1.15, deposit[r][c] + add);
       }
     }
+    draft?.schedule();
   }
 
   /* ---------- 评价 ---------- */
@@ -460,7 +463,7 @@ export function initPaper() {
 
   function advance(to) {
     const order = ['dip', 'swing', 'lift', 'press'];
-    if (order.indexOf(to) > order.indexOf(step)) step = to;
+    if (order.indexOf(to) > order.indexOf(step)) { step = to; draft?.schedule(); }
   }
 
   canvas.addEventListener('pointerdown', e => {
@@ -521,6 +524,7 @@ export function initPaper() {
   let lastT = performance.now();
   let rafId = 0;
   let alive = true;
+  let activationFrame = 0;
 
   function loop(t) {
     // 离开页面后不再续帧：否则这个循环会一直跑下去，
@@ -546,6 +550,7 @@ export function initPaper() {
     }
     if (step === 'lift') {
       liftProgress = Math.min(1, liftProgress + dt * 0.42);
+      draft?.schedule();
       if (liftProgress >= 1) advance('press');
     }
 
@@ -559,6 +564,7 @@ export function initPaper() {
   barkInput?.addEventListener('input', () => {
     barkRatio = Number(barkInput.value);
     if (barkValue) barkValue.textContent = `${barkRatio}%`;
+    draft?.schedule();
   });
 
   const linesInput = document.getElementById('paper-lines');
@@ -566,31 +572,54 @@ export function initPaper() {
   linesInput?.addEventListener('input', () => {
     lineCount = Number(linesInput.value);
     if (linesValue) linesValue.textContent = String(lineCount);
+    draft?.schedule();
   });
 
   document.getElementById('reset-paper')?.addEventListener('click', () => {
     dragging = false; activePointer = null; swinging = false;
     step = 'dip';
     resetDeposit();
+    draft?.schedule();
     evaluate();
     redraw();
     if (hint) hint.classList.remove('is-hidden');
   });
 
-  document.getElementById('save-paper')?.addEventListener('click', () => {
+  canvas.prepareWork = () => {
+    cam.finish(); redraw();
     // 导出为 PNG：带上这一张纸的匀度、厚度与品级
     const even = document.getElementById('grade-even')?.textContent.trim() || '';
     const thick = document.getElementById('grade-thick')?.textContent.trim() || '';
     const rank = document.getElementById('grade-rank')?.textContent.trim() || '';
     const detail = [even && `匀度 ${even}`, thick && `厚度 ${thick}`, rank]
       .filter(Boolean).join('　');
-    downloadWork(canvas, {
+    return {
       title: '宣纸 · 捞纸',
       note: `匠作 · 非物质文化遗产数字展馆${detail ? `　${detail}` : ''}`,
-    });
+    };
+  };
+  document.getElementById('save-paper')?.addEventListener('click', () => {
+    downloadWork(canvas, {});
   });
 
   /* ---------- 启动 ---------- */
+  draft = createDraft({ key: 'jz-paper-v1', statusId: 'paper-draft-status',
+    snapshot: () => ({ version: 1, step, barkRatio, lineCount, liftProgress, deposit: deposit.flat() }),
+    restore(value) {
+      if (value.version !== 1 || !['dip','swing','lift','press'].includes(value.step) ||
+          !Number.isInteger(value.barkRatio) || value.barkRatio < 10 || value.barkRatio > 90 ||
+          !Number.isInteger(value.lineCount) || value.lineCount < 8 || value.lineCount > 40 ||
+          !Number.isFinite(value.liftProgress) || value.liftProgress < 0 || value.liftProgress > 1 ||
+          !Array.isArray(value.deposit) || value.deposit.length !== COLS * ROWS ||
+          value.deposit.some(n => !Number.isFinite(n) || n < 0 || n > 1.15)) return false;
+      step = value.step; barkRatio = value.barkRatio; lineCount = value.lineCount; liftProgress = value.liftProgress;
+      deposit = Array.from({ length: ROWS }, (_, r) => value.deposit.slice(r * COLS, (r + 1) * COLS));
+      barkInput.value = barkRatio; barkValue.textContent = `${barkRatio}%`;
+      linesInput.value = lineCount; linesValue.textContent = String(lineCount);
+      evaluate();
+      return true;
+    },
+  });
   fitCanvas();
   /*
    * 宣纸本就有常驻动画循环（水波、荡帘），所以镜头不需要自己起帧：
@@ -599,7 +628,10 @@ export function initPaper() {
    */
   cam.replay();
   const onActivate = e => {
-    if (e.detail.key === 'paper') requestAnimationFrame(() => { fitCanvas(); cam.replay(); });
+    if (e.detail.key === 'paper') {
+      cancelAnimationFrame(activationFrame);
+      activationFrame = requestAnimationFrame(() => { if (alive) { fitCanvas(); cam.replay(); } });
+    }
   };
   window.addEventListener('resize', fitCanvas);
   window.addEventListener('sim:activate', onActivate);
@@ -611,7 +643,9 @@ export function initPaper() {
   return {
     redraw,
     dispose() {
+      draft.dispose();
       alive = false;
+      cancelAnimationFrame(activationFrame);
       cam.finish();
       if (rafId) cancelAnimationFrame(rafId);
       rafId = 0;

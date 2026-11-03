@@ -1,4 +1,5 @@
 import { updateCraftFeedback } from '../craft-feedback.js';
+import { createDraft } from './draft.js';
 /**
  * 榫卯模拟器 —— 燕尾榫 / 直榫 / 格肩榫
  *
@@ -287,6 +288,7 @@ export function initMortise() {
   let dragging = null;    // { mode:'move'|'orbit', ... }
   let activePointer = null;
   let demonstrated = false;
+  let draft = null;
   const view = { yaw: scene.view.yaw, pitch: scene.view.pitch, zoom: 1 };
 
   const W = () => Number(canvas.dataset.w) || 900;
@@ -546,6 +548,7 @@ export function initMortise() {
     const live = document.getElementById('mortise-live');
     const message = `${stateEl.textContent}。${tipEl.textContent}`;
     if (live.textContent !== message) live.textContent = message;
+    draft?.schedule();
   }
 
   function stopAnimation() {
@@ -646,6 +649,7 @@ export function initMortise() {
     if (dragging.mode === 'orbit') {
       view.yaw = dragging.yaw0 + dx * 0.32;
       view.pitch = Math.max(-8, Math.min(86, dragging.pitch0 + dy * 0.22));
+      draft?.schedule();
       document.querySelectorAll('[data-view]').forEach(b => { b.classList.remove('is-active'); b.setAttribute('aria-checked', 'false'); });
       render();
       return;
@@ -712,6 +716,7 @@ export function initMortise() {
     e.preventDefault();
     stopAnimation();
     view.zoom = Math.max(0.6, Math.min(2.2, view.zoom * (e.deltaY > 0 ? 0.92 : 1.08)));
+    draft?.schedule();
     render();
   }, { passive: false });
   canvas.addEventListener('keydown', e => {
@@ -721,6 +726,7 @@ export function initMortise() {
     else if (e.key === ' ') testPull();
     else {
       stopAnimation(); view.yaw += e.key === 'ArrowLeft' ? -8 : 8;
+      draft?.schedule();
       document.querySelectorAll('[data-view]').forEach(b => { b.classList.remove('is-active'); b.setAttribute('aria-checked', 'false'); });
       render();
     }
@@ -797,14 +803,18 @@ export function initMortise() {
     tween(1200, k => { t = ease(k); }, () => { t = 1; updateState(); render(); });
   });
 
-  document.getElementById('save-mortise')?.addEventListener('click', () => {
+  canvas.prepareWork = () => {
+    stopAnimation(); lift = 0; if (t >= .999) t = 1; updateState(); render();
     const label = document.querySelector('[data-joint].is-active .tool-opt-name')
       ?.textContent.trim() || '榫卯';
     const state = document.getElementById('joint-state')?.textContent.trim() || '';
-    downloadWork(canvas, {
+    return {
       title: `榫卯 · ${label}`,
-      note: `匠作 · 非物质文化遗产数字展馆${state ? `　${state}` : ''}`,
-    });
+      note: `匠作 · 非物质文化遗产数字展馆　${demonstrated ? '自动演示' : '亲手拼合'}${state ? `　${state}` : ''}`,
+    };
+  };
+  document.getElementById('save-mortise')?.addEventListener('click', () => {
+    downloadWork(canvas, {});
   });
 
   /* ---- 4.5 测试接缝 ----
@@ -849,6 +859,25 @@ export function initMortise() {
   };
 
   /* ---- 4.6 启动 ---- */
+  draft = createDraft({ key: 'jz-mortise-v1', statusId: 'mortise-draft-status',
+    snapshot: () => ({ version: 1, joint, t, demonstrated, view: { ...view } }),
+    restore(value) {
+      if (value.version !== 1 || !['dovetail','mortise','miter'].includes(value.joint) ||
+          !Number.isFinite(value.t) || value.t < 0 || value.t > 1 || typeof value.demonstrated !== 'boolean' ||
+          !value.view || !Number.isFinite(value.view.yaw) || Math.abs(value.view.yaw) > 1e6 ||
+          !Number.isFinite(value.view.pitch) || value.view.pitch < -8 || value.view.pitch > 86 ||
+          !Number.isFinite(value.view.zoom) || value.view.zoom < 0.6 || value.view.zoom > 2.2) return false;
+      joint = value.joint; scene = sceneOf(joint); t = value.t; demonstrated = value.demonstrated;
+      view.yaw = value.view.yaw; view.pitch = value.view.pitch; view.zoom = value.view.zoom;
+      document.querySelectorAll('[data-joint]').forEach(b => { const on = b.dataset.joint === joint; b.classList.toggle('is-active', on); b.setAttribute('aria-checked', String(on)); });
+      document.querySelectorAll('[data-view]').forEach(b => {
+        const v = VIEWS[b.dataset.view] || scene.view;
+        const on = Math.abs(v.yaw - view.yaw) < .01 && Math.abs(v.pitch - view.pitch) < .01;
+        b.classList.toggle('is-active', on); b.setAttribute('aria-checked', String(on));
+      });
+      return true;
+    },
+  });
   fitCanvas();
   updateState();
   if (!prefersReducedMotion()) playPushIn();
@@ -864,6 +893,7 @@ export function initMortise() {
   return {
     redraw: render,
     dispose() {
+      draft.dispose();
       alive = false;
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', fitCanvas);

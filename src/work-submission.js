@@ -1,5 +1,5 @@
 import { CRAFTS } from './crafts.js';
-import { composeWork } from './sim/export.js';
+import { composeWork, captureWork } from './sim/export.js';
 import { online, worksRequest } from './works-api.js';
 
 export function submissionDialog() {
@@ -14,37 +14,58 @@ export function initSubmission() {
   if (!dialog) return () => {};
   const form = document.getElementById('work-submit-form'), status = document.getElementById('work-submit-status');
   const submit = document.getElementById('work-submit-button');
-  let snapshot, busy = false, disposed = false, previousPayload, requestId;
+  const titleInput = document.getElementById('work-title');
+  let snapshot, captured, busy = false, submitted = false, disposed = false, previousPayload, requestId;
+  const renderPreview = () => {
+    if (!captured) return;
+    snapshot.image = composeWork(captured.canvas, { title: titleInput.value.trim() || captured.meta.title, note: captured.meta.note }).toDataURL('image/png');
+    document.getElementById('work-preview').src = snapshot.image;
+  };
+  const editTitle = () => { titleInput.setCustomValidity(''); renderPreview(); };
   const open = event => {
     if (busy) return;
     const key = event.target.closest('[data-submit-work]')?.dataset.submitWork;
     const craft = CRAFTS.find(c => c.key === key);
     if (!craft) return;
+    submitted = false;
+    form.querySelectorAll('input').forEach(input => { input.disabled = false; });
     status.textContent = ''; submit.hidden = false; submit.disabled = false;
     const canvas = document.getElementById(`canvas-${key}`);
+    captured = captureWork(canvas, { title: `${craft.name} · 我的练习` });
     const metrics = document.querySelector(`#craft-result-${key} .craft-result-metrics`)?.textContent || '';
-    snapshot = { craft: key, image: composeWork(canvas, { title: `${craft.name} · 我的练习`, note: metrics }).toDataURL('image/png'), metrics };
-    document.getElementById('work-preview').src = snapshot.image;
-    document.getElementById('work-title').value = `${craft.name} · 我的练习`;
+    snapshot = { craft: key, metrics };
+    titleInput.value = captured.meta.title;
+    titleInput.setCustomValidity('');
+    renderPreview();
     document.getElementById('work-nickname').value = '';
     dialog.showModal();
     if (!online()) { status.textContent = '投稿需要在线展馆。请先保存作品，再从在线展馆投稿。'; submit.disabled = true; }
   };
   const send = async event => {
-    event.preventDefault(); if (busy) return; busy = true; submit.disabled = true;
+    event.preventDefault(); if (busy || submitted || !snapshot || !online()) return;
+    if (!titleInput.value.trim()) { titleInput.setCustomValidity('请填写作品标题，不能只输入空格。'); titleInput.reportValidity(); return; }
+    busy = true; submit.disabled = true;
     form.querySelectorAll('input').forEach(input => { input.disabled = true; });
-    const payload = { ...snapshot, title: document.getElementById('work-title').value.trim(), nickname: document.getElementById('work-nickname').value.trim() };
-    const serialized = JSON.stringify(payload);
-    if (serialized !== previousPayload) { requestId = crypto.randomUUID(); previousPayload = serialized; }
     status.textContent = '正在提交，请稍候…';
     try {
+      renderPreview();
+      const payload = { ...snapshot, title: titleInput.value.trim(), nickname: document.getElementById('work-nickname').value.trim() };
+      const serialized = JSON.stringify(payload);
+      if (serialized !== previousPayload) {
+        const bytes = crypto.getRandomValues(new Uint8Array(16));
+        bytes[6] = (bytes[6] & 15) | 64; bytes[8] = (bytes[8] & 63) | 128;
+        const hex = Array.from(bytes, n => n.toString(16).padStart(2, '0')).join('');
+        requestId = `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+        previousPayload = serialized;
+      }
       const value = await worksRequest('/api/works', { method: 'POST', body: JSON.stringify({ ...payload, requestId }) });
-      if (!disposed) { status.textContent = `投稿已保存，编号 ${value.id}。审核通过后会显示在作品墙。`; submit.hidden = true; }
+      if (!disposed) { submitted = true; status.textContent = `投稿已保存，编号 ${value.id}。审核通过后会显示在作品墙。`; submit.hidden = true; }
     } catch (error) { if (!disposed) status.textContent = `${error.name === 'TimeoutError' ? '提交等待超时，可重试；同一投稿不会重复保存。' : error.message} 本地作品仍保留。`; }
-    finally { busy = false; if (!disposed) { submit.disabled = false; form.querySelectorAll('input').forEach(input => { input.disabled = false; }); } }
+    finally { busy = false; if (!disposed) { submit.disabled = submitted; form.querySelectorAll('input').forEach(input => { input.disabled = submitted; }); } }
   };
   const close = () => dialog.close();
   main.addEventListener('click', open); form.addEventListener('submit', send);
+  titleInput.addEventListener('input', editTitle);
   document.getElementById('work-dialog-close').addEventListener('click', close);
-  return () => { disposed = true; dialog.close(); main.removeEventListener('click', open); form.removeEventListener('submit', send); };
+  return () => { disposed = true; dialog.close(); main.removeEventListener('click', open); form.removeEventListener('submit', send); titleInput.removeEventListener('input', editTitle); captured = null; };
 }

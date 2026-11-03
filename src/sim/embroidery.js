@@ -463,6 +463,12 @@ const TEMPLATES = {
 export function initEmbroidery() {
   const canvas = document.getElementById('canvas-embroidery');
   if (!canvas) return;
+  let alive = true;
+  const layoutFrames = new Set();
+  function afterLayout(callback) {
+    const frame = requestAnimationFrame(() => { layoutFrames.delete(frame); if (alive) callback(); });
+    layoutFrames.add(frame);
+  }
   const ctx = canvas.getContext('2d');
   const hint = document.getElementById('hint-embroidery');
   const countEl = document.getElementById('stitch-count');
@@ -1379,7 +1385,7 @@ export function initEmbroidery() {
      * 表现是「第一张图纸怎么点都没反应，换一张又好了」。
      * 布局稳定后量一次尺寸，有变化就重绘。
      */
-    requestAnimationFrame(() => {
+    afterLayout(() => {
       fitCanvas();
       redraw();
     });
@@ -1610,8 +1616,10 @@ export function initEmbroidery() {
     btn.addEventListener('click', () => {
       document.getElementById('auto-stitch').checked = false;
       setStitch(btn.dataset.stitch);
+      redraw();
     });
   });
+  document.getElementById('auto-stitch').addEventListener('change', redraw);
 
   document.querySelectorAll('[data-thread]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1675,16 +1683,20 @@ export function initEmbroidery() {
     if (hint) hint.classList.remove('is-hidden');
   });
 
-  document.getElementById('save-embroidery')?.addEventListener('click', () => {
+  canvas.prepareWork = () => {
+    cam.finish(); keyActive = false; redraw();
     // 导出为 PNG：绣布、绣品与作品信息一起存下来
     const label = mode === 'template' ? TEMPLATES[templateKey].label : '自由绣';
     const progress = mode === 'template'
       ? `已绣 ${filled.size} / ${targetCount} 格`
       : `已绣 ${stitches.length} 针`;
-    downloadWork(canvas, {
+    return {
       title: `苏绣 · ${label}`,
       note: `匠作 · 非物质文化遗产数字展馆　${progress}`,
-    });
+    };
+  };
+  document.getElementById('save-embroidery')?.addEventListener('click', () => {
+    downloadWork(canvas, {});
   });
 
   /* ---------- 每幅图纸独立草稿 ---------- */
@@ -1696,7 +1708,7 @@ export function initEmbroidery() {
   const draftKey = key => `jz-embroidery-v1-${key}`;
   const needleTypes = ['satin', 'flat', 'seed', 'chain'];
   function snapshotDraft() {
-    return { version: 1, key: templateKey, stitch, thread, density,
+    return { version: 1, key: templateKey, stitch, thread, density, auto: document.getElementById('auto-stitch').checked,
       cells: mode === 'template' ? stitches.map(s => ({ cell: s.cell, type: s.type === 'flatrow' ? 'flat' : s.type })) : [],
       free: mode === 'free' ? stitches.map(s => ({ type: s.type, color: s.color,
         x1: s.x1 / W(), y1: s.y1 / H(), x2: s.x2 / W(), y2: s.y2 / H() })) : [] };
@@ -1712,7 +1724,7 @@ export function initEmbroidery() {
   }
   function scheduleDraft() {
     if (!draftReady) return;
-    const signature = [templateKey, stitches.length, filled.size, stitch, thread, density].join(':');
+    const signature = [templateKey, stitches.length, filled.size, stitch, thread, density, document.getElementById('auto-stitch').checked].join(':');
     if (signature === lastDraftSignature) return;
     lastDraftSignature = signature;
     clearTimeout(draftTimer);
@@ -1748,6 +1760,7 @@ export function initEmbroidery() {
     }
     if (Object.hasOwn(COLOR_HEX, draft.thread)) thread = draft.thread;
     if (Number.isFinite(draft.density)) density = Math.max(4, Math.min(22, draft.density));
+    if (typeof draft.auto === 'boolean') document.getElementById('auto-stitch').checked = draft.auto;
     setStitch(needleTypes.includes(draft.stitch) ? draft.stitch : stitch);
     document.querySelectorAll('[data-thread]').forEach(b => {
       b.classList.toggle('is-active', b.dataset.thread === thread);
@@ -1760,7 +1773,7 @@ export function initEmbroidery() {
     let restored = false;
     try { restored = applyDraft(JSON.parse(readLocal(draftKey(templateKey)))); } catch { /* 旧或损坏草稿不阻断体验 */ }
     draftReady = true;
-    lastDraftSignature = [templateKey, stitches.length, filled.size, stitch, thread, density].join(':');
+    lastDraftSignature = [templateKey, stitches.length, filled.size, stitch, thread, density, document.getElementById('auto-stitch').checked].join(':');
     redraw();
     if (draftStatus) draftStatus.textContent = restored && stitches.length
       ? '已恢复这幅作品的草稿，可以接着绣。' : '落针后自动保存草稿，每幅图纸分别保留。';
@@ -1801,7 +1814,7 @@ export function initEmbroidery() {
   cam.replay();
   const onActivate = e => {
     if (e.detail.key === 'embroidery') {
-      requestAnimationFrame(() => { fitCanvas(); cam.replay(); });
+      afterLayout(() => { fitCanvas(); cam.replay(); });
     }
   };
   window.addEventListener('resize', fitCanvas);
@@ -1812,6 +1825,9 @@ export function initEmbroidery() {
   return {
     redraw,
     dispose() {
+      alive = false;
+      for (const frame of layoutFrames) cancelAnimationFrame(frame);
+      layoutFrames.clear();
       flushDraft();
       clearTimeout(draftTimer);
       window.removeEventListener('pagehide', flushDraft);

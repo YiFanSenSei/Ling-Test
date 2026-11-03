@@ -280,6 +280,7 @@ export async function SimulatorPage() {
               <p class="grade-line"><span>厚度</span><strong id="grade-thick">—</strong></p>
               <p class="grade-line"><span>品级</span><strong id="grade-rank">未完成</strong></p>
             </div>
+            <p class="tool-note" id="paper-draft-status" role="status">抄造进度会自动保存在此浏览器。</p>
           </aside>
         </div>
 
@@ -387,6 +388,7 @@ export async function SimulatorPage() {
                 <span id="joint-progress" style="width:0%"></span>
               </div>
             </div>
+            <p class="tool-note" id="mortise-draft-status" role="status">构件、视角与拼合进度会自动保存在此浏览器。</p>
           </aside>
         </div>
 
