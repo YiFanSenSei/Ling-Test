@@ -32,7 +32,11 @@ export function initPaper() {
   /** 沉积网格：记录帘面上每个格子的纤维量 */
   const COLS = 60, ROWS = 42;
   let deposit = null;      // 惰性初始化：见 fitCanvas()
-  let swingHistory = [];   // 荡帘速度记录，用于评价匀度
+  let motionSpeed = 0;     // 每秒跨越的画布宽度，避免事件采样率影响评价
+  let motionUntil = 0;
+  let average = 0;
+  let activePointer = null;
+  let lastMotion = 0;
   let liftProgress = 0;    // 出水进度 0–1
 
   function fitCanvas() {
@@ -61,7 +65,7 @@ export function initPaper() {
 
   function resetDeposit() {
     deposit = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
-    swingHistory = [];
+    motionSpeed = 0; motionUntil = 0; average = 0;
     liftProgress = 0;
   }
 
@@ -82,7 +86,7 @@ export function initPaper() {
 
     ctx.fillStyle = '#EEE6D5';
     ctx.font = `${Math.max(12, Math.min(18, w * 0.025))}px serif`;
-    ctx.fillText('抄纸槽 · 帘面向上', w * 0.05, h * 0.075);
+    ctx.fillText(step === 'press' ? '覆帘成纸 · 观察帘纹' : '抄纸槽 · 帘面向上', w * 0.05, h * 0.075);
     const vatY = h * 0.12, vatH = h * 0.76;
     const vg = ctx.createLinearGradient(0, vatY, 0, vatY + vatH);
     vg.addColorStop(0, `rgb(${r - 12},${g - 10},${b - 6})`);
@@ -250,24 +254,19 @@ export function initPaper() {
   /* ---------- 沉积计算 ---------- */
   /** 按停留时间与荡动速度沉积纤维 */
   function depositFibers(dt) {
-    if (step !== 'swing' || !swinging) return;
+    if (step !== 'swing' || !swinging || performance.now() > motionUntil) return;
 
     // 浆液浓度由青檀皮比例决定（皮多则浆稠）
     const conc = 0.5 + (barkRatio / 100) * 0.9;
     // 荡帘：速度适中时沉积最均匀
-    const speed = swingHistory.length > 1
-      ? Math.abs(swingHistory[swingHistory.length - 1] - swingHistory[swingHistory.length - 2])
-      : 0;
-    const evenness = step === 'swing'
-      ? Math.max(0.25, 1 - Math.abs(speed - 26) / 60)   // 偏离理想速度则不均
-      : 0.55;
+    const evenness = Math.max(0.2, 1 - Math.abs(motionSpeed - 0.45) / 1.2);
 
     // 中心沉积多、边缘少的天然倾向（真实捞纸也如此，靠荡帘补偿）
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         const nx = (c / COLS - 0.5) * 2;
         const ny = (r / ROWS - 0.5) * 2;
-        const center = 1 - 0.42 * (nx * nx * 0.7 + ny * ny * 0.5);
+        const center = 1 - (1 - evenness * 0.8) * 0.7 * (nx * nx * 0.7 + ny * ny * 0.5);
         const noise = 0.86 + Math.random() * 0.28;
         const add = conc * evenness * center * noise * dt * 0.9;
         deposit[r][c] = Math.min(1.15, deposit[r][c] + add);
@@ -287,6 +286,7 @@ export function initPaper() {
       }
     }
     const avg = sum / n;
+    average = avg;
     const variance = (() => {
       let v = 0;
       for (let r = 0; r < ROWS; r++) {
@@ -298,22 +298,24 @@ export function initPaper() {
 
     // 匀度：标准差越小越好
     const evenScore = Math.max(0, 100 - (sd / Math.max(avg, 0.01)) * 175);
-    const thickScore = Math.min(100, (avg / 0.92) * 100);
 
     const evenEl = document.getElementById('grade-even');
     const thickEl = document.getElementById('grade-thick');
     const rankEl = document.getElementById('grade-rank');
 
     if (evenEl) evenEl.textContent = avg > 0.02 ? `${evenScore.toFixed(0)} 分` : '—';
-    if (thickEl) thickEl.textContent = avg > 0.02 ? `${(avg * 100).toFixed(0)} 分` : '—';
+    if (thickEl) thickEl.textContent = avg > 0.02 ? (avg < 0.4 ? '偏薄' : avg > 1 ? '偏厚' : '适中') : '—';
 
     if (rankEl) {
-      if (avg < 0.25) { rankEl.textContent = '浆太薄，揭不起来'; rankEl.className = ''; }
+      if (avg < 0.25) { rankEl.textContent = avg ? '继续荡帘积浆' : '未开始'; rankEl.className = ''; }
+      else if (avg > 1) { rankEl.textContent = '积浆偏厚，下次可早点提帘'; rankEl.className = 'rank-ok'; }
       else if (evenScore < 45) { rankEl.textContent = '厚度不均，晾干会破'; rankEl.className = 'rank-bad'; }
       else if (evenScore < 68) { rankEl.textContent = '尚可 · 普通书画纸'; rankEl.className = 'rank-ok'; }
       else if (evenScore < 85) { rankEl.textContent = '匀净 · 可作书画'; rankEl.className = 'rank-good'; }
       else { rankEl.textContent = '匀净绵韧 · 上等宣纸'; rankEl.className = 'rank-best'; }
     }
+    const progress = document.getElementById('paper-deposit');
+    if (progress) progress.textContent = `${Math.min(100, Math.round(avg / 0.92 * 100))}%`;
   }
 
   /* ---------- 主绘制 ---------- */
@@ -328,7 +330,7 @@ export function initPaper() {
     drawVat();
     ctx.save();
     cam.apply();
-    drawScreen();
+    if (step !== 'press') drawScreen();
     ctx.restore();
     updateStepUI();
     if (step === 'press') {
@@ -369,6 +371,7 @@ export function initPaper() {
 
     // 纤维的可视纹理
     ctx.save();
+    ctx.beginPath(); ctx.rect(sx, sy, sw, sh); ctx.clip();
     ctx.globalAlpha = 0.22;
     for (let i = 0; i < 340; i++) {
       const noise = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
@@ -404,15 +407,21 @@ export function initPaper() {
     });
     {
       const texts = {
-        dip: '按住鼠标并拖动，把纸帘浸入浆槽',
-        swing: '左右匀速荡动，让纤维均匀沉积',
-        lift: '向上拖动，缓缓提起纸帘沥水',
+        dip: '按住画布左右荡帘，也可使用下方按钮或左右方向键',
+        swing: average < 0.25 ? '左右平稳荡帘积浆；按住不动不会增加厚度' : '已可提帘；继续荡到厚度适中，或向上拖动 / 点击提帘',
+        lift: '正在沥水，请稍候；完成后查看纸张评价',
         press: '湿纸已成形，点击「保存纸张」留存',
       };
       if (hint) {
         hint.querySelector('span:last-child').textContent = texts[step];
         hint.classList.remove('is-hidden');
       }
+      document.getElementById('lift-paper').disabled = step !== 'swing' || average < 0.25;
+      document.getElementById('save-paper').disabled = step !== 'press';
+      for (const id of ['paper-bark', 'paper-lines']) document.getElementById(id).disabled = step !== 'dip';
+      for (const id of ['swing-paper-left', 'swing-paper-right']) document.getElementById(id).disabled = step === 'lift' || step === 'press';
+      const live = document.getElementById('paper-live');
+      if (live.textContent !== texts[step]) live.textContent = texts[step];
       updateCraftFeedback('paper', { hint: texts[step], complete: step === 'press',
         title: '一张湿纸，留住这次手上练习',
         metrics: ['grade-even', 'grade-thick', 'grade-rank'].map((id, i) => `${['匀度', '厚度', '评价'][i]} ${document.getElementById(id)?.textContent.trim() || '—'}`),
@@ -424,6 +433,24 @@ export function initPaper() {
   let dragging = false;
   let lastX = null;
   let lastY = null;
+  let startY = null;
+
+  function tryLift() {
+    if (step !== 'swing' || average < 0.25) return;
+    swinging = false;
+    advance('lift');
+    redraw();
+  }
+
+  function swingImpulse(direction) {
+    if (step === 'lift' || step === 'press') return;
+    cam.finish();
+    advance('swing');
+    motionSpeed = 0.45;
+    motionUntil = performance.now() + 220;
+    swinging = true;
+    swingPhase += direction * 0.45;
+  }
 
   function pos(e) {
     const r = canvas.getBoundingClientRect();
@@ -437,43 +464,58 @@ export function initPaper() {
   }
 
   canvas.addEventListener('pointerdown', e => {
+    if (e.isPrimary === false || e.button !== 0 || activePointer !== null || step === 'lift' || step === 'press') return;
+    activePointer = e.pointerId;
+    canvas.setPointerCapture(e.pointerId);
     // 开场推镜未落定时屏幕坐标与绘制坐标不一致，先落定再接手指
     if (!cam.done()) cam.finish();
     e.preventDefault();
     dragging = true;
     const p = pos(e);
-    lastX = p.x; lastY = p.y;
-    swinging = true;
+    lastX = p.x; lastY = p.y; startY = p.y;
+    lastMotion = performance.now();
+    swinging = false;
     if (step === 'dip') advance('swing');
   });
 
   canvas.addEventListener('pointermove', e => {
-    if (!dragging) return;
+    if (!dragging || e.pointerId !== activePointer) return;
     e.preventDefault();
     const p = pos(e);
     const dx = p.x - lastX;
     const dy = p.y - lastY;
 
-    if (step === 'swing') {
-      swingHistory.push(p.x);
-      if (swingHistory.length > 40) swingHistory.shift();
+    if (step === 'swing' && Math.abs(dx) > 0.5) {
+      const now = performance.now();
+      motionSpeed = Math.abs(dx) / W() / Math.max(0.016, (now - lastMotion) / 1000);
+      lastMotion = now;
+      motionUntil = now + 120;
+      swinging = true;
     }
-    // 快速上提进入出水阶段
-    if (dy < -7 && step === 'swing') advance('lift');
+    if (p.y - startY < -Math.max(28, H() * 0.08) && Math.abs(dy) > Math.abs(dx)) tryLift();
 
     lastX = p.x; lastY = p.y;
   });
 
-  function endDrag() {
+  function endDrag(e) {
+    if (e && e.pointerId !== activePointer) return;
+    activePointer = null;
     if (!dragging) return;
     dragging = false;
     swinging = false;
-    if (step === 'lift' && liftProgress > 0.5) advance('press');
   }
   canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointerleave', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('lostpointercapture', endDrag);
   canvas.style.touchAction = 'none';
+  canvas.addEventListener('keydown', e => {
+    if (!['ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) return;
+    e.preventDefault();
+    if (e.key === 'Enter') tryLift(); else swingImpulse(e.key === 'ArrowLeft' ? -1 : 1);
+  });
+  document.getElementById('swing-paper-left').addEventListener('click', () => swingImpulse(-1));
+  document.getElementById('swing-paper-right').addEventListener('click', () => swingImpulse(1));
+  document.getElementById('lift-paper').addEventListener('click', tryLift);
 
   /* ---------- 动画循环 ---------- */
   let lastT = performance.now();
@@ -487,6 +529,13 @@ export function initPaper() {
 
     const dt = Math.min(0.05, (t - lastT) / 1000);
     lastT = t;
+    if (document.hidden || document.getElementById('panel-paper').hidden) {
+      swinging = false; dragging = false; activePointer = null;
+      rafId = requestAnimationFrame(loop);
+      return;
+    }
+    if (step === 'press' && cam.done()) { rafId = requestAnimationFrame(loop); return; }
+    if (performance.now() > motionUntil) swinging = false;
 
     if (swinging) swingPhase += dt * 5.2;
     else swingPhase += dt * 1.1;   // 静止时水面仍有微动
@@ -520,6 +569,7 @@ export function initPaper() {
   });
 
   document.getElementById('reset-paper')?.addEventListener('click', () => {
+    dragging = false; activePointer = null; swinging = false;
     step = 'dip';
     resetDeposit();
     evaluate();

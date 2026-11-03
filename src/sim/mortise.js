@@ -285,6 +285,8 @@ export function initMortise() {
   let alive = true;
   let raf = 0;
   let dragging = null;    // { mode:'move'|'orbit', ... }
+  let activePointer = null;
+  let demonstrated = false;
   const view = { yaw: scene.view.yaw, pitch: scene.view.pitch, zoom: 1 };
 
   const W = () => Number(canvas.dataset.w) || 900;
@@ -400,7 +402,7 @@ export function initMortise() {
     ctx.fillStyle = 'rgba(232,220,196,0.42)';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('拖动木件 = 推进 / 拉出　·　拖动空白 = 旋转视角　·　滚轮 = 缩放', 20, h - 18);
+    ctx.fillText(w < 500 ? '拖木件推进 · 拖空白转视角' : '拖动木件 = 推进 / 拉出　·　拖动空白 = 旋转视角　·　滚轮 = 缩放', 20, h - 18);
   }
 
   function drawFace(it, cam) {
@@ -519,16 +521,19 @@ export function initMortise() {
     }
     updateCraftFeedback('mortise', {
       hint: seated ? '构件已咬合。试着向上提拉，观察当前榫卯对脱出的约束。' : '抓住活动木件沿轴向推进；抓空白处可调整观察角度。',
-      complete: seated, title: '两块木，在结构中相合',
-      metrics: [document.querySelector('[data-joint].is-active .tool-opt-name')?.textContent.trim() || '榫卯', `推进 ${pct}%`, '已咬合'],
+      complete: seated, title: demonstrated ? '观摩札记 · 看清构件如何相合' : '两块木，在结构中相合',
+      metrics: [document.querySelector('[data-joint].is-active .tool-opt-name')?.textContent.trim() || '榫卯', `推进 ${pct}%`, demonstrated ? '自动演示' : '亲手拼合'],
     });
     if (barEl) barEl.style.width = `${pct}%`;
     if (wrapEl) wrapEl.setAttribute('aria-valuenow', String(pct));
+    document.getElementById('pull-mortise').disabled = t < 0.999;
+    document.getElementById('advance-mortise').disabled = seated;
+    document.getElementById('withdraw-mortise').disabled = t <= 0;
 
     if (tipEl) {
       if (lift > 0.5) {
         tipEl.textContent = scene.retains
-          ? '提不动——榫舌的梯形斜面被槽口卡死了。这就是燕尾榫「越拉越紧」的道理。'
+          ? joint === 'dovetail' ? '向上提受到梯形槽口约束；沿滑入轴向仍可退出。' : '格肩与暗榫在此模型中限制向上提起；沿装配方向仍可退出。'
           : '方榫一提就起来。它不防脱，靠的是胶与木材的摩擦。';
       } else if (seated) {
         tipEl.textContent = scene.hint;
@@ -538,16 +543,43 @@ export function initMortise() {
         tipEl.textContent = '继续推进——榫舌正在进入卯眼。';
       }
     }
+    const live = document.getElementById('mortise-live');
+    const message = `${stateEl.textContent}。${tipEl.textContent}`;
+    if (live.textContent !== message) live.textContent = message;
+  }
+
+  function stopAnimation() {
+    cancelAnimationFrame(raf);
+    pushZoom = () => 1;
+    dragging = null;
+    activePointer = null;
+  }
+  function moveBy(amount) {
+    stopAnimation();
+    demonstrated = false;
+    lift = 0;
+    t = Math.max(0, Math.min(1, t + amount));
+    updateState(); render();
+  }
+  function testPull() {
+    if (t < 0.999) return;
+    stopAnimation();
+    tween(900, k => {
+      lift = Math.sin(Math.PI * k) * scene.liftMax;
+      updateState();
+    }, () => { lift = 0; updateState(); render(); });
   }
 
   /** 通用补间：只跑一条动画，新的会顶掉旧的 */
   function tween(dur, apply, done) {
     cancelAnimationFrame(raf);
+    pushZoom = () => 1;
     const t0 = performance.now();
     const step = now => {
       if (!alive) return;
       const k = Math.min(1, (now - t0) / dur);
       apply(k);
+      updateState();
       render();
       if (k < 1) raf = requestAnimationFrame(step);
       else if (done) done();
@@ -589,11 +621,15 @@ export function initMortise() {
   }
 
   canvas.addEventListener('pointerdown', e => {
+    if (e.isPrimary === false || e.button !== 0 || activePointer !== null) return;
+    stopAnimation();
+    activePointer = e.pointerId;
     e.preventDefault();
     try { canvas.setPointerCapture(e.pointerId); } catch { /* 老浏览器忽略 */ }
     const [x, y] = posOf(e);
     const cam = camNow();
     if (hitMoving(x, y, cam, offsetOf())) {
+      demonstrated = false;
       dragging = { mode: 'move', x, y, t0: t, lift0: lift };
     } else {
       dragging = { mode: 'orbit', x, y, yaw0: view.yaw, pitch0: view.pitch };
@@ -602,7 +638,7 @@ export function initMortise() {
   });
 
   canvas.addEventListener('pointermove', e => {
-    if (!dragging) return;
+    if (!dragging || e.pointerId !== activePointer) return;
     e.preventDefault();
     const [x, y] = posOf(e);
     const dx = x - dragging.x, dy = y - dragging.y;
@@ -610,6 +646,7 @@ export function initMortise() {
     if (dragging.mode === 'orbit') {
       view.yaw = dragging.yaw0 + dx * 0.32;
       view.pitch = Math.max(-8, Math.min(86, dragging.pitch0 + dy * 0.22));
+      document.querySelectorAll('[data-view]').forEach(b => { b.classList.remove('is-active'); b.setAttribute('aria-checked', 'false'); });
       render();
       return;
     }
@@ -649,7 +686,9 @@ export function initMortise() {
     render();
   });
 
-  function endDrag() {
+  function endDrag(e) {
+    if (e && e.pointerId !== activePointer) return;
+    activePointer = null;
     if (!dragging) return;
     const wasMove = dragging.mode === 'move';
     dragging = null;
@@ -666,13 +705,29 @@ export function initMortise() {
   }
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('lostpointercapture', endDrag);
   canvas.style.touchAction = 'none';
 
   canvas.addEventListener('wheel', e => {
     e.preventDefault();
+    stopAnimation();
     view.zoom = Math.max(0.6, Math.min(2.2, view.zoom * (e.deltaY > 0 ? 0.92 : 1.08)));
     render();
   }, { passive: false });
+  canvas.addEventListener('keydown', e => {
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) return;
+    e.preventDefault();
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') moveBy(e.key === 'ArrowUp' ? 0.1 : -0.1);
+    else if (e.key === ' ') testPull();
+    else {
+      stopAnimation(); view.yaw += e.key === 'ArrowLeft' ? -8 : 8;
+      document.querySelectorAll('[data-view]').forEach(b => { b.classList.remove('is-active'); b.setAttribute('aria-checked', 'false'); });
+      render();
+    }
+  });
+  document.getElementById('advance-mortise').addEventListener('click', () => moveBy(0.1));
+  document.getElementById('withdraw-mortise').addEventListener('click', () => moveBy(-0.1));
+  document.getElementById('pull-mortise').addEventListener('click', testPull);
 
   /* ---- 4.4 控件 ---- */
   //
@@ -693,9 +748,10 @@ export function initMortise() {
   };
   document.querySelectorAll('[data-view]').forEach(btn => {
     btn.addEventListener('click', () => {
+      stopAnimation();
       const v = VIEWS[btn.dataset.view] || scene.view;
       const y0 = view.yaw, p0 = view.pitch;
-      document.querySelectorAll('[data-view]').forEach(b => b.classList.toggle('is-active', b === btn));
+      document.querySelectorAll('[data-view]').forEach(b => { b.classList.toggle('is-active', b === btn); b.setAttribute('aria-checked', String(b === btn)); });
       tween(340, k => {
         const e2 = ease(k);
         view.yaw = y0 + (v.yaw - y0) * e2;
@@ -706,6 +762,7 @@ export function initMortise() {
 
   document.querySelectorAll('[data-joint]').forEach(btn => {
     btn.addEventListener('click', () => {
+      stopAnimation(); demonstrated = false;
       document.querySelectorAll('[data-joint]').forEach(b => {
         const on = b === btn;
         b.classList.toggle('is-active', on);
@@ -717,7 +774,7 @@ export function initMortise() {
       view.yaw = scene.view.yaw;
       view.pitch = scene.view.pitch;
       view.zoom = 1;
-      document.querySelectorAll('[data-view]').forEach((b, i) => b.classList.toggle('is-active', i === 0));
+      document.querySelectorAll('[data-view]').forEach((b, i) => { b.classList.toggle('is-active', i === 0); b.setAttribute('aria-checked', String(i === 0)); });
       updateState();
       render();
       if (hint) hint.classList.remove('is-hidden');
@@ -725,6 +782,7 @@ export function initMortise() {
   });
 
   document.getElementById('reset-mortise')?.addEventListener('click', () => {
+    stopAnimation(); demonstrated = false;
     t = 0; lift = 0; seated = false;
     updateState();
     render();
@@ -732,6 +790,7 @@ export function initMortise() {
   });
 
   document.getElementById('auto-mortise')?.addEventListener('click', () => {
+    stopAnimation(); demonstrated = true;
     t = 0; lift = 0;
     updateState();
     render();
@@ -794,8 +853,9 @@ export function initMortise() {
   updateState();
   if (!prefersReducedMotion()) playPushIn();
   const onActivate = e => {
+    if (e.detail.key !== 'mortise') { stopAnimation(); lift = 0; updateState(); }
     if (e.detail.key === 'mortise') {
-      requestAnimationFrame(() => { fitCanvas(); if (!prefersReducedMotion()) playPushIn(); });
+      requestAnimationFrame(() => { if (alive) { fitCanvas(); if (!prefersReducedMotion()) playPushIn(); } });
     }
   };
   window.addEventListener('resize', fitCanvas);

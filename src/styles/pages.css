@@ -1615,6 +1615,21 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   transform: translateX(-50%) translateY(8px);
 }
 
+.sim-direct-controls {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 16px;
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
+}
+.sim-direct-controls .btn { min-height: 44px; flex: 1 1 auto; }
+.sim-direct-controls p { width: 100%; margin: 0; font-size: 13px; color: var(--ink-soft); }
+.sim-panel button:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.sim-check { display: flex; gap: 9px; align-items: center; min-height: 44px; font-size: 14px; }
+.sim-check input { width: 18px; height: 18px; accent-color: var(--cinnabar); }
+
 .sim-hint-icon {
   /* 提示框里唯一的强调符号，得看得见 */
   color: var(--gold-ink);
