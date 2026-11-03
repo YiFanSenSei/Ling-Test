@@ -1,0 +1,5 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>作品审核 · 匠作</title><link rel="stylesheet" href="/admin.css"></head>
+<body><main><a href="/#/works">← 返回作品墙</a><h1>作品审核</h1><p>审核通过后，作品才会出现在公开作品墙。</p>
+<form id="login"><label for="password">管理员密码</label><input id="password" type="password" autocomplete="current-password" required maxlength="256"><button>登录</button></form>
+<section id="dashboard" hidden><div class="toolbar"><label>状态 <select id="status"><option value="pending">待审核</option><option value="approved">已通过</option><option value="rejected">已驳回</option></select></label><button id="refresh">刷新</button><button id="logout">退出登录</button></div><p id="count"></p><div id="works"></div><div class="toolbar"><button id="prev">上一页</button><span id="page"></span><button id="next">下一页</button></div></section>
+<p id="notice" role="status" aria-live="polite"></p></main><script src="/admin.js"></script></body></html>

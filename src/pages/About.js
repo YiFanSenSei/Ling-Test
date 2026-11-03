@@ -57,7 +57,7 @@ export async function AboutPage() {
         <span aria-hidden="true">/</span>
         <span aria-current="page">关于本站</span>
       </nav>
-      ${SectionTitle({ num: '伍', title: '关于本站', sub: '作品说明、数据来源与技术声明。' })}
+      ${SectionTitle({ num: '陆', title: '关于本站', sub: '作品说明、数据来源与技术声明。' })}
     </div>
   </section>
 
@@ -184,7 +184,7 @@ export async function AboutPage() {
         <article class="about-block" id="about-tech">
           <h2>技术实现</h2>
           <p>
-            本站为<strong>纯静态前端</strong>作品，不含任何服务端逻辑。
+            展馆主体为<strong>可离线浏览的静态前端</strong>，另提供 Node.js 与 SQLite 实现的在线作品投稿、审核和作品墙。离线时仍可保存作品与本地草稿。
             全部代码由团队手写，未使用任何 UI 框架与预设样式库。
           </p>
 

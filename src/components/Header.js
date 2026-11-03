@@ -12,7 +12,8 @@ const NAV_ITEMS = [
   { path: '/gallery',      label: '名录',   num: '贰' },
   { path: '/inheritors',   label: '传承人', num: '叁', also: '/inheritor/' },
   { path: '/simulator',    label: '技艺',   num: '肆' },
-  { path: '/about',        label: '关于',   num: '伍' },
+  { path: '/works', label: '作品墙', num: '伍' },
+  { path: '/about',        label: '关于',   num: '陆' },
 ];
 
 export function Header() {

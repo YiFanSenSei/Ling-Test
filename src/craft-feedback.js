@@ -10,6 +10,7 @@ export function craftResult(key) {
     <div><p class="curation-label">体验札记</p><h3 id="craft-result-title-${key}"></h3>
       <p class="craft-result-metrics"></p><p>${craft.principle}</p>
       <div class="craft-result-actions"><button class="btn btn-primary btn-sm" data-export-result="${key}">保存这次作品</button>
+      <button class="btn btn-ghost btn-sm" data-submit-work="${key}">投稿到作品墙</button>
       <a class="btn btn-ghost btn-sm" href="#/project/${craft.projectId}">继续了解这门手艺 →</a></div>
       <p class="craft-result-note">评价仅反映本次简化互动，不代表真实工艺水平。</p>
     </div>

@@ -20,7 +20,7 @@ import { join, relative, extname } from 'node:path';
 const ROOT = process.cwd();
 
 /** 跳过的目录：不是源码，且必然含大量噪音 */
-const SKIP_DIRS = new Set(['node_modules', '.git', '_shots', '_submit', 'dist']);
+const SKIP_DIRS = new Set(['node_modules', '.git', '_shots', '_submit', 'dist', 'server-data']);
 
 /** 文本类扩展名才扫描内容 */
 const TEXT_EXT = new Set([

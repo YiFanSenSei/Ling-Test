@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve, join, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { createApp } from '../server/app.mjs';
+import { openTestBrowser } from './lib/browser-test.mjs';
+
+const root = resolve(import.meta.dirname, '..'), directory = mkdtempSync(join(tmpdir(), 'jz-works-browser-'));
+const password = randomBytes(24).toString('hex');
+const server = createApp({ dataDir: directory, distDir: join(root, 'dist'), adminPassword: password });
+await new Promise(ready => server.listen(0, '127.0.0.1', ready));
+const base = `http://127.0.0.1:${server.address().port}`;
+let browser;
+try {
+  browser = await openTestBrowser();
+  const { evaluate: run, wait, send, click } = browser;
+  await browser.go(base + '/#/simulator?tool=embroidery', "document.getElementById('canvas-embroidery')");
+  await click('[data-template="free"]');
+  await run("document.getElementById('canvas-embroidery').scrollIntoView({block:'center',behavior:'instant'})");
+  const point = await run(`(() => {const r=document.getElementById('canvas-embroidery').getBoundingClientRect();return {x:r.x+r.width*.3,y:r.y+r.height*.5};})()`);
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', buttons: 1, clickCount: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x + 120, y: point.y + 30, buttons: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x + 120, y: point.y + 30, button: 'left', buttons: 0, clickCount: 1 });
+  await wait("!document.getElementById('craft-result-embroidery').hidden");
+  await click('[data-submit-work="embroidery"]'); await wait("document.getElementById('work-dialog').open");
+  await run("document.getElementById('work-title').value='浏览器验证作品'");
+  await click('#work-submit-button'); await wait("document.getElementById('work-submit-status').textContent.includes('编号')");
+  console.log('✓ 真实画布作品可预览并投稿，得到服务端保存编号');
+  await browser.go(base + '/#/works', "document.querySelector('.works-message')");
+  assert.equal(await run("document.querySelectorAll('.visitor-work').length"), 0);
+  await browser.go(base + '/admin', "document.getElementById('password')");
+  await run(`document.getElementById('password').value=${JSON.stringify(password)}`);
+  await click('#login button'); await wait("document.querySelector('.work button')");
+  assert.equal(await run("document.querySelector('.work h2').textContent"), '浏览器验证作品');
+  await click('.work button'); await wait("document.getElementById('notice').textContent.includes('审核已保存')");
+  console.log('✓ 审核前作品不公开，管理员可在网页中审核通过');
+  await browser.go(base + '/#/works', "document.querySelector('.visitor-work')");
+  assert.equal(await run("document.querySelector('.visitor-work h2').textContent"), '浏览器验证作品');
+  await wait("document.querySelector('.visitor-work img').naturalWidth > 0");
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+  assert(await run('document.documentElement.scrollWidth <= innerWidth'));
+  mkdirSync(join(root, '_shots'), { recursive: true });
+  const shot = await send('Page.captureScreenshot', { format: 'png' });
+  writeFileSync(join(root, '_shots/works-mobile.png'), Buffer.from(shot.data, 'base64'));
+  console.log('✓ 审核后作品和图片出现在作品墙，手机无横向溢出');
+  await browser.go(pathToFileURL(join(root, 'dist/index.html')).href + '#/works', "document.querySelector('.works-message')");
+  assert((await run("document.querySelector('.works-message').textContent")).includes('离线'));
+  assert.equal(browser.errors.length, 0, browser.errors.join('\n'));
+  console.log('✓ 离线版本明确说明在线功能，不产生无效投稿请求');
+} finally {
+  browser?.close(); await new Promise(ready => server.close(ready));
+  if (resolve(directory).startsWith(resolve(tmpdir()) + sep)) rmSync(directory, { recursive: true, force: true });
+}

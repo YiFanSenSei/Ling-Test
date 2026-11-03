@@ -42,7 +42,7 @@ const ANON_NAME = `2026-零杯${GROUP}-${teamName}-${leader}-匿名版本`;
 /** 需要打进包的文件 / 目录（相对 ROOT） */
 /** 比赛提交包里只放这些：作品本体 + 源码 + 抓取脚本 + 说明 */
 const INCLUDE = ['index.html', 'vite.config.js', 'package.json', 'pnpm-workspace.yaml',
-                 'pnpm-lock.yaml', 'README.md', 'BACKEND_PLAN.md', 'public', 'src',
+                 'pnpm-lock.yaml', 'README.md', 'BACKEND_PLAN.md', 'server', '.env.example', 'public', 'src',
                  'scripts/split-details.mjs', 'scripts/fetch-data.mjs',
                  'scripts/fetch-details.mjs', 'scripts/fetch-all-details.mjs',
                  'scripts/coverage-report.mjs', 'scripts/lib/parse-detail.mjs',

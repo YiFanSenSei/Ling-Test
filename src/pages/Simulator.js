@@ -1,3 +1,4 @@
+import { submissionDialog, initSubmission } from '../work-submission.js';
 import { craftNext, craftResult, initResultActions } from '../craft-feedback.js';
 /**
  * 技艺体验页 —— 三个可交互的技艺模拟器
@@ -405,7 +406,8 @@ export async function SimulatorPage() {
       </div>
 
     </div>
-  </section>`;
+  </section>
+  ${submissionDialog()}`;
 }
 
 /** 初始化三个模拟器与页签切换 */
@@ -453,7 +455,7 @@ export function initSimulator() {
   // ⚠️ 这个二层约定容易被改错：如果哪天把 sim 的返回值直接 return 出去，
   //    main.js 拿到的是 object 而非 function，typeof 判断为 false，
   //    清理会静默失效——而页面看上去一切正常。因此这里坚持显式适配。
-  const disposers = [initResultActions()];
+  const disposers = [initResultActions(), initSubmission()];
   const initOne = (label, fn) => {
     try {
       const inst = fn();
