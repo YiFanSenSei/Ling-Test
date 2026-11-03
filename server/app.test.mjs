@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { createApp } from './app.mjs';
@@ -23,9 +23,13 @@ test('投稿、权限、审核、重启持久化与重复请求', async () => {
   const work = { requestId: randomUUID(), title: '接口验证作品', nickname: '', craft: 'embroidery', metrics: '覆盖 100%', image };
   try {
     await start();
+    assert.equal((await request('/bad%escape')).status, 400);
     assert.equal((await request('/api/admin/works')).status, 401);
     assert.equal((await request('/api/works', 'POST', work, '', { Origin: 'https://untrusted.example' })).status, 403);
     assert.equal((await request('/api/works', 'POST', { ...work, image: 'not-png' })).status, 400);
+    assert.equal((await request('/api/works', 'POST', { ...work, requestId: '-'.repeat(36) })).status, 400);
+    assert.equal((await request('/api/works', 'POST', { ...work, requestId: [work.requestId] })).status, 400);
+    assert.equal((await request('/api/works', 'POST', work, '', { 'Content-Type': 'application/json-invalid' })).status, 415);
     const created = await request('/api/works', 'POST', work); assert.equal(created.status, 201);
     const { id } = await created.json();
     assert.equal((await (await request('/api/works')).json()).total, 0);
@@ -35,6 +39,7 @@ test('投稿、权限、审核、重启持久化与重复请求', async () => {
     assert.equal((await request('/api/works', 'POST', { ...work, title: '修改后的请求' })).status, 409);
     const login = await request('/api/admin/session', 'POST', { password }); assert.equal(login.status, 200);
     const cookie = login.headers.get('set-cookie').split(';')[0];
+    assert.equal((await request(`/api/admin/works/${id}`, 'PATCH', { status: 'approved', expectedStatus: ['pending'] }, cookie)).status, 400);
     const pending = await (await request('/api/admin/works', 'GET', null, cookie)).json(); assert.equal(pending.total, 1);
     assert.equal((await request(`/api/works/${id}/image`, 'GET', null, cookie)).status, 200);
     assert.equal((await request(`/api/admin/works/${id}`, 'PATCH', { status: 'approved' })).status, 401);
@@ -42,6 +47,20 @@ test('投稿、权限、审核、重启持久化与重复请求', async () => {
     assert.equal((await request(`/api/admin/works/${id}`, 'PATCH', { status: 'approved' }, cookie)).status, 409);
     assert.equal((await (await request('/api/works')).json()).total, 1);
     assert.equal((await request(`/api/works/${id}/image`)).status, 200);
+    assert.equal((await request(`/api/admin/works/${id}`, 'PATCH', { status: 'rejected', expectedStatus: 'approved' }, cookie)).status, 200);
+    assert.equal((await (await request('/api/works')).json()).total, 0);
+    assert.equal((await request(`/api/works/${id}/image`)).status, 404);
+    assert.equal((await request(`/api/admin/works/${id}`, 'PATCH', { status: 'approved', expectedStatus: 'rejected' }, cookie)).status, 400);
+    assert.equal((await request(`/api/admin/works/${id}`, 'PATCH', { status: 'pending', expectedStatus: 'rejected' }, cookie)).status, 200);
+    assert.equal((await request(`/api/works/${id}/image`)).status, 404);
+    assert.equal((await request(`/api/admin/works/${id}`, 'PATCH', { status: 'approved', expectedStatus: 'rejected' }, cookie)).status, 400);
+    assert.equal((await request(`/api/admin/works/${id}`, 'PATCH', { status: 'rejected', expectedStatus: 'approved' }, cookie)).status, 409);
+    assert.equal((await request(`/api/admin/works/${id}`, 'PATCH', { status: 'approved' }, cookie)).status, 200);
+    const file = join(directory,'images',`${id}.png`);
+    renameSync(file, file+'.unavailable');
+    const unavailable = await request(`/api/works/${id}/image`);
+    assert.equal(unavailable.status,404); assert.match((await unavailable.json()).error,/图片/);
+    renameSync(file+'.unavailable',file);
     const other = await (await request('/api/works', 'POST', { ...work, requestId: randomUUID(), title: '待驳回作品' })).json();
     assert.equal((await request(`/api/admin/works/${other.id}`, 'PATCH', { status: 'rejected' }, cookie)).status, 200);
     assert.equal((await request(`/api/works/${other.id}/image`)).status, 404);
