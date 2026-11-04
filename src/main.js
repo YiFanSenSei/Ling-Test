@@ -19,6 +19,7 @@ import { Header, initHeader } from './components/Header.js';
 import { Footer } from './components/Footer.js';
 import { getMeta } from './data.js';
 import { EmptyState } from './components/ui.js';
+import { initIntro } from './intro.js';
 
 import { HomePage } from './pages/Home.js';
 import { GalleryPage, initGallery } from './pages/Gallery.js';
@@ -85,6 +86,12 @@ setRouteFeedback({
  */
 let disposeCurrent = null;
 
+/**
+ * 开场层控制器。在 startRouter() 之前创建，因此第一次 render 完成时
+ * 它一定已经就位；揭幕是幂等的，后续路由切换再调用不会有任何效果。
+ */
+let intro;
+
 async function render(html, { title, init } = {}) {
   if (typeof disposeCurrent === 'function') {
     try { disposeCurrent(); } catch (err) { console.error('页面清理失败', err); }
@@ -118,6 +125,8 @@ async function render(html, { title, init } = {}) {
   if (title) document.title = `${title} · 匠作`;
   else document.title = '匠作 · 非物质文化遗产数字展馆';
   clearLoading();
+  // 首屏内容已经落到 DOM 上了，开场纸可以揭起（最短展示时长由它自己控制）
+  intro?.reveal();
   // 路由切换后回到页首（hash 路由不会自动滚动）
   window.scrollTo({ top: 0, behavior: 'instant' });
 }
@@ -191,4 +200,5 @@ route('/works', async ({ render }) => {
 /* ---------------- 启动 ---------------- */
 
 getMeta().then(value => { meta = value; }).catch(() => { /* 页面提供失败与重试入口 */ });
+intro = initIntro();
 startRouter();
