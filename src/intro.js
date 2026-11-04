@@ -53,7 +53,13 @@ export function initIntro() {
   function remove() {
     // 动画可能被浏览器跳过（例如标签页在后台），所以 animationend 之外还要留一手
     window.clearTimeout(removeTimer);
+    el.removeEventListener('animationend', onAnimationEnd);
     el.remove();
+  }
+
+  function onAnimationEnd(event) {
+    // 子元素和伪元素的动画结束事件也会冒泡，不能据此提前撤掉整张纸。
+    if (event.target === el && event.animationName === 'introLift') remove();
   }
 
   function skip() {
@@ -62,7 +68,7 @@ export function initIntro() {
     detach();
     unlock();
     el.dataset.state = 'out';
-    el.addEventListener('animationend', remove, { once: true });
+    el.addEventListener('animationend', onAnimationEnd);
     removeTimer = setTimeout(remove, REMOVE_AFTER);
   }
 
