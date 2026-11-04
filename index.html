@@ -26,7 +26,7 @@
        颜色一律写字面值：此刻 tokens.css 尚未生效，var(--paper) 取不到值。
 
        动效语汇沿用全站：不用 bounce、不用旋转飞入，只做「线拉开—字化开—
-       印落下—纸揭起」四拍，缓动与 tokens.css 的 --ease-out 同一条曲线。
+       榫推入—纸揭起」四拍，缓动与 tokens.css 的 --ease-out 同一条曲线。
        =================================================================== -->
   <style>
     #intro {
@@ -133,9 +133,11 @@
       width: 100%;
       height: auto;
     }
-    /* 榫条：从右侧推入到位，末段收得很慢（ease-out），像手推到底停住 */
+    /* 榫条：从右侧推入到位，末段收得很慢（ease-out），像手推到底停住。
+       62px 的起点让榫舌尖端正好抵在立柱右面，推入时是「接着往里送」，
+       而不是先从半空里起步。 */
     .ij-rail {
-      transform: translateX(70px);
+      transform: translateX(62px);
       animation: ijSlide 560ms cubic-bezier(0.16, 1, 0.3, 1) 560ms both;
     }
     @keyframes ijSlide {
@@ -239,6 +241,49 @@
     }
 
     /*
+     * 走在裁切线上的「卷边」。
+     *
+     * 光靠 clip-path，揭幕是一条没有厚度的硬边；补上一道卷起纸筒的高光
+     * 与它落在余下纸面上的阴影，画面才像纸被卷走，而不是被矩形擦掉。
+     *
+     * 为什么必须是 #intro 的兄弟节点：clip-path 会把 #intro 的子元素一起
+     * 裁掉，画在里面就永远看不见。用相邻兄弟选择器让它跟随
+     * data-state="out"，#intro 被移除后选择器自然失配，无需 JS 清理。
+     *
+     * 线条在元素内的 45px 处；从 -45px 移到 100vh-45px，正好与
+     * clip-path 的 inset 边界同步（同一条缓动曲线、同样 720ms）。
+     */
+    .intro-edge {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 3001;
+      height: 120px;
+      display: none;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-45px);
+      background: linear-gradient(to bottom,
+                  rgba(251, 248, 240, 0) 0,
+                  rgba(251, 248, 240, 0.5) 37px,
+                  rgba(120, 105, 82, 0.18) 44px,
+                  rgba(28, 26, 23, 0.26) 45px,
+                  rgba(28, 26, 23, 0.12) 47px,
+                  rgba(28, 26, 23, 0.05) 74px,
+                  rgba(28, 26, 23, 0) 120px);
+    }
+    #intro[data-state="out"] + .intro-edge {
+      display: block;
+      animation: introEdge 720ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes introEdge {
+      0%   { opacity: 1; transform: translateY(-45px); }
+      85%  { opacity: 1; }
+      100% { opacity: 0; transform: translateY(calc(100vh - 45px)); }
+    }
+
+    /*
      * 兜底：万一样式之外的脚本整段失败，开场层也不许永久挡着展馆。
      * 9 秒后自行隐去（data-state="out" 的规则优先级更高，会正常接管）。
      */
@@ -292,7 +337,7 @@
         全部内联 SVG，零请求；动画只由 CSS 驱动，不依赖 JS。
       -->
       <div class="intro-joint" aria-hidden="true">
-        <svg class="ij" viewBox="26 8 244 166" focusable="false">
+        <svg class="ij" viewBox="15 8 244 166" focusable="false">
           <defs>
             <linearGradient id="ij-wood-a" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stop-color="#C8A164" stop-opacity="0.62"/>
@@ -304,6 +349,21 @@
             </linearGradient>
           </defs>
 
+          <!--
+            榫舌先画：穿过卯眼的那一段必须被立柱挡住。若画在立柱之后，
+            推进时它会浮在柱面上，看着像在表面滑过去，而不是穿进木头里。
+            整根榫舌从 x=34（探出的端面）连续到 x=96，起点与榫条同宽相连，
+            推入后中段被立柱遮住，左侧只留下 22 单位的出头。
+          -->
+          <g class="ij-rail">
+            <rect x="34" y="80" width="62" height="24"
+                  fill="url(#ij-wood-b)" stroke="rgba(48,34,18,0.8)" stroke-width="1.05"/>
+            <!-- 端面比舌身略深，一道竖线交代出棱 -->
+            <rect x="34" y="80" width="10" height="24" fill="rgba(48,34,18,0.12)"/>
+            <line x1="44" y1="80" x2="44" y2="104"
+                  stroke="rgba(48,34,18,0.5)" stroke-width="0.9"/>
+          </g>
+
           <g class="ij-post">
             <rect x="56" y="18" width="40" height="144"
                   fill="url(#ij-wood-a)" stroke="rgba(48,34,18,0.8)" stroke-width="1.15"/>
@@ -311,9 +371,6 @@
           </g>
 
           <g class="ij-rail">
-            <!-- 探出立柱的那一段是端面，比条身略深 -->
-            <rect x="34" y="80" width="22" height="24"
-                  fill="#9C7A4A" fill-opacity="0.42" stroke="rgba(48,34,18,0.8)" stroke-width="1.05"/>
             <rect x="96" y="70" width="144" height="44"
                   fill="url(#ij-wood-b)" stroke="rgba(48,34,18,0.8)" stroke-width="1.15"/>
             <g stroke="rgba(88,64,36,0.16)" stroke-width="0.8"><line x1="120" y1="84" x2="228" y2="84"/><line x1="120" y1="100" x2="228" y2="100"/></g>
@@ -335,6 +392,9 @@
     </div>
     <button type="button" class="intro-skip" aria-label="跳过开场动画">跳过开场</button>
   </div>
+
+  <!-- 卷边必须与 #intro 平级：clip-path 会连子元素一起裁掉 -->
+  <div class="intro-edge" aria-hidden="true"></div>
 
   <div id="app">
     <div id="app-loading" style="min-height:100vh;display:grid;place-items:center;color:#8A8279;font-family:serif;letter-spacing:.2em">
