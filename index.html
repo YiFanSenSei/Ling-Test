@@ -15,9 +15,273 @@
 
   <!-- 站点图标：内联 SVG，朱砂方印「匠」字，零请求 -->
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='3' fill='%23B23A2E'/%3E%3Ctext x='16' y='23' font-size='20' text-anchor='middle' fill='%23F5F1E8' font-family='serif'%3E%E5%8C%A0%3C/text%3E%3C/svg%3E">
+
+  <!-- ===================================================================
+       开场：宣纸开启（Critical CSS —— 刻意内联，不进 src/styles/）
+       -------------------------------------------------------------------
+       为什么必须内联：主样式表由 main.js 引入，要等业务脚本执行后才注入；
+       单文件产物里它也被排在文档末尾。开场层必须「有 HTML 就有样式」，
+       否则第一帧会闪出一个无样式的裸字，比没有动画更难看。
+
+       颜色一律写字面值：此刻 tokens.css 尚未生效，var(--paper) 取不到值。
+
+       动效语汇沿用全站：不用 bounce、不用旋转飞入，只做「线拉开—字化开—
+       印落下—纸揭起」四拍，缓动与 tokens.css 的 --ease-out 同一条曲线。
+       =================================================================== -->
+  <style>
+    #intro {
+      position: fixed;
+      inset: 0;
+      z-index: 3000;
+      display: grid;
+      place-items: center;
+      /*
+       * 纸面不是一个平涂色：中心微亮、四周沉一点，
+       * 让「匠作」二字像写在受光的宣纸上。
+       */
+      background: radial-gradient(ellipse 62% 58% at 50% 46%,
+                  #FBF8F0 0%, #F4EFE4 58%, #EDE7D9 100%);
+      font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC",
+                   "SimSun", "STSong", serif;
+      color: #1C1A17;
+      -webkit-font-smoothing: antialiased;
+      will-change: clip-path;
+    }
+
+    /* 与全站一致的纸纤维噪点：没有它，开场就是一块平涂的塑料色 */
+    #intro::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.04;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .intro-stage {
+      position: relative;
+      display: grid;
+      justify-items: center;
+      padding: 0 24px;
+      text-align: center;
+    }
+
+    /* —— 第一拍：「匠作」二字从墨里化开 —— */
+    .intro-word {
+      display: flex;
+      gap: 0.2em;
+      margin: 0 0 20px;
+      font-size: clamp(2.6rem, 7.5vw, 4.6rem);
+      font-weight: 500;
+      line-height: 1;
+    }
+    .intro-char {
+      display: block;
+      opacity: 0;
+      transform: translateY(14px);
+      filter: blur(6px);
+      animation: introChar 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .intro-char:nth-child(1) { animation-delay: 90ms; }
+    .intro-char:nth-child(2) { animation-delay: 190ms; }
+    @keyframes introChar {
+      to { opacity: 1; transform: none; filter: blur(0); }
+    }
+
+    /* —— 第二拍：一条界画墨线自中点向两侧拉开 —— */
+    .intro-rule {
+      display: block;
+      width: clamp(150px, 30vw, 270px);
+      height: 1px;
+      background: linear-gradient(90deg,
+                  transparent 0%, #1C1A17 16%, #1C1A17 84%, transparent 100%);
+      opacity: 0.5;
+      transform: scaleX(0);
+      transform-origin: 50% 50%;
+      animation: introRule 620ms cubic-bezier(0.16, 1, 0.3, 1) 40ms both;
+    }
+    @keyframes introRule {
+      to { transform: scaleX(1); }
+    }
+
+    .intro-sub {
+      margin: 22px 0 0;
+      font-size: 12px;
+      letter-spacing: 0.42em;
+      /* 末字后的字距会被算进盒子宽度，不补一下整体就偏左 */
+      margin-right: -0.42em;
+      color: #6B655C;
+      opacity: 0;
+      animation: introUp 560ms cubic-bezier(0.16, 1, 0.3, 1) 380ms both;
+    }
+    @keyframes introUp {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    /* —— 第三拍：朱印按下。真印章落纸是「压下去再稳住」，不是弹跳 —— */
+    .intro-seal {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 50px;
+      height: 50px;
+      margin-top: 30px;
+      border-radius: 2px;
+      background: #B23A2E;
+      color: #FBF9F3;
+      font-size: 26px;
+      font-weight: 600;
+      line-height: 1;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+                  0 2px 10px rgba(140, 42, 32, 0.18);
+      opacity: 0;
+      animation: introSeal 520ms cubic-bezier(0.2, 0.9, 0.15, 1) 640ms both;
+    }
+    @keyframes introSeal {
+      0%   { opacity: 0; transform: scale(1.4) rotate(-9deg); filter: blur(5px); }
+      55%  { opacity: 1; filter: blur(0); }
+      100% { opacity: 1; transform: scale(1) rotate(-3deg); }
+    }
+    /* 落印的朱色扩散：只走一次，不循环 */
+    .intro-seal::after {
+      content: "";
+      position: absolute;
+      inset: -6px;
+      border: 1px solid #B23A2E;
+      border-radius: 3px;
+      opacity: 0;
+      animation: introSealHalo 700ms ease-out 700ms both;
+    }
+    @keyframes introSealHalo {
+      0%   { opacity: 0.5; transform: scale(0.86); }
+      100% { opacity: 0;   transform: scale(1.5); }
+    }
+
+    /* —— 「还在开」的诚实指示：不确定进度就用不确定的滑块，不编百分比 —— */
+    .intro-hint {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 32px 0 0;
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      margin-right: -0.3em;
+      color: #6B655C;
+      opacity: 0;
+      animation: introUp 480ms ease-out 820ms both;
+    }
+    .intro-track {
+      position: relative;
+      display: block;
+      width: 92px;
+      height: 1px;
+      background: rgba(28, 26, 23, 0.2);
+      overflow: hidden;
+    }
+    .intro-track > span {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 34%;
+      background: #B23A2E;
+      animation: introTrack 1.5s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    }
+    @keyframes introTrack {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(333%); }
+    }
+
+    /* 等不及的观众可以走：点、按、滚，一律算「请进」 */
+    .intro-skip {
+      position: absolute;
+      bottom: 34px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 6px 12px;
+      font: inherit;
+      font-size: 12px;
+      letter-spacing: 0.2em;
+      text-indent: 0.2em;
+      color: #6B655C;
+      background: none;
+      border: 0;
+      cursor: pointer;
+      opacity: 0;
+      animation: introUp 400ms ease-out 1050ms both;
+    }
+    .intro-skip:hover { color: #B23A2E; }
+    .intro-skip:focus-visible { outline: 1px solid #B23A2E; outline-offset: 4px; }
+
+    /* —— 第四拍：纸从上方揭起，露出首屏 ——
+       inset 的 top 从 0 走到 100%，可见区自上而下收掉，
+       于是页面是从上往下被露出来的，与阅读方向一致。 */
+    #intro[data-state="out"] {
+      pointer-events: none;
+      animation: introLift 720ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes introLift {
+      from { clip-path: inset(0 0 0 0); }
+      to   { clip-path: inset(100% 0 0 0); }
+    }
+    #intro[data-state="out"] .intro-stage {
+      animation: introStageOut 420ms cubic-bezier(0.4, 0, 0.8, 1) forwards;
+    }
+    @keyframes introStageOut {
+      to { opacity: 0; transform: translateY(-16px) scale(1.02); }
+    }
+
+    /*
+     * 兜底：万一样式之外的脚本整段失败，开场层也不许永久挡着展馆。
+     * 9 秒后自行隐去（data-state="out" 的规则优先级更高，会正常接管）。
+     */
+    #intro { animation: introFallback 1ms linear 9s forwards; }
+    @keyframes introFallback {
+      to { opacity: 0; visibility: hidden; pointer-events: none; }
+    }
+
+    /* 减少了动态效果的用户：不看过场，直接进馆 */
+    @media (prefers-reduced-motion: reduce) {
+      #intro { display: none; }
+    }
+
+    /*
+     * 开场期间锁住首屏主视觉的入场动画（枝、花、题款）。
+     * 用 :has 而不是给 <html> 加类：状态只由 #intro 自己表达，
+     * 揭幕那一刻（data-state 变 out）暂停自动解除，不必再同步第二处状态。
+     */
+    html:has(#intro[data-state="show"]) .hero-art__branch,
+    html:has(#intro[data-state="show"]) .hero-art__blossom,
+    html:has(#intro[data-state="show"]) .hero-art__caption {
+      animation-play-state: paused;
+    }
+  </style>
 </head>
 <body>
   <a class="skip-link" href="#main">跳转到主要内容</a>
+
+  <!--
+    开场层。写在 #app 之外、由内联样式直接上色，因此首帧即成立。
+    正常情况下由 src/intro.js 在首屏渲染完成后揭起并整块移除；
+    这里不写内联 script —— 单文件产物会把业务脚本统一搬到文末，
+    任何「先于业务脚本运行」的假设都不该存在。
+  -->
+  <div id="intro" data-state="show">
+    <div class="intro-stage">
+      <p class="intro-word" aria-hidden="true">
+        <span class="intro-char">匠</span><span class="intro-char">作</span>
+      </p>
+      <span class="intro-rule" aria-hidden="true"></span>
+      <p class="intro-sub" aria-hidden="true">非物质文化遗产 · 数字展馆</p>
+      <span class="intro-seal" aria-hidden="true">匠</span>
+      <p class="intro-hint" role="status">
+        <span class="intro-track" aria-hidden="true"><span></span></span>
+        展馆开启中
+      </p>
+    </div>
+    <button type="button" class="intro-skip" aria-label="跳过开场动画">跳过开场</button>
+  </div>
 
   <div id="app">
     <div id="app-loading" style="min-height:100vh;display:grid;place-items:center;color:#8A8279;font-family:serif;letter-spacing:.2em">

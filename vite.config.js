@@ -147,6 +147,19 @@ export default defineConfig({
   server: {
     port: 5173,
     open: true,
+    /*
+     * 忽略「原子写入」留下的临时目录。
+     *
+     * 不少编辑器（以及部分写入工具）保存时先写 xxx.tmp 再改名，临时文件
+     * 就落在被监听的 src/ 里。Vite 的 fs watcher 一旦 watch 到这种马上
+     * 就要被删掉的路径，会抛 EBUSY 的 'error' 事件——它是未捕获的，
+     * 结果不是「这次热更新失败」，而是整个 dev server 直接退出。
+     *
+     * 这里把临时目录与 .tmp 后缀全部排除：真源文件仍在监听范围内。
+     */
+    watch: {
+      ignored: ['**/.*.tmpdir/**', '**/*.tmp', '**/.*.swp'],
+    },
   },
   publicDir: 'public',
   plugins: [buildSingleFile()],
