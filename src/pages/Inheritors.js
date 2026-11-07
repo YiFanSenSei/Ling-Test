@@ -8,7 +8,7 @@
  *   传承人索引由 scripts/split-details.mjs 扁平化生成，本页按需加载（见 data.js）。
  *
  * 数据诚实原则：
- *   官网原表中有一部分（第五批 / 2021）传承人没有编号、没有出生日期。
+ *   所属项目为第五批（2021）的部分传承人表格没有编号与出生日期。
  *   本页照实显示「—」，不做任何推测性填充。填一个假年份比留白恶劣得多。
  */
 
@@ -18,6 +18,7 @@ import {
 } from '../data.js';
 import { navigate } from '../router.js';
 import { categoryPattern } from '../components/ui.js';
+import { rememberInheritors, inheritorsReturn } from '../browse-state.js';
 
 const PAGE_SIZE = 24;
 
@@ -35,6 +36,22 @@ function surnameKey(name) {
   return (name || '').trim().charAt(0);
 }
 
+function listQuery() {
+  const params = new URLSearchParams(location.hash.split('?')[1] || '');
+  const page = Number(params.get('page'));
+  return { q: (params.get('q') || '').trim(), category: CATEGORIES.includes(params.get('category')) ? params.get('category') : '',
+    sort: ['birth', 'name', 'default'].includes(params.get('sort')) ? params.get('sort') : 'birth',
+    page: Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1 };
+}
+function listPath(state) {
+  const params = new URLSearchParams();
+  if (state.q) params.set('q', state.q);
+  if (state.category) params.set('category', state.category);
+  if (state.sort !== 'birth') params.set('sort', state.sort);
+  if (state.page > 1) params.set('page', state.page);
+  return '#/inheritors' + (params.size ? `?${params}` : '');
+}
+
 /* ============================================================
  * 传承人名录页
  * ============================================================ */
@@ -42,7 +59,7 @@ function surnameKey(name) {
 export async function InheritorsPage() {
   const stats = await getInheritorStats();
   const { items, total, page, totalPages } = await queryInheritors({
-    page: 1, pageSize: PAGE_SIZE, sort: 'birth',
+    ...listQuery(), pageSize: PAGE_SIZE,
   });
 
   const html = `
@@ -116,16 +133,17 @@ export async function InheritorsPage() {
           <button type="button" class="tag tag-btn" data-sort="default">按项目归集</button>
         </div>
       </div>
+      <button type="button" class="btn btn-ghost btn-sm" id="inh-reset">清除筛选</button>
     </form>
 
     <!-- 结果 -->
     <div class="result-bar">
-      <p class="result-count" id="inh-count">共 <strong>${num(total)}</strong> 条传承人档案</p>
+      <p class="result-count" id="inh-count" role="status" tabindex="-1">共 <strong>${num(total)}</strong> 条传承人档案</p>
       <p class="result-page" id="inh-page">第 ${page} / ${totalPages} 页</p>
     </div>
 
     <div id="inh-list" class="inh-grid">
-      ${items.map(renderInheritorCard).join('')}
+      ${items.map(renderInheritorCard).join('') || '<p class="empty-note">没有符合条件的传承人，请换个关键词或清除门类筛选。</p>'}
     </div>
 
     <nav class="pager" id="inh-pager" aria-label="分页">
@@ -134,8 +152,8 @@ export async function InheritorsPage() {
 
     <p class="result-note">
       说明：本站传承人数据取自中国非物质文化遗产网各项目详情页的公开表格。
-      官网原表中第五批（2021）公布的传承人未标注编号与出生年份，
-      此处照实留空（显示为「—」），不作推测填补。
+      列表按所属项目的公布批次归集；该批次并非传承人的认定批次。
+      公开表格未标注的编号与出生年份照实留空（显示为「—」），不作推测填补。
       <a class="result-more" href="#/ages">查看档案的出生年代分布 →</a>
     </p>
   </div>`;
@@ -191,13 +209,9 @@ function renderPager(page, totalPages) {
 }
 
 /** 名录页交互：检索、筛选、排序、分页 */
-export function initInheritors() {
-  const state = {
-    q: '',
-    category: '',
-    sort: 'birth',
-    page: 1,
-  };
+export function initInheritors({ restore = false } = {}) {
+  const state = listQuery();
+  let alive = true, version = 0, restoreFrame = 0;
 
   const listEl = document.getElementById('inh-list');
   const countEl = document.getElementById('inh-count');
@@ -209,58 +223,71 @@ export function initInheritors() {
   // 但取不到时直接跳过绑定，避免再次出现「无守卫即解引用」。
   const catEl = document.getElementById('inh-category');
   const sortEl = document.getElementById('inh-sort');
+  const syncControls = () => {
+    document.getElementById('inh-reset').hidden = !state.q && !state.category && state.sort === 'birth' && state.page === 1;
+    catEl?.querySelectorAll('[data-category]').forEach(button => {
+      const active = button.dataset.category === state.category;
+      button.classList.toggle('is-active', active); button.setAttribute('aria-pressed', String(active));
+    });
+    sortEl?.querySelectorAll('[data-sort]').forEach(button => {
+      const active = button.dataset.sort === state.sort;
+      button.classList.toggle('is-active', active); button.setAttribute('aria-pressed', String(active));
+    });
+  };
 
   async function refresh() {
-    const res = await queryInheritors({ ...state, pageSize: PAGE_SIZE });
-    state.page = res.page;
+    const token = ++version;
+    const hashAtStart = location.hash;
+    listEl.setAttribute('aria-busy', 'true');
+    try {
+      const res = await queryInheritors({ ...state, pageSize: PAGE_SIZE });
+      if (!alive || token !== version || location.hash !== hashAtStart) return;
+      state.page = res.page;
 
-    listEl.innerHTML = res.items.length
-      ? res.items.map(renderInheritorCard).join('')
-      : `<p class="empty-note">没有符合条件的传承人。换个关键词，或点「全部」清除筛选。</p>`;
+      listEl.innerHTML = res.items.length
+        ? res.items.map(renderInheritorCard).join('')
+        : `<p class="empty-note">没有符合条件的传承人。请换个关键词，或点击「清除筛选」。</p>`;
 
-    if (countEl) {
-      const filtered = state.q || state.category;
-      countEl.innerHTML = filtered
-        ? `共 <strong>${num(res.total)}</strong> 条传承人档案 <span class="result-filtered">（已筛选）</span>`
-        : `共 <strong>${num(res.total)}</strong> 条传承人档案`;
-    }
-    if (pageEl) pageEl.textContent = `第 ${res.page} / ${res.totalPages} 页`;
-    if (pagerEl) pagerEl.innerHTML = renderPager(res.page, res.totalPages);
+      if (countEl) {
+        const filtered = state.q || state.category;
+        countEl.innerHTML = filtered
+          ? `共 <strong>${num(res.total)}</strong> 条传承人档案 <span class="result-filtered">（已筛选）</span>`
+          : `共 <strong>${num(res.total)}</strong> 条传承人档案`;
+      }
+      if (pageEl) pageEl.textContent = `第 ${res.page} / ${res.totalPages} 页`;
+      if (pagerEl) pagerEl.innerHTML = renderPager(res.page, res.totalPages);
+      listEl.removeAttribute('aria-busy'); syncControls();
 
-    // 把状态同步进地址栏，使结果可分享、可回退
-    const params = new URLSearchParams();
-    if (state.q) params.set('q', state.q);
-    if (state.category) params.set('category', state.category);
-    if (state.sort !== 'birth') params.set('sort', state.sort);
-    if (state.page > 1) params.set('page', String(state.page));
-    const qs = params.toString();
-    const target = `#/inheritors${qs ? `?${qs}` : ''}`;
-    if (window.location.hash !== target) {
-      window.history.replaceState(null, '', target);
+      // 把状态同步进地址栏，使结果可分享、可回退
+      const target = listPath(state);
+      if (window.location.hash !== target) {
+        window.history.replaceState(null, '', target);
+      }
+    } catch {
+      if (!alive || token !== version || location.hash !== hashAtStart) return;
+      listEl.removeAttribute('aria-busy');
+      countEl.textContent = '列表暂时无法更新，请重新搜索或选择筛选。';
     }
   }
 
   // 监听器在文件末尾统一绑定（具名函数，便于 dispose 时摘除）
 
   // 从 URL 恢复筛选状态（支持直接分享带筛选的链接）
-  const hash = window.location.hash;
-  const qi = hash.indexOf('?');
-  if (qi !== -1) {
-    const params = new URLSearchParams(hash.slice(qi + 1));
-    state.q = params.get('q') || '';
-    state.category = params.get('category') || '';
-    state.sort = params.get('sort') || 'birth';
-    state.page = Number(params.get('page') || 1);
-    const input = document.getElementById('inh-q');
-    if (input) input.value = state.q;
-    if (catEl) catEl.querySelectorAll('[data-category]').forEach(c => {
-      c.classList.toggle('is-active', c.dataset.category === state.category);
-    });
-    if (sortEl) sortEl.querySelectorAll('[data-sort]').forEach(c => {
-      c.classList.toggle('is-active', c.dataset.sort === state.sort);
-    });
-    if (state.q || state.category || state.sort !== 'birth' || state.page > 1) refresh();
-  }
+  const renderedPage = Number(pagerEl?.querySelector('[aria-current]')?.dataset.page) || 1;
+  state.page = renderedPage;
+  document.getElementById('inh-q').value = state.q;
+  history.replaceState(null, '', listPath(state));
+  syncControls();
+  const remember = event => {
+    const card = event.target.closest('.inh-card');
+    if (card) rememberInheritors(card.getAttribute('href').split('/').pop());
+  };
+  listEl.addEventListener('click', remember);
+  const saved = restore ? inheritorsReturn() : null;
+  if (saved?.hash === location.hash) restoreFrame = requestAnimationFrame(() => {
+    listEl.querySelector(`[href="#/inheritor/${saved.personId}"]`)?.focus({ preventScroll: true });
+    window.scrollTo({ top: saved.y, behavior: 'instant' });
+  });
 
   // 返回清理函数（约定见 main.js）。
   // 这些监听器都挂在本次渲染出来的元素上，会随 innerHTML 替换而消失，
@@ -268,7 +295,7 @@ export function initInheritors() {
   const onFormSubmit = /** @type {EventListener} */ (e) => {
     e.preventDefault();
     const input = document.getElementById('inh-q');
-    state.q = input ? input.value : '';
+    state.q = input ? input.value.trim() : '';
     state.page = 1;
     refresh();
   };
@@ -295,8 +322,16 @@ export function initInheritors() {
     if (!btn || btn.disabled) return;
     state.page = Number(btn.dataset.page);
     refresh();
-    listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    countEl.focus({ preventScroll: true });
+    countEl.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
   };
+  const reset = document.getElementById('inh-reset');
+  const onReset = () => {
+    Object.assign(state, { q: '', category: '', sort: 'birth', page: 1 });
+    document.getElementById('inh-q').value = ''; refresh();
+    countEl.focus({ preventScroll: true });
+  };
+  reset.addEventListener('click', onReset);
 
   if (formEl) { formEl.removeEventListener('submit', onFormSubmit); formEl.addEventListener('submit', onFormSubmit); }
   if (catEl) { catEl.removeEventListener('click', onCatClick); catEl.addEventListener('click', onCatClick); }
@@ -304,6 +339,9 @@ export function initInheritors() {
   if (pagerEl) { pagerEl.removeEventListener('click', onPagerClick); pagerEl.addEventListener('click', onPagerClick); }
 
   return () => {
+    alive = false; version++; cancelAnimationFrame(restoreFrame);
+    listEl.removeEventListener('click', remember);
+    reset.removeEventListener('click', onReset);
     if (formEl) formEl.removeEventListener('submit', onFormSubmit);
     if (catEl) catEl.removeEventListener('click', onCatClick);
     if (sortEl) sortEl.removeEventListener('click', onSortClick);
@@ -330,7 +368,7 @@ export async function InheritorPage(id) {
     ['民族', person.ethnicity || '—'],
     ['所属门类', person.projectCategory || '—'],
     ['申报地区或单位', person.declareUnit || '—'],
-    ['批次', person.batch ? batchLabel(person.batch) : '—'],
+    ['所属项目公布批次', person.batch ? batchLabel(person.batch) : '—'],
   ];
 
   // 项目链接：优先用项目编号找详情页
@@ -342,7 +380,7 @@ export async function InheritorPage(id) {
       <nav class="breadcrumb" aria-label="面包屑导航">
         <a href="#/">首页</a>
         <span aria-hidden="true">/</span>
-        <a href="#/inheritors">传承人</a>
+        <a href="${esc(inheritorsReturn()?.hash || '#/inheritors')}">返回传承人列表</a>
         <span aria-hidden="true">/</span>
         <span aria-current="page">${esc(person.name)}</span>
       </nav>
@@ -372,7 +410,7 @@ export async function InheritorPage(id) {
     <div class="inh-detail-layout">
       <div class="inh-detail-main">
         <section class="project-section">
-          <h2 class="ps-title"><span class="ps-mark">${person.gender === '女' ? '她是谁' : '他是谁'}</span></h2>
+          <h2 class="ps-title"><span class="ps-mark">人物档案</span></h2>
           <p class="project-text">
             这是中国非物质文化遗产网公开收录的国家级代表性传承人
             <strong>${esc(person.name)}</strong>，
@@ -383,19 +421,15 @@ export async function InheritorPage(id) {
             ${person.declareUnit ? `该项目的申报地区或单位为 ${esc(person.declareUnit)}。` : ''}
           </p>
           <p class="project-text">
-            国家级代表性传承人的认定，意味着这位匠人被官方确认为
-            ${esc(person.projectTitle)}这一技艺谱系中具有代表性的传承者。
-            ${yr && Number(yr) < 1950
-              ? `生于 ${esc(yr)} 年，其技艺养成跨越了二十世纪中期以来的社会变迁——这份履历本身就是一份活的技艺档案。`
-              : ''}
+            本页依据所属项目官方页面公开列出的传承人字段整理，
+            未收录其完整生平、从艺经历或近况；相关认定信息以官方档案为准。
           </p>
           ${!person.birth || !person.code ? `
           <div class="about-callout">
             <h3>为什么有些字段是空的？</h3>
             <p>
-              中国非物质文化遗产网在第五批（2021 年公布）传承人的公开表格中，
-              未标注编号与出生日期。本站照实呈现这一空缺，不作推测性填补——
-              档案的价值在于可信，而不在于看起来完整。
+              这条公开档案未完整标注编号或出生日期，本站按原始记录留空。
+              侧栏批次取自所属项目的公布信息，不代表这位传承人的认定批次。
             </p>
           </div>` : ''}
         </section>
@@ -434,7 +468,7 @@ export async function InheritorPage(id) {
               </div>`).join('')}
           </dl>
           <p class="archive-source">
-            数据来源：<a href="https://www.ihchina.cn" target="_blank" rel="noopener noreferrer">中国非物质文化遗产网 ↗</a>
+            数据来源：<a href="https://www.ihchina.cn/project_details/${esc(person.projectId)}.html" target="_blank" rel="noopener noreferrer">所属项目官方档案 ↗</a>
           </p>
         </div>
 
