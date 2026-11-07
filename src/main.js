@@ -1,4 +1,4 @@
-import { WorksPage } from './pages/Works.js';
+import { WorksPage, initWorks } from './pages/Works.js';
 /**
  * 匠作 · 应用入口
  *
@@ -192,9 +192,7 @@ setNotFound(async ({ render }) => {
 });
 
 route('/works', async ({ render }) => {
-  await render(await WorksPage(), { title: '作品墙', init: () => {
-    document.getElementById('retry-works')?.addEventListener('click', () => navigate(location.hash.slice(1), { replace: true }));
-  } });
+  await render(await WorksPage(), { title: '作品墙', init: initWorks });
 });
 
 /* ---------------- 启动 ---------------- */

@@ -5,7 +5,7 @@
  * 因此导航要做到：全局可达、当前位置可见、移动端可用。
  */
 
-import { currentPath, navigate } from '../router.js';
+import { currentPath } from '../router.js';
 
 const NAV_ITEMS = [
   { path: '/',             label: '首页',   num: '壹' },
@@ -95,17 +95,27 @@ export function initHeader() {
 
   // 移动端抽屉
   if (toggle && drawer) {
+    const background = [document.getElementById('main'), document.querySelector('.site-footer'),
+      document.querySelector('.skip-link'), header?.querySelector('.brand')].filter(Boolean);
+    const previousInert = new Map();
     const closeDrawer = () => {
       toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', '展开导航菜单');
       drawer.hidden = true;
       document.body.classList.remove('nav-open');
+      for (const [node, inert] of previousInert) node.inert = inert;
+      previousInert.clear();
     };
 
     const onToggle = () => {
       const open = toggle.getAttribute('aria-expanded') === 'true';
-      toggle.setAttribute('aria-expanded', String(!open));
-      drawer.hidden = open;
-      document.body.classList.toggle('nav-open', !open);
+      if (open) { closeDrawer(); toggle.focus(); return; }
+      for (const node of background) { previousInert.set(node, node.inert); node.inert = true; }
+      toggle.setAttribute('aria-expanded', 'true');
+      toggle.setAttribute('aria-label', '关闭导航菜单');
+      drawer.hidden = false;
+      document.body.classList.add('nav-open');
+      drawer.querySelector('a')?.focus();
     };
     toggle.addEventListener('click', onToggle);
     cleanups.push(() => toggle.removeEventListener('click', onToggle));
@@ -122,13 +132,31 @@ export function initHeader() {
 
     // Esc 关闭
     const onKeydown = e => {
+      if (drawer.hidden) return;
       if (e.key === 'Escape' && !drawer.hidden) {
+        e.preventDefault();
         closeDrawer();
         toggle.focus();
+      } else if (e.key === 'Tab') {
+        const focusable = [toggle, ...drawer.querySelectorAll('a')];
+        const index = focusable.indexOf(document.activeElement);
+        if (index < 0 || (!e.shiftKey && index === focusable.length - 1) || (e.shiftKey && index === 0)) {
+          e.preventDefault();
+          focusable[e.shiftKey ? focusable.length - 1 : 0].focus();
+        }
       }
     };
     document.addEventListener('keydown', onKeydown);
     cleanups.push(() => document.removeEventListener('keydown', onKeydown));
+    const onResize = () => {
+      if (!drawer.hidden && getComputedStyle(toggle).display === 'none') {
+        const focused = drawer.contains(document.activeElement) || document.activeElement === toggle;
+        closeDrawer();
+        if (focused) (header.querySelector('.site-nav [aria-current="page"]') || header.querySelector('.brand'))?.focus();
+      }
+    };
+    window.addEventListener('resize', onResize);
+    cleanups.push(() => { window.removeEventListener('resize', onResize); closeDrawer(); });
   }
 
   // 滚动时给页头加投影
