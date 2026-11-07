@@ -9,6 +9,7 @@
 
 import { getMeta, getProjects, getDetailCoverage, getInheritorStats, projectCodePrefix, projectBaseName, batchLabel, num, esc } from '../data.js';
 import { SectionTitle } from '../components/ui.js';
+import { initReadingNav } from '../reading-nav.js';
 
 export async function AboutPage() {
   const [meta, projects, coverage, inhStats] = await Promise.all([
@@ -169,13 +170,13 @@ export async function AboutPage() {
           <div class="about-callout">
             <h3>关于传承人档案中的空缺</h3>
             <p>
-              本站为 <strong>${num(inhStats.total)} 位</strong>国家级代表性传承人建立了档案页，
-              其中 ${num(inhStats.withCode)} 位有官方编号、${num(inhStats.withBirth)} 位有明确出生日期。
+              本站收录 <strong>${num(inhStats.total)} 条</strong>国家级代表性传承人档案记录，
+              其中 ${num(inhStats.withCode)} 条有官方编号、${num(inhStats.withBirth)} 条标注了出生日期；同一人可能关联多个项目。
             </p>
             <p>
               其余的空缺<strong>不是抓取遗漏</strong>：中国非物质文化遗产网的公开表格本身就没有这些字段。
-              ${blankBatches.length ? `其中${blankBatchLabel}（共 ${num(blankBatchTotal)} 位）的编号与出生日期两栏整体未填写；` : ''}
-              其余批次也有部分行留空，多集中在出生日期一栏。
+              ${blankBatches.length ? `其中所属项目为${blankBatchLabel}的档案（共 ${num(blankBatchTotal)} 条），编号与出生日期两栏整体未填写；` : ''}
+              其余项目批次也有部分行留空，多集中在出生日期一栏。这里的批次为项目公布批次，并非传承人的认定批次。
               本站照实留空并显示为「—」，不作任何推测性填补——档案的价值在于可信，而不在于看起来完整。
             </p>
           </div>
@@ -298,30 +299,5 @@ export async function AboutPage() {
  * 因此改成按钮 + scrollIntoView。
  */
 export function initAbout() {
-  const links = [...document.querySelectorAll('.toc-link')];
-  if (!links.length) return;
-
-  links.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const target = document.getElementById(btn.dataset.toc);
-      if (!target) return;
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      // 焦点交给目标区块，方便键盘用户继续
-      target.setAttribute('tabindex', '-1');
-      target.focus({ preventScroll: true });
-    });
-  });
-
-  // 滚动时高亮当前所在的目录项
-  const blocks = links.map(b => document.getElementById(b.dataset.toc)).filter(Boolean);
-  if (!blocks.length || !('IntersectionObserver' in window)) return;
-
-  const io = new IntersectionObserver(entries => {
-    entries.forEach(en => {
-      if (!en.isIntersecting) return;
-      links.forEach(b => b.classList.toggle('is-active', b.dataset.toc === en.target.id));
-    });
-  }, { rootMargin: '-96px 0px -70% 0px', threshold: 0 });
-
-  blocks.forEach(b => io.observe(b));
+  return initReadingNav(document.querySelector('.about-layout'));
 }

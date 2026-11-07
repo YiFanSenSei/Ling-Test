@@ -23,7 +23,7 @@ import { initIntro } from './intro.js';
 
 import { HomePage } from './pages/Home.js';
 import { GalleryPage, initGallery } from './pages/Gallery.js';
-import { ProjectPage } from './pages/Project.js';
+import { ProjectPage, initProject } from './pages/Project.js';
 import { InheritorsPage, initInheritors, InheritorPage } from './pages/Inheritors.js';
 import { AgesPage } from './pages/Ages.js';
 import { SimulatorPage, initSimulator } from './pages/Simulator.js';
@@ -151,7 +151,7 @@ route('/project/:id', async ({ params, render }) => {
       '<p style="margin-top:1.5rem"><a class="btn btn-primary" href="#/gallery">返回名录</a></p>'), { title: '未收录' });
     return;
   }
-  await render(html, { title });
+  await render(html, { title, init: initProject });
 });
 
 route('/simulator', async ({ render }) => {
@@ -159,9 +159,9 @@ route('/simulator', async ({ render }) => {
   await render(html, { title: '技艺体验', init: initSimulator });
 });
 
-route('/inheritors', async ({ render }) => {
+route('/inheritors', async ({ render, fromPath }) => {
   const { html, init } = await InheritorsPage();
-  await render(html, { title: '传承人', init });
+  await render(html, { title: '传承人', init: () => init({ restore: fromPath.startsWith('/inheritor/') }) });
 });
 
 route('/inheritor/:id', async ({ params, render }) => {
