@@ -8,7 +8,7 @@ import { rememberGallery, galleryReturn } from '../browse-state.js';
 
 import { queryProjects, getMeta, detectCategoryTerm, esc, num } from '../data.js';
 import { ProjectCard, EmptyState, Pagination, SectionTitle } from '../components/ui.js';
-import { navigate } from '../router.js';
+import { navigate, currentQuery } from '../router.js';
 
 const PAGE_SIZE = 24;
 
@@ -17,11 +17,7 @@ let focusResults = false;
 
 /** 解析 hash 中的查询参数：/gallery?q=绣&category=传统美术&page=2 */
 function parseQuery() {
-  const hash = window.location.hash.slice(1);
-  const qIdx = hash.indexOf('?');
-  if (qIdx === -1) return {};
-  const params = new URLSearchParams(hash.slice(qIdx + 1));
-  return Object.fromEntries(params.entries());
+  return currentQuery();
 }
 
 /** 构造带参数的 hash 路径 */

@@ -1,4 +1,5 @@
 import { submissionDialog, initSubmission } from '../work-submission.js';
+import { initRadioControls } from '../components/radio-controls.js';
 import { craftNext, craftResult, initResultActions } from '../craft-feedback.js';
 /**
  * 技艺体验页 —— 三个可交互的技艺模拟器
@@ -158,7 +159,7 @@ export async function SimulatorPage() {
             <div class="tool-group">
               <h3 class="tool-title">进度与评价</h3>
               <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
-                   aria-valuenow="0" id="emb-progress-bar">
+                   aria-valuenow="0" aria-label="绣品覆盖进度" id="emb-progress-bar">
                 <span id="emb-progress" style="width:0%"></span>
               </div>
               <p class="grade-line"><span>覆盖</span><strong id="emb-covered">0 / 0 格</strong></p>
@@ -384,7 +385,7 @@ export async function SimulatorPage() {
             <div class="tool-group">
               <h3 class="tool-title">插入深度</h3>
               <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
-                   aria-valuenow="0" id="joint-progress-bar">
+                   aria-valuenow="0" aria-label="榫卯插入深度" id="joint-progress-bar">
                 <span id="joint-progress" style="width:0%"></span>
               </div>
             </div>
@@ -477,6 +478,7 @@ export function initSimulator() {
   initOne('苏绣模拟器', initEmbroidery);
   initOne('宣纸模拟器', initPaper);
   initOne('榫卯模拟器', initMortise);
+  disposers.push(initRadioControls(document.getElementById('main')));
 
   /* ---- URL 参数直达某个模拟器：/simulator?tool=paper ---- */
   const tool = new URLSearchParams(window.location.hash.split('?')[1] || '').get('tool');

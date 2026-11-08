@@ -1,32 +1,8 @@
-/**
- * 共用 UI 组件：项目卡片、门类徽记、空状态
- *
- * ⚠️ 素材质量是评分独立分项（马赛克2 / 表情包4 / 正常6 / 高质量8 / 显卡在燃烧10）。
- *    官方数据源不提供任何配图，因此卡片不使用写实照片，
- *    改为「以字代图」——用门类单字徽记 + 程序化生成的纹样底纹，
- *    把「没有图」这个劣势转化为统一的视觉语言。
- *    比用低质量网图（会被判表情包4分）安全得多。
- */
+/** 共用组件：馆藏卡片、详情页门类徽记、空状态与分页。 */
+import { esc, batchLabel } from '../data.js';
+import { catalogCover } from './catalog-art.js';
 
-import { esc, categoryGlyph, batchLabel } from '../data.js';
-
-/**
- * 门类母题。
- *
- * ⚠️ 素材质量是评分独立分项（马赛克2 / 表情包4 / 正常6 / 高质量8 / 显卡在燃烧10）。
- *    官方数据源不提供任何项目配图（全量抓完 3,614 条详情，图片数为 0），
- *    所以这里不找写实照片——用低质网图反而会被判到「表情包」档。
- *    改为给每个门类画一枚**可辨认的母题**：简牍、琴、飘带、脸谱、折扇、
- *    绳结、缠枝、榫卯、药臼、灯笼。以字代图，把「没有图」变成统一的视觉语言。
- *
- * 这枚纹样同时用于三处，改一次三处都变：
- *   · 项目卡片底纹（`.pcard-media svg`，opacity 0.16，所以结构必须清晰）
- *   · 项目详情页的门类徽记（`.emblem-pattern`）
- *   · 传承人档案页的页首纹样（`.inh-hero-pattern`）
- *
- * ⚠️ 每条路径都靠 <svg> 上的 `fill="none"` 继承，不要漏——
- *    早先的写法没有设，`<rect>` 会吃到 SVG 的默认黑色填充。
- */
+/** 详情页与传承人页沿用小型门类徽记；卡片使用独立的图录封面。 */
 const CATEGORY_MOTIF = {
   // 简牍：三片竖简 + 两道编绳
   '民间文学': '<rect x="13" y="16" width="11" height="36" rx="1.5"/><rect x="28.5" y="11" width="11" height="46" rx="1.5"/><rect x="44" y="16" width="11" height="36" rx="1.5"/><path d="M11 27h46M11 41h46" opacity=".55"/>',
@@ -58,50 +34,29 @@ export function categoryPattern(category) {
     + `${motif}</svg>`;
 }
 
-/**
- * 项目卡片。
- *
- * ⚠️ 地区显示的是「申报地区或单位」(unit，精确到市/县)，不是省级的 region。
- *
- * 起因：苗族古歌由贵州省台江县、黄平县两地申报，两条记录同名、同批次、
- * 同属贵州省——用 region 渲染出来就是两张一模一样的卡片，看起来像重复数据。
- * 换成 unit 后「贵州省台江县」「贵州省黄平县」立刻分得开。
- * 这个修正早先只做在了详情页的「同一项目的其他申报地区」那一节，
- * 卡片漏掉了，于是列表仍是重复观感。
- *
- * 名字特别长的申报单位（如「中国社会科学院《格萨（斯）尔》办公室」）
- * 用 CSS 省略号截断，完整值放在 title 里，避免把卡片撑成不同高度。
- *
- * ⚠️ variantCount > 1 时压一枚「同项目 N 处申报」徽标。
- *    数据来自构建期索引（见 src/data.js 的 withVariantCount）——
- *    它把「为什么列表里有好几张同名卡片」直接写在卡片上，
- *    而不是让读者自己猜是不是抓重了。
- */
+/** 申报单位与同源记录数保留在卡片；完整编号与策展问题在项目详情中阅读。 */
 export function ProjectCard(p, { showRegion = true, showVariantBadge = true, curation = null } = {}) {
-  const glyph = categoryGlyph(p.category);
+  const cover = catalogCover(p);
   const where = p.unit || p.region || '';
   const variants = Number(p.variantCount) || 1;
+  const label = [p.name, p.category, showRegion && where].filter(Boolean).join(' · ');
   return `
-  <a class="pcard" href="#/project/${esc(p.id)}" aria-label="${esc(p.name)}">
-    <div class="pcard-media" data-category="${esc(p.category)}">
-      ${categoryPattern(p.category)}
-      <span class="pcard-glyph" aria-hidden="true">${glyph}</span>
-      ${showVariantBadge && variants > 1
-        ? `<span class="pcard-variant" title="该项目共 ${variants} 条申报记录，点击查看其他地区">同项目 ${variants} 处申报</span>`
-        : ''}
+  <a class="pcard" href="#/project/${esc(p.id)}" aria-label="${esc(label)}" style="${cover.style}">
+    <div class="pcard-media" data-category="${esc(p.category)}" title="门类与工艺意象插画">
+      <span class="pcard-plate">${p.categoryCode ? esc(p.categoryCode) + ' / ' : ''}${esc(p.category || '非遗项目')}</span>
+      ${cover.svg}
+      <span class="pcard-caption" aria-hidden="true">${cover.caption}</span>
     </div>
     <div class="pcard-body">
       <h3 class="pcard-name">${esc(p.name)}</h3>
-      ${curation ? `<p class="pcard-curation">${esc(curation.reason)}</p><p class="pcard-question">带着问题看 · ${esc(curation.question)}</p>` : ''}
+      ${curation ? `<p class="pcard-curation">${esc(curation.reason)}</p>` : ''}
       <p class="pcard-meta">
-        <span class="pcard-cat">${esc(p.category || '—')}</span>
-        ${showRegion && where
-          ? `<span class="pcard-sep">·</span><span class="pcard-region" title="${esc(where)}">${esc(where)}</span>`
-          : ''}
+        ${showRegion && where ? `<span class="pcard-region">${esc(where)}</span>` : '<span>查看项目档案</span>'}
+        <span class="pcard-arrow" aria-hidden="true">↗</span>
       </p>
       <p class="pcard-sub">
-        ${p.batch ? esc(batchLabel(p.batch)) : ''}
-        ${p.projectNo ? `<span class="pcard-no">${esc(p.projectNo)}</span>` : ''}
+        <span>${p.batch ? esc(batchLabel(p.batch)) : '项目档案'}</span>
+        ${showVariantBadge && variants > 1 ? `<span class="pcard-variant" title="同一项目的 ${variants} 条申报记录">同项目 ${variants} 处申报</span>` : ''}
       </p>
     </div>
   </a>`;

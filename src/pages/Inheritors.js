@@ -16,7 +16,7 @@ import {
   queryInheritors, getInheritor, getInheritorSiblings, getInheritorStats,
   esc, num, batchLabel, categoryGlyph, birthYear,
 } from '../data.js';
-import { navigate } from '../router.js';
+import { navigate, currentQuery } from '../router.js';
 import { categoryPattern } from '../components/ui.js';
 import { rememberInheritors, inheritorsReturn } from '../browse-state.js';
 
@@ -37,7 +37,7 @@ function surnameKey(name) {
 }
 
 function listQuery() {
-  const params = new URLSearchParams(location.hash.split('?')[1] || '');
+  const params = new URLSearchParams(currentQuery());
   const page = Number(params.get('page'));
   return { q: (params.get('q') || '').trim(), category: CATEGORIES.includes(params.get('category')) ? params.get('category') : '',
     sort: ['birth', 'name', 'default'].includes(params.get('sort')) ? params.get('sort') : 'birth',
