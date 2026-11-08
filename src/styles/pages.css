@@ -425,127 +425,53 @@ strong { font-size: inherit; line-height: inherit; }
 .cat-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1px;
-  background: var(--rule);
-  border: 1px solid var(--rule);
+  gap: 24px;
   margin-top: var(--sp-6);
 }
-
 .cat-card {
-  position: relative;
+  --pcard-sheet: #f7f3e8;
+  --pcard-drawing: #686052;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
-  min-height: 176px;
-  padding: var(--sp-5);
+  min-width: 0;
   background: var(--paper-light);
-  text-decoration: none;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
   overflow: hidden;
-  transition: background var(--dur) var(--ease);
+  transition: border-color var(--dur) var(--ease);
 }
-
-.cat-card:hover { background: #fff; }
-
-/*
- * 首卡放大 2×2。
- *
- * 十张等大的方框排成一片，没有任何落眼点——眼睛不知道该先看哪里，
- * 整块区域读起来就像一张表格。让第一张占 2×2，大小对比一出来，
- * 这一段的节奏就有了。
- *
- * ⚠️ 1×1 时不做设定。5 列 ×「首卡占 2×2」+ 其余 9 张 1×1 = 共 13 格，
- *    而 5×2 只有 10 格，必然空出 3 格（实测右下角一大块空底色，很难看）。
- *    所以只在能整除的列数上放大：4 列（13 格 → 4×4=16 格里排 13 格太稀）
- *    也不行，只有 3 列（13 格 → 3×5=15）留 2 格空，仍然不好看。
- *    结论是：放大只在 1 列（手机单列，每张都占满宽）时不需要，
- *    其余断点一律用统一尺寸，靠纹样本身撑起差异。
- */
-.cat-card--lead {
-  background: var(--paper);
+.cat-card:hover, .cat-card:focus-visible { border-color: var(--cinnabar); }
+.cat-card:hover .pcard-media svg { transform: scale(1.035); }
+.cat-card:hover .pcard-arrow, .cat-card:focus-visible .pcard-arrow {
+  background: var(--cinnabar);
+  border-color: var(--cinnabar);
+  color: var(--paper-light);
 }
-
-.cat-card--lead .cat-motif {
-  width: min(56%, 200px);
+.cat-idx {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  color: var(--ink-faint);
+  font: 11px/1.6 var(--font-sans);
+  letter-spacing: .12em;
 }
-
-.cat-card--lead .cat-name {
-  font-size: var(--fs-lg);
-}
-
-/* 720px 以下网格变 2 列：10 格正好填满 5 行，不空行 */
+.cat-copy { display: flex; flex-direction: column; flex: 1; padding: 20px; }
+.cat-name { font: 600 20px/1.6 var(--font-serif); color: var(--ink); overflow-wrap: anywhere; }
+.cat-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 14px; }
+.cat-count { font: 13px/1.6 var(--font-sans); color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.cat-count em { font-style: normal; }
 @media (max-width: 720px) {
   .age-table td[data-label]::before { content: attr(data-label) '：'; color: var(--ink-soft); }
-  .cat-card--lead .cat-name { font-size: var(--fs-md); }
-  .cat-card--lead .cat-motif { width: min(72%, 92px); }
+  .cat-grid { gap: 14px; }
+  .cat-card .pcard-media { height: 155px; }
+  .cat-card .pcard-media svg { padding: 12px 0; }
+  .cat-card .pcard-caption { font-size: 10px; letter-spacing: .08em; }
+  .cat-copy { padding: 14px; }
+  .cat-name { font-size: 17px; }
 }
-
-.cat-idx {
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  color: var(--ink-faint);
+@media (max-width: 360px) {
+  .cat-card .pcard-media { height: 190px; }
 }
-
-/*
- * 门类纹样：程序化生成的线描图，十类各不相同。
- *
- * 原先这里是一个单字（文/乐/舞/戏…）。单字当图标的问题在于——
- * 它不构成图形，十张卡看起来就是「十个方框里各有一个大字」。
- * 换成线描纹样后，同一套朱砂色、同一套笔画粗细，既统一又各自可辨。
- */
-.cat-motif-wrap {
-  display: flex;
-  align-items: center;
-  margin: var(--sp-2) 0 auto;
-}
-
-.cat-motif {
-  width: min(72%, 92px);
-  height: auto;
-  aspect-ratio: 1;
-  color: var(--ink-soft);
-  opacity: 0.86;
-  transition: color var(--dur) var(--ease), opacity var(--dur) var(--ease),
-              transform var(--dur) var(--ease);
-}
-
-.cat-card:hover .cat-motif {
-  color: var(--cinnabar);
-  opacity: 1;
-  transform: translateY(-2px);
-}
-
-.cat-name {
-  font-family: var(--font-serif);
-  font-size: var(--fs-md);
-  letter-spacing: 0.04em;
-  color: var(--ink);
-  margin-top: auto;
-}
-
-.cat-count {
-  font-size: var(--fs-xs);
-  color: var(--ink-faint);
-  font-variant-numeric: tabular-nums;
-}
-
-.cat-count em {
-  font-style: normal;
-  opacity: 0.7;
-}
-
-/* 右上角的小字码，作为图形之外的第二重识别，不抢戏 */
-.cat-glyph-mini {
-  position: absolute;
-  top: var(--sp-5);
-  right: var(--sp-5);
-  font-family: var(--font-serif);
-  font-size: 13px;
-  line-height: 1;
-  color: var(--ink-decor);
-  transition: color var(--dur) var(--ease);
-}
-
-.cat-card:hover .cat-glyph-mini { color: var(--cinnabar); }
 
 /* ==========================================================================
    首页 · 技艺体验引导
@@ -2420,8 +2346,8 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   .hero-facts dd { font-size: var(--fs-lg); }
   .scrim { display: block; }
   .cat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .cat-card { min-height: 138px; padding: var(--sp-4); }
-  .cat-glyph { font-size: 28px; }
+
+
   .knowledge-grid { grid-template-columns: 1fr; }
   .sim-promo-list li { grid-template-columns: 24px 1fr auto; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); }
   .sim-promo-glyph { display: none; }
@@ -2441,7 +2367,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 
 /* 480 及以下：极限窄屏 */
 @media (max-width: 480px) {
-  .cat-grid { grid-template-columns: 1fr; }
+  .cat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /*
    * ⚠️ 这里曾经是 grid-template-columns: 1fr —— 首屏「1,557 项 / 3,998 位 / 45 项」
    *    三个短数字各占一整行，240px 高度里竖着排三个数字，还带着一条贯穿的竖线。
@@ -2888,7 +2814,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 
 /* 触摸设备：纹样常显 */
 @media (hover: none) {
-  .cat-card .cat-glyph { color: var(--cinnabar); }
+
 }
 
 /* ============================================================
@@ -3266,3 +3192,5 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 .project .project-aside { top: var(--reading-offset, 170px); }
 @media (max-width: 600px) { .project-reading-nav { gap: 4px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .project-reading-nav::-webkit-scrollbar { display: none; } .project-reading-nav > span { display: none; } .project-reading-nav button { flex: 0 0 auto; padding-inline: 8px; white-space: nowrap; } }
 @media print { .project-reading-nav { display: none; } }
+
+@media (max-width: 360px) { .cat-grid { grid-template-columns: minmax(0, 1fr); } }

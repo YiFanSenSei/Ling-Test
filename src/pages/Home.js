@@ -13,9 +13,10 @@
  *   六、批次年表 —— 五批时间轴
  */
 
-import { getMeta, getFeatured, getProjects, getInheritorStats, num, esc, categoryGlyph, batchLabel } from '../data.js';
+import { getMeta, getFeatured, getProjects, getInheritorStats, num, esc } from '../data.js';
 import { ProjectCard, SectionTitle } from '../components/ui.js';
-import { categoryMotif, CATEGORY_ORDER } from '../icons.js';
+import { CATEGORY_ORDER } from '../icons.js';
+import { catalogCover } from '../components/catalog-art.js';
 import { CRAFTS } from '../crafts.js';
 import { CURATION } from '../curation.js';
 import { HeroArtwork } from '../heroArt.js';
@@ -32,23 +33,19 @@ export async function HomePage() {
 
   /* ---- 门类十方 ---- */
   const catOrder = CATEGORY_ORDER;
-  /*
-   * 首卡放大：十张等大的方框排在一起，视觉上没有节奏，也没有落眼点。
-   * 让第一张（民间文学，条目最少的门类之一）跨两列两行，剩下九张铺满，
-   * 破掉「十个一模一样的格子」的呆板，同时不改变信息量。
-   *
-   * 用 grid-column / grid-row 的 span 实现，而不是重新切分结构——
-   * 移动端断点下 .cat-grid 变成 2 列或 1 列，span 2 依然成立，不需要额外适配。
-   */
+  // 分类入口与馆藏卡片共用插画；计数及分类筛选仍取自完整名录。
   const catCards = catOrder.map((name, i) => {
-    const hero = i === 0 ? ' cat-card--lead' : '';
+    const cover = catalogCover({ category: name });
     return `
-    <a class="cat-card${hero}" href="#/gallery?category=${encodeURIComponent(name)}">
-      <span class="cat-idx" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span>
-      <span class="cat-motif-wrap" aria-hidden="true">${categoryMotif(name)}</span>
-      <span class="cat-name">${esc(name)}</span>
-      <span class="cat-count">${num(byCategory[name] || 0)} <em>项</em></span>
-      <span class="cat-glyph-mini" aria-hidden="true">${categoryGlyph(name)}</span>
+    <a class="cat-card" href="#/gallery?category=${encodeURIComponent(name)}" style="${cover.style}">
+      <div class="pcard-media" aria-hidden="true">
+        <span class="cat-idx">${String(i + 1).padStart(2, '0')}</span>
+        ${cover.svg}<span class="pcard-caption">${cover.caption}</span>
+      </div>
+      <div class="cat-copy">
+        <span class="cat-name">${esc(name)}</span>
+        <div class="cat-bottom"><span class="cat-count">${num(byCategory[name] || 0)} <em>项</em></span><span class="pcard-arrow" aria-hidden="true">↗</span></div>
+      </div>
     </a>`;
   }).join('');
 
