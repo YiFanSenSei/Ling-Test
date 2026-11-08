@@ -3243,7 +3243,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 .visitor-work-preview:focus-visible { outline: 3px solid var(--cinnabar); outline-offset: -3px; }
 .visitor-work .work-image-error { margin: 0; padding: 16px 20px; background: var(--paper-deep); }
 .work-image-error .btn { margin-top: 10px; }
-.work-viewer-open { overflow: hidden; }
+.work-viewer-open, .work-submit-open { overflow: hidden; }
 .work-viewer { width: min(1100px, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: clamp(16px, 3vw, 28px); border: 1px solid var(--rule); background: var(--paper-light); color: var(--ink); overflow: auto; }
 .work-viewer::backdrop { background: #1c1a17cc; }
 .work-viewer-head, .work-viewer-actions { display: flex; gap: 12px; align-items: center; justify-content: space-between; }

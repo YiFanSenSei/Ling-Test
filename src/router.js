@@ -55,21 +55,8 @@ export function currentPath() {
 export function currentQuery() {
   const raw = window.location.hash.slice(1) || '';
   const qIndex = raw.indexOf('?');
-  const params = {};
-  if (qIndex === -1) return params;
-  const search = raw.slice(qIndex + 1);
-  for (const pair of search.split('&')) {
-    if (!pair) continue;
-    const eq = pair.indexOf('=');
-    const key = eq === -1 ? pair : pair.slice(0, eq);
-    const value = eq === -1 ? '' : pair.slice(eq + 1);
-    try {
-      params[decodeURIComponent(key)] = decodeURIComponent(value);
-    } catch {
-      params[key] = value;
-    }
-  }
-  return params;
+  // 与链接生成器遵循同一规则：+ 表示空格，%2B 才是加号；畸形转义也不抛错。
+  return Object.fromEntries(new URLSearchParams(qIndex === -1 ? '' : raw.slice(qIndex + 1)));
 }
 
 /** 解析当前路径，返回 { handler, params, path } */
