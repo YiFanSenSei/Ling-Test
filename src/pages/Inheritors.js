@@ -9,15 +9,15 @@
  *
  * 数据诚实原则：
  *   所属项目为第五批（2021）的部分传承人表格没有编号与出生日期。
- *   本页照实显示「—」，不做任何推测性填充。填一个假年份比留白恶劣得多。
+ *   缺失字段照实标注为「未详」或「—」，不做任何推测性填充。
  */
 
 import {
   queryInheritors, getInheritor, getInheritorSiblings, getInheritorStats,
-  esc, num, batchLabel, categoryGlyph, birthYear,
+  esc, num, batchLabel, birthYear,
 } from '../data.js';
 import { navigate, currentQuery } from '../router.js';
-import { categoryPattern } from '../components/ui.js';
+import { catalogCover } from '../components/catalog-art.js';
 import { rememberInheritors, inheritorsReturn } from '../browse-state.js';
 
 const PAGE_SIZE = 24;
@@ -27,14 +27,6 @@ const CATEGORIES = [
   '民间文学', '传统音乐', '传统舞蹈', '传统戏剧', '曲艺',
   '传统体育、游艺与杂技', '传统美术', '传统技艺', '传统医药', '民俗',
 ];
-
-/** 生成一个传承人的标识字符：姓名首字。用作头像徽记。 */
-const initialOf = name => (name || '—').trim().charAt(0);
-
-/** 姓名转拼音首字母——用于按姓氏分组的锚点 */
-function surnameKey(name) {
-  return (name || '').trim().charAt(0);
-}
 
 function listQuery() {
   const params = new URLSearchParams(currentQuery());
@@ -153,7 +145,7 @@ export async function InheritorsPage() {
     <p class="result-note">
       说明：本站传承人数据取自中国非物质文化遗产网各项目详情页的公开表格。
       列表按所属项目的公布批次归集；该批次并非传承人的认定批次。
-      公开表格未标注的编号与出生年份照实留空（显示为「—」），不作推测填补。
+      公开表格未标注的编号与出生年份照实标注为「未详」，不作推测填补。
       <a class="result-more" href="#/ages">查看档案的出生年代分布 →</a>
     </p>
   </div>`;
@@ -166,23 +158,24 @@ function renderInheritorCard(p) {
   const yr = birthYear(p.birth);
   return `
   <a class="inh-card" href="#/inheritor/${esc(p.id)}">
-    <span class="inh-avatar" aria-hidden="true">
-      <span class="inh-avatar-glyph">${esc(initialOf(p.name))}</span>
+    <span class="inh-card-top">
+      <span class="inh-cat">${esc(p.projectCategory || '门类未详')}</span>
+      <span class="inh-code">${p.code ? `<span class="sr-only">官方编号：</span>${esc(p.code)}` : '编号未详'}</span>
     </span>
     <span class="inh-main">
-      <span class="inh-head">
-        <strong class="inh-name">${esc(p.name || '—')}</strong>
+      <strong class="inh-name">${esc(p.name || '—')}</strong>
+      <span class="inh-meta">
         ${p.gender ? `<span class="inh-gender">${esc(p.gender)}</span>` : ''}
         ${yr ? `<span class="inh-birth">${esc(yr)} 年生</span>` : '<span class="inh-birth is-unknown">生年未详</span>'}
-      </span>
-      <span class="inh-project">${esc(p.projectTitle || '—')}</span>
-      <span class="inh-meta">
-        <span class="inh-cat">${esc(p.projectCategory || '')}</span>
         ${p.ethnicity ? `<span>${esc(p.ethnicity)}</span>` : ''}
-        ${p.declareUnit ? `<span class="inh-unit">${esc(p.declareUnit)}</span>` : ''}
       </span>
+      <span class="inh-project-label">传承项目</span>
+      <span class="inh-project">${esc(p.projectTitle || '—')}</span>
     </span>
-    <span class="inh-code">${p.code ? esc(p.code) : '编号未详'}</span>
+    <span class="inh-card-foot">
+      <span class="inh-unit"><span class="sr-only">项目申报地区或单位：</span>${esc(p.declareUnit || '申报地区或单位未详')}</span>
+      <span class="inh-card-arrow" aria-hidden="true">↗</span>
+    </span>
   </a>`;
 }
 
@@ -359,6 +352,7 @@ export async function InheritorPage(id) {
 
   const { sameProject, sameCategory, sameCategoryLabel } = await getInheritorSiblings(person);
   const yr = birthYear(person.birth);
+  const cover = catalogCover({ category: person.projectCategory, projectNo: person.projectNo });
 
   // 档案字段——空值一律显示「—」，不隐藏行（隐藏会让人以为是漏抓）
   const rows = [
@@ -388,13 +382,9 @@ export async function InheritorPage(id) {
   </div>
 
   <div class="container inh-detail">
-    <header class="inh-hero">
-      <div class="inh-hero-avatar" aria-hidden="true">
-        <span class="inh-hero-pattern">${categoryPattern(person.projectCategory)}</span>
-        <span class="inh-hero-glyph">${esc(initialOf(person.name))}</span>
-      </div>
+    <header class="inh-hero" style="${cover.style}">
       <div class="inh-hero-main">
-        <p class="inh-hero-cat">${esc(person.projectCategory || '传承人')}</p>
+        <p class="inh-hero-cat">传承人档案 <span class="inh-code">${person.code ? `编号 ${esc(person.code)}` : '编号未详'}</span></p>
         <h1 class="inh-hero-name">${esc(person.name)}</h1>
         <p class="inh-hero-sub">
           ${person.gender ? `<span>${esc(person.gender)}</span>` : ''}
@@ -404,6 +394,10 @@ export async function InheritorPage(id) {
         <p class="inh-hero-project">
           代表性项目：<a href="${projectHref}">${esc(person.projectTitle)}</a>
         </p>
+      </div>
+      <div class="inh-hero-art">
+        ${cover.svg}
+        <p>技艺意象 · ${esc(person.projectCategory || '传统技艺')}</p>
       </div>
     </header>
 
