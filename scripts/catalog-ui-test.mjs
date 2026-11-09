@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { openTestBrowser } from './lib/browser-test.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const base = pathToFileURL(join(root, 'dist/index.html')).href;
+const counts = JSON.parse(readFileSync(join(root, 'public/data/meta.json'), 'utf8')).byCategory;
 const browser = await openTestBrowser();
 try {
   const { evaluate: run, send, wait, click } = browser;
@@ -16,6 +17,20 @@ try {
     mkdirSync(join(root, '_shots'), { recursive: true });
     writeFileSync(join(root, '_shots', name), Buffer.from(shot.data, 'base64'));
   };
+  await browser.go(base + '#/', "document.querySelectorAll('.pcard').length===8");
+  const entries = await run("[...document.querySelectorAll('.cat-card')].map(card=>({name:card.querySelector('.cat-name').textContent,count:Number(card.querySelector('.cat-count').textContent.replace(/[^0-9]/g,'')),href:card.getAttribute('href'),art:card.querySelector('svg').dataset.cover}))");
+  assert.equal(entries.length,10);
+  assert.equal(new Set(entries.map(entry=>entry.art)).size,10);
+  assert.equal(await run("document.querySelectorAll('.cat-motif,.cat-glyph-mini').length"),0);
+  for(const entry of entries) assert.equal(entry.count,counts[entry.name]);
+  await screenshot('category-entry-desktop.png', '.cat-grid');
+  for (const entry of entries) {
+    await browser.go(base+'#/', "document.querySelector('.cat-card')");
+    await click(`.cat-card[href="${entry.href}"]`); await wait("document.querySelector('.pcard')");
+    assert.equal(await run("new URLSearchParams(location.hash.split('?')[1]).get('category')"),entry.name);
+    assert(await run(`[...document.querySelectorAll('.pcard-media[data-category]')].every(el=>el.dataset.category===${JSON.stringify(entry.name)})`));
+  }
+  console.log('✓ 门类十方已替换为十种新插画，真实计数正确，十个入口均进入对应分类');
   await browser.go(base + '#/', "document.querySelectorAll('.pcard').length===8");
   assert.equal(await run("document.querySelectorAll('.pcard-glyph').length"), 0);
   assert.equal(await run("document.querySelectorAll('.pcard-curation').length"), 8);
@@ -49,6 +64,10 @@ try {
       const columns = await run("getComputedStyle(document.querySelector('.card-grid')).gridTemplateColumns.split(' ').length");
       if (width >= 1440) assert.equal(columns, 4);
       if (width <= 390) assert.equal(columns, 1);
+      if (hash === '#/') {
+        assert(await run("[...document.querySelectorAll('.cat-card')].every(card=>card.scrollWidth<=card.clientWidth+1 && card.querySelector('.cat-name').scrollHeight<=card.querySelector('.cat-name').clientHeight+1)"), `${width}px 分类入口裁切`);
+        if (width === 390) await screenshot('category-entry-mobile.png', '.cat-grid', 1800);
+      }
       if (width === 390 && hash === '#/') await screenshot('catalog-home-mobile.png', '.card-grid', 930);
     }
   }

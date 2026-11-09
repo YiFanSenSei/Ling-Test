@@ -12,8 +12,10 @@ import { navigate, currentQuery } from '../router.js';
 
 const PAGE_SIZE = 24;
 
-// 门类切换后将焦点和视口带到结果区，普通访问仍从页首开始。
-let focusResults = false;
+// 将搜索编辑状态或结果焦点交给对应的下一次名录渲染。
+let pendingView = null;
+const CATEGORIES = ['民间文学','传统音乐','传统舞蹈','传统戏剧','曲艺',
+  '传统体育、游艺与杂技','传统美术','传统技艺','传统医药','民俗'];
 
 /** 解析 hash 中的查询参数：/gallery?q=绣&category=传统美术&page=2 */
 function parseQuery() {
@@ -24,6 +26,7 @@ function parseQuery() {
 function buildPath(params) {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) {
+    if (k === 'page' && Number(v) <= 1) continue;
     if (v !== '' && v !== undefined && v !== null) sp.set(k, v);
   }
   const qs = sp.toString();
@@ -33,16 +36,17 @@ function buildPath(params) {
 export async function GalleryPage() {
   const meta = await getMeta();
   const params = parseQuery();
-  const q = params.q || '';
-  const category = params.category || '';
-  const region = params.region || '';
-  const batch = params.batch || '';
-  const page = Number(params.page) || 1;
+  const q = (params.q || '').trim();
+  const category = CATEGORIES.includes(params.category) ? params.category : '';
+  const region = (meta.byRegion || []).some(item => item.region === params.region) ? params.region : '';
+  const batch = /^[1-5]$/.test(params.batch || '') ? params.batch : '';
+  const requestedPage = Number(params.page);
+  const page = Number.isFinite(requestedPage) ? Math.max(1, Math.floor(requestedPage)) : 1;
 
   const result = await queryProjects({ q, category, region, batch, page, pageSize: PAGE_SIZE });
 
-  const categories = ['民间文学','传统音乐','传统舞蹈','传统戏剧','曲艺',
-                      '传统体育、游艺与杂技','传统美术','传统技艺','传统医药','民俗'];
+  const categories = CATEGORIES;
+  const canonical = '#' + buildPath({ q, category, region, batch, page: result.page });
   /*
    * 地区筛选项：33 个省级行政区 + 「中直单位及机构」。
    *
@@ -89,7 +93,7 @@ export async function GalleryPage() {
       </p>
       <p>
         <a class="btn btn-primary btn-sm" href="#${buildPath({ q, category: catHint, region, batch })}">
-          只看「${esc(catHint)}」（${num((meta.byCategory || {})[catHint] || 0)} 条）
+          在「${esc(catHint)}」内继续搜索
         </a>
         <a class="btn btn-ghost btn-sm" href="#${buildPath({ category: catHint, region, batch })}">
           该门类全部，不计关键词
@@ -99,7 +103,7 @@ export async function GalleryPage() {
 
   /* ---- 筛选栏 ---- */
   const filters = `
-  <form class="filters" id="gallery-filters" role="search">
+  <form class="filters${hasFilter ? ' has-selection' : ''}" id="gallery-filters" role="search">
     <div class="filter-search">
       <label class="sr-only" for="f-q">搜索项目名称</label>
       <input id="f-q" name="q" type="search" placeholder="搜索项目名称、编号或申报地区…"
@@ -121,42 +125,53 @@ export async function GalleryPage() {
     </div>
 
     <div class="filter-row">
-      <span class="filter-label">批次</span>
-      <div class="filter-chips">
+      <span class="filter-label" id="batch-filter-label">批次</span>
+      <div class="filter-chips" role="group" aria-labelledby="batch-filter-label">
         <a class="tag tag-btn ${!batch ? 'is-active' : ''}"
+           ${!batch ? 'aria-current="true"' : ''}
            href="#${buildPath({ q, category, region })}">全部</a>
         ${[1,2,3,4,5].map(b => `
           <a class="tag tag-btn ${String(batch) === String(b) ? 'is-active' : ''}"
+             ${String(batch) === String(b) ? 'aria-current="true"' : ''}
              href="#${buildPath({ q, category, region, batch: b })}">第${'一二三四五'[b-1]}批</a>`).join('')}
       </div>
     </div>
 
     <div class="filter-row">
-      <span class="filter-label">地区</span>
+      <span class="filter-label" id="region-filter-label">地区</span>
       <div class="filter-chips filter-chips--region ${regionCollapsed ? 'is-collapsed' : ''}"
-           id="region-chips" data-collapsed="${regionCollapsed ? '1' : '0'}">
+           id="region-chips" role="group" aria-labelledby="region-filter-label" data-collapsed="${regionCollapsed ? '1' : '0'}">
         <a class="tag tag-btn ${!region ? 'is-active' : ''}"
+           ${!region ? 'aria-current="true"' : ''}
            href="#${buildPath({ q, category, batch })}">全部</a>
         ${regionHead.map(r => `
           <a class="tag tag-btn ${region === r ? 'is-active' : ''}"
+             ${region === r ? 'aria-current="true"' : ''}
              href="#${buildPath({ q, category, region: r, batch })}">${esc(r)}</a>`).join('')}
         ${regionTail.map(r => `
           <a class="tag tag-btn tag-btn--extra ${region === r ? 'is-active' : ''}"
+             ${region === r ? 'aria-current="true"' : ''}
              href="#${buildPath({ q, category, region: r, batch })}">${esc(r)}</a>`).join('')}
         ${regionTail.length ? `
           <button class="filter-more" type="button" id="region-more"
-                  aria-expanded="false" aria-controls="region-chips">
-            <span class="filter-more-label">展开全部</span>
-            <span class="filter-more-count">+${regionHiddenCount}</span>
+                  aria-expanded="${!regionCollapsed}" aria-controls="region-chips">
+            <span class="filter-more-label">${regionCollapsed ? '展开全部' : '收起'}</span>
+            <span class="filter-more-count" ${regionCollapsed ? '' : 'hidden'}>+${regionHiddenCount}</span>
           </button>` : ''}
       </div>
     </div>
 
-    ${hasFilter ? `
-    <div class="filter-actions">
-      <a class="btn btn-ghost btn-sm" href="#/gallery">清除全部筛选</a>
-    </div>` : ''}
   </form>`;
+
+  const chosen = [
+    ['q', '关键词', q], ['category', '门类', category],
+    ['region', '地区', region], ['batch', '批次', batch && `第${'一二三四五'[Number(batch)-1]}批`],
+  ].filter(([, , value]) => value);
+  const selected = hasFilter ? `<div class="selected-filters" aria-label="已选筛选条件">
+    <span class="selected-label">已选</span>${chosen.map(([key, label, value]) => {
+      const next = { q, category, region, batch }; delete next[key];
+      return `<a class="selected-filter" href="#${buildPath(next)}" aria-label="移除${label}：${esc(value)}" data-remove-filter="${key}"><span>${esc(value)}</span><span aria-hidden="true">×</span></a>`;
+    }).join('')}<a class="selected-clear" href="#/gallery">清除全部</a></div>` : '';
 
   /* ---- 结果 ---- */
   const body = result.items.length
@@ -189,14 +204,16 @@ export async function GalleryPage() {
   </section>
 
   <section class="section-tight">
-    <div class="container">
+    <div class="container" id="gallery-content" data-path="${esc(canonical)}">
       ${filters}
 
+      ${selected}
       <div class="result-bar">
         <p class="result-count" tabindex="-1">
           ${category ? `<span class="result-category">${esc(category)}</span> · ` : ''}共 <strong>${num(result.total)}</strong> 条结果
           ${hasFilter ? '<span class="result-filtered">（已筛选）</span>' : ''}
         </p>
+        <span class="sr-only" role="status" aria-live="polite">找到 ${result.total} 条结果，第 ${result.page} 页。</span>
         ${result.totalPages > 1 ? `
           <p class="result-page">第 ${result.page} / ${result.totalPages} 页</p>` : ''}
       </div>
@@ -211,19 +228,34 @@ export async function GalleryPage() {
 /** 绑定筛选与结果导航，离开时释放监听器和待执行的滚动。 */
 export function initGallery({ restore = false } = {}) {
   const cleanups = [];
+  const requestedHash = location.hash;
+  history.replaceState(null, '', document.getElementById('gallery-content').dataset.path);
+  const initialHash = location.hash;
+  const view = pendingView?.path === requestedHash ? pendingView : null;
+  pendingView = null;
   const onProjectClick = e => {
     const card = e.target.closest('.pcard');
     if (card) rememberGallery(card.getAttribute('href').split('/').pop());
-    const filter = e.target.closest('[data-gallery-category]');
-    if (filter && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && filter.hash !== location.hash) focusResults = true;
+    const filter = e.target.closest('a[href^="#/gallery"]');
+    if (filter && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && filter.hash !== location.hash)
+      pendingView = { path: filter.hash, mode: 'results' };
   };
   document.getElementById('main').addEventListener('click', onProjectClick);
   const main = document.getElementById('main');
   cleanups.push(() => main.removeEventListener('click', onProjectClick));
-  const showResults = focusResults;
-  focusResults = false;
-  if (showResults) {
+  if (view) {
     const frame = requestAnimationFrame(() => {
+      if (view.mode === 'search') {
+        const more = document.getElementById('region-more');
+        if (more && (more.getAttribute('aria-expanded') === 'true') !== view.expanded) more.click();
+        const input = document.getElementById('f-q');
+        if (input) {
+          input.value = view.value; input.focus({ preventScroll: true });
+          if (Number.isInteger(view.start)) input.setSelectionRange(view.start, view.end, view.direction);
+        }
+        window.scrollTo({ top: view.y, behavior: 'instant' });
+        return;
+      }
       const result = document.querySelector('.result-count');
       result?.focus({ preventScroll: true });
       result?.scrollIntoView({ block: 'start', behavior: 'instant' });
@@ -233,7 +265,8 @@ export function initGallery({ restore = false } = {}) {
   const saved = restore ? galleryReturn() : null;
   if (saved?.hash === location.hash) {
     const frame = requestAnimationFrame(() => {
-      if (saved.expanded) document.getElementById('region-more')?.click();
+      const more = document.getElementById('region-more');
+      if (more && (more.getAttribute('aria-expanded') === 'true') !== Boolean(saved.expanded)) more.click();
       const card = [...document.querySelectorAll('.pcard')].find(c => c.getAttribute('href') === `#/project/${saved.projectId}`);
       card?.focus({ preventScroll: true });
       window.scrollTo({ top: saved.y, behavior: 'instant' });
@@ -277,11 +310,16 @@ export function initGallery({ restore = false } = {}) {
     };
 
     const debounced = () => {
+      if (composing || location.hash !== initialHash || document.activeElement !== input) return;
       const keyword = input.value.trim();
       if (keyword === lastQ) return;
       if (keyword.length === 1) return;   // 单字不触发，等第二个字或回车
       lastQ = keyword;
-      navigate(buildPath(buildNext(keyword)));
+      const path = buildPath(buildNext(keyword));
+      pendingView = { path: '#' + path, mode: 'search', y: scrollY,
+        value: input.value, start: input.selectionStart, end: input.selectionEnd, direction: input.selectionDirection,
+        expanded: document.getElementById('region-more')?.getAttribute('aria-expanded') === 'true' };
+      navigate(path);
     };
 
     const onInput = () => {
@@ -289,7 +327,7 @@ export function initGallery({ restore = false } = {}) {
       clearTimeout(timer);
       timer = setTimeout(debounced, 420);
     };
-    const onCompositionStart = () => { composing = true; };
+    const onCompositionStart = () => { composing = true; clearTimeout(timer); };
     const onCompositionEnd = () => {
       composing = false;
       clearTimeout(timer);
@@ -309,8 +347,13 @@ export function initGallery({ restore = false } = {}) {
     const onSubmit = e => {
       e.preventDefault();
       clearTimeout(timer);
+      if (composing || location.hash !== initialHash) return;
       lastQ = input.value.trim();
-      navigate(buildPath(buildNext(lastQ)));
+      const path = buildPath(buildNext(lastQ));
+      if ('#' + path === location.hash) {
+        const result = document.querySelector('.result-count');
+        result?.focus({ preventScroll: true }); result?.scrollIntoView({ block: 'start', behavior: 'instant' });
+      } else { pendingView = { path: '#' + path, mode: 'results' }; navigate(path); }
     };
     form.addEventListener('submit', onSubmit);
     cleanups.push(() => form.removeEventListener('submit', onSubmit));
@@ -330,6 +373,8 @@ export function initGallery({ restore = false } = {}) {
     const onToggleRegion = () => {
       const open = regionBox.classList.toggle('is-collapsed') === false;
       regionMore.setAttribute('aria-expanded', String(open));
+      regionBox.dataset.collapsed = open ? '0' : '1';
+      regionMore.querySelector('.filter-more-count').hidden = open;
       if (label) label.textContent = open ? '收起' : '展开全部';
     };
     regionMore.addEventListener('click', onToggleRegion);

@@ -6,18 +6,29 @@ export function initReadingNav(root) {
   if (!entries.length) return () => {};
   const header = document.getElementById('site-header');
   const bar = root.querySelector('.project-reading-nav');
-  let frame = 0, jumpFrame = 0;
+  let frame = 0, jumpFrame = 0, barWidth = 0;
   const update = () => {
+    cancelAnimationFrame(frame);
     frame = 0;
     const offset = (header?.getBoundingClientRect().height || 72) + (bar?.getBoundingClientRect().height || 0) + 20;
     root.style.setProperty('--reading-offset', `${offset}px`);
     let current = entries[0];
     for (const entry of entries) if (entry.target.getBoundingClientRect().top <= offset + 8) current = entry;
     if (scrollY + innerHeight >= document.documentElement.scrollHeight - 2 && entries.at(-1).target.getBoundingClientRect().top < innerHeight) current = entries.at(-1);
+    const changed = current.button.getAttribute('aria-current') !== 'location';
     for (const entry of entries) {
       const active = entry === current;
       entry.button.classList.toggle('is-active', active);
       if (active) entry.button.setAttribute('aria-current', 'location'); else entry.button.removeAttribute('aria-current');
+    }
+    // 手机目录横向排列：章节切换后只滚动目录内部，让当前项始终可见。
+    const resized = bar && bar.clientWidth !== barWidth;
+    barWidth = bar?.clientWidth || 0;
+    if ((changed || resized) && bar && bar.scrollWidth > bar.clientWidth) {
+      const bounds = bar.getBoundingClientRect(), button = current.button.getBoundingClientRect();
+      const left = button.left < bounds.left + 12 ? button.left - bounds.left - 12
+        : button.right > bounds.right - 12 ? button.right - bounds.right + 12 : 0;
+      if (left) bar.scrollBy({ left, behavior: 'instant' });
     }
   };
   const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
