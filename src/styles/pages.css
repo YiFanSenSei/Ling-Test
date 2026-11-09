@@ -740,6 +740,7 @@ strong { font-size: inherit; line-height: inherit; }
   border-bottom: 1px solid var(--rule);
   margin-bottom: var(--sp-5);
 }
+.filters.has-selection { margin-bottom: 0; padding-bottom: 8px; border-bottom: 0; }
 
 .filter-search {
   position: relative;
@@ -806,12 +807,6 @@ strong { font-size: inherit; line-height: inherit; }
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.filter-actions {
-  margin-top: var(--sp-4);
-  padding-top: var(--sp-4);
-  border-top: 1px dashed var(--rule);
 }
 
 /*
@@ -893,6 +888,15 @@ strong { font-size: inherit; line-height: inherit; }
 
 .result-filtered { color: var(--gold-ink); margin-left: 4px; }
 .result-page { font-variant-numeric: tabular-nums; }
+
+/* 将筛选条件与结果放在一起，便于逐项移除并继续浏览。 */
+.selected-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 20px; padding: 16px 0; border-bottom: 1px solid var(--rule); }
+.selected-label { color: var(--ink-faint); font-size: 12px; letter-spacing: .1em; margin-right: 4px; }
+.selected-filter { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; max-width: 100%; padding: 7px 12px; border: 1px solid var(--cinnabar-wash); border-radius: 3px; color: var(--cinnabar-deep); background: var(--paper-light); font-size: 13px; }
+.selected-filter span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.selected-filter span:last-child { font-size: 19px; line-height: 1; }
+.selected-filter:hover { border-color: var(--cinnabar); background: var(--cinnabar-wash); }
+.selected-clear { display: inline-flex; align-items: center; min-height: 44px; padding: 4px 8px; color: var(--ink-soft); font-size: 13px; text-decoration: underline; text-underline-offset: 4px; }
 
 /* 门类级关键词提示：与其给一堆沾边的结果，不如把真正该去的入口递到手边 */
 .result-hint {
