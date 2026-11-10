@@ -61,20 +61,19 @@ export async function InheritorsPage() {
   });
 
   const html = `
-  ${exhibitHeading('inheritors', `
-      <nav class="breadcrumb" aria-label="面包屑导航">
-        <a href="#/">首页</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">传承人</span>
-      </nav>
-      <p class="page-idx" aria-hidden="true">叁</p>
-      <h1 class="page-title">传承人</h1>
-      <p class="page-lede">
-        一门手艺的存续，最后落在具体的人身上。这里是本站收录的
-        <strong>${num(stats.total)}</strong> 条国家级代表性传承人档案记录（同一人可能关联多个项目），
-        分布在 <strong>${num(stats.projects)}</strong> 个项目、
-        <strong>${stats.categories}</strong> 个门类之中。
-      </p>
+  ${exhibitHeading('inheritors', '传承人', `
+    <header class="section-title">
+      <span class="section-num" aria-hidden="true">叁</span>
+      <div class="section-head">
+        <h1 class="page-title">传承人</h1>
+        <p class="page-lede">
+          一门手艺的存续，最后落在具体的人身上。这里是本站收录的
+          <strong>${num(stats.total)}</strong> 条国家级代表性传承人档案记录（同一人可能关联多个项目），
+          分布在 <strong>${num(stats.projects)}</strong> 个项目、
+          <strong>${stats.categories}</strong> 个门类之中。
+        </p>
+      </div>
+    </header>
   `)}
 
   <div class="container">

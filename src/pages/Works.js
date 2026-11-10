@@ -43,8 +43,7 @@ export async function WorksPage() {
   } else message = '你正在浏览离线作品。作品投稿和作品墙需要从在线展馆访问，本地保存仍可正常使用。';
   const canonical = worksPath(craft, message ? page : data.page);
   const destination = craft ? `#/simulator?tool=${craft}` : '#/simulator';
-  return `${exhibitHeading('works', `
-    <nav class="breadcrumb" aria-label="面包屑导航"><a href="#/">首页</a><span aria-hidden="true">/</span><span aria-current="page">作品墙</span></nav>
+  return `${exhibitHeading('works', '作品墙', `
     <h1 class="page-title">手上留痕</h1>
     <p class="page-lede">来自访客的技艺练习。每件作品经审核后公开，练习评价不代表真实工艺水平。点击作品可查看原图与针脚、纤维或接缝细节。</p>
   `)}

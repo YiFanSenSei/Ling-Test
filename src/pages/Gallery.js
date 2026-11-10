@@ -1,5 +1,5 @@
 import { rememberGallery, galleryReturn } from '../browse-state.js';
-import { exhibitPhoto } from '../components/exhibit-photo.js';
+import { exhibitHeading } from '../components/exhibit-photo.js';
 /**
  * 名录页 —— 全量检索、筛选、分页
  *
@@ -197,16 +197,7 @@ export async function GalleryPage() {
       );
 
   return `
-  <div class="gallery-masthead">
-    ${exhibitPhoto('gallery')}
-    <div class="container">
-      <nav class="breadcrumb" aria-label="面包屑导航">
-        <a href="#/">首页</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">非遗名录</span>
-      </nav>
-    </div>
-  </div>
+  ${exhibitHeading('gallery', '非遗名录')}
 
   <section class="section-tight gallery-section">
     <div class="container" id="gallery-content" data-path="${esc(canonical)}">

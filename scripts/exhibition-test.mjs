@@ -7,19 +7,15 @@ import { openTestBrowser } from './lib/browser-test.mjs';
 const base = pathToFileURL(resolve('dist/index.html')).href;
 const browser = await openTestBrowser();
 const { evaluate: run, send, wait, click } = browser;
-const shot = async (name, selector) => {
+const shot = async name => {
   await run('document.fonts.ready');
-  const clip = selector && await run(`(() => {
-    const box = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
-    return { x:box.x + scrollX, y:box.y + scrollY, width:box.width, height:Math.min(box.height, 900), scale:1 };
-  })()`);
-  const pic = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: !!clip, ...(clip && { clip }) });
+  const pic = await send('Page.captureScreenshot', { format: 'png' });
   mkdirSync('_shots', { recursive: true });
   writeFileSync(`_shots/${name}.png`, Buffer.from(pic.data, 'base64'));
 };
 const routes = [
   ['home', '#/'], ['gallery', '#/gallery'], ['inheritors', '#/inheritors'],
-  ['simulator', '#/simulator?tool=embroidery'], ['works', '#/works'], ['about', '#/about'],
+  ['simulator', '#/simulator'], ['works', '#/works'], ['about', '#/about'],
 ];
 const readyPhoto = key => `document.querySelector('.exhibit-photo--${key} img')?.naturalWidth > 0`;
 
@@ -41,6 +37,13 @@ try {
   assert(starts[0]?.[0] < 0 && starts[1]?.[1] > 0 && starts[2]?.[0] > 0);
   assert(await run('document.documentElement.scrollWidth <= innerWidth'));
   console.log('✓ 向下入口可操作，图录卡片从左、下、右入场且无横向溢出');
+  for (let pass = 0; pass < 2; pass++) {
+    await run("window.scrollTo({top:0,behavior:'instant'})");
+    await wait("document.querySelector('.cat-card').classList.contains('reveal-pending')");
+    await run("document.querySelector('.cat-card').scrollIntoView({behavior:'instant',block:'center'})");
+    await wait("document.querySelector('.cat-card').getAnimations().some(animation => animation.animationName === 'home-enter')");
+  }
+  console.log('✓ 滚出视口再进入两次，均重新播放首页浮现');
 
   await send('Emulation.setEmulatedMedia', { features: [{ name:'prefers-reduced-motion', value:'reduce' }] });
   for (const width of [1920, 1440, 720, 390, 320]) {
@@ -50,35 +53,24 @@ try {
       assert(await run('document.documentElement.scrollWidth <= innerWidth'), `${width}px ${route}`);
       assert(await run("document.querySelector('.exhibit-photo figcaption a').host === 'www.metmuseum.org'"));
       if (key === 'home') await wait("getComputedStyle(document.querySelector('.cat-card')).opacity === '1'");
-      else if (key === 'gallery') {
+      else {
         const layout = await run(`(() => {
-          const masthead = document.querySelector('.gallery-masthead');
+          const masthead = document.querySelector('.exhibit-masthead');
           const figure = masthead.querySelector('figure').getBoundingClientRect();
           const breadcrumb = masthead.querySelector('.breadcrumb').getBoundingClientRect();
-          const heading = document.querySelector('#gallery-content h1').getBoundingClientRect();
+          const heading = document.querySelector('#main h1').getBoundingClientRect();
           return { fullWidth:figure.width === document.documentElement.clientWidth,
+            overlay:Math.abs(figure.top) < 1,
             stacked:figure.bottom <= breadcrumb.top && breadcrumb.bottom <= heading.top,
             fit:getComputedStyle(masthead.querySelector('img')).objectFit };
         })()`);
-        assert(layout.fullWidth && layout.stacked && layout.fit === 'cover', `${width}px 名录通栏画卷`);
-      } else {
-        const layout = await run(`(() => {
-          const copy = document.querySelector('.exhibit-copy').getBoundingClientRect();
-          const figure = document.querySelector('.exhibit-spread figure').getBoundingClientRect();
-          return { equal:Math.abs(copy.width - figure.width) < 1, beside:figure.left > copy.right,
-            stacked:figure.top > copy.bottom, fit:getComputedStyle(document.querySelector('.exhibit-spread img')).objectFit };
-        })()`);
-        assert(layout.equal && layout.fit === 'contain' && (width > 720 ? layout.beside : layout.stacked), `${width}px ${key} 图文布局`);
+        assert(layout.fullWidth && layout.overlay && layout.stacked && layout.fit === 'cover', `${width}px ${key} 通栏馆藏图`);
       }
-      if (width === 1440) {
-        await shot('exhibition-' + key + '-desktop', ['home','gallery'].includes(key) ? undefined : '.page-head--exhibit');
-      }
-      if (width === 390 && ['home','inheritors','gallery'].includes(key)) {
-        await shot('exhibition-' + key + '-mobile', key === 'inheritors' ? '.page-head--exhibit' : undefined);
-      }
+      if (width === 1440) await shot('exhibition-' + key + '-desktop');
+      if (width === 390) await shot('exhibition-' + key + '-mobile');
     }
   }
-  console.log('✓ 名录通栏画卷和其余栏目等宽图文正常，减弱动态时内容直接呈现');
+  console.log('✓ 五个栏目均为通栏馆藏图、面包屑、标题上下排布，减弱动态时内容直接呈现');
 
   for (const id of ['eight-words','split-silk','double-sided','stitch-families']) {
     await browser.go(base + '#/simulator?tool=embroidery', "document.querySelector('.knowledge-link')");
