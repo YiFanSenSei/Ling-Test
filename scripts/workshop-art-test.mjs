@@ -51,7 +51,13 @@ const finishConversation=async()=>{
 const reload=async ready=>{
   await browser.evaluate('window.beforeWorkshopReload=true');
   await browser.send('Page.reload');
-  await browser.wait(`!window.beforeWorkshopReload && (${ready})`);
+  await browser.wait('!window.beforeWorkshopReload && document.querySelector(".ws-title-screen")');
+  await loadAutosave(ready);
+};
+const loadAutosave=async ready=>{
+  await browser.click('[data-title-action="load"]');
+  await browser.click('[data-title-save="auto"]');
+  await browser.wait(ready);
 };
 const endDay=async()=>{
   const day=(await saved()).day;
@@ -62,7 +68,13 @@ const endDay=async()=>{
     await browser.wait('!document.querySelector("#ws-panel[open]") && document.querySelector("#ws-location strong")?.textContent === "青梧绣坊"');
   }
 };
-const saved=async()=>JSON.parse(await browser.evaluate('localStorage.getItem("jz-workshop-v1")'));
+const snapshot=async()=>JSON.parse(await browser.evaluate('localStorage.getItem("jz-workshop-v1")'));
+const saved=async()=>{
+  const current=await snapshot();
+  if (!current) return current;
+  const { resume, ...state } = current;
+  return state;
+};
 const onCloth=async point=>browser.evaluate(`(() => {
   const svg = document.querySelector('[data-swift-board]');
   const p = new DOMPoint(...${JSON.stringify(point)}).matrixTransform(svg.getScreenCTM());
@@ -111,11 +123,16 @@ try {
       return draw.call(this,image,...args);
     };
   `});
-  await browser.go(url,'document.querySelector("#ws-stats")?.textContent || window.workshopConsoleErrors?.length');
+  await browser.go(url,'document.querySelector(".ws-title-picture canvas") || window.workshopConsoleErrors?.length');
   assert.deepEqual(await browser.evaluate('window.workshopConsoleErrors'),[]);
+  assert.ok(await browser.evaluate('document.querySelector(\'[data-title-action="load"]\').disabled'));
+  assert.equal(await saved(),null);
+  await capture('游戏标题');
+  await browser.click('[data-title-action="new"]');
   await browser.wait('document.querySelector(".ws-panel-day[open] h2")?.textContent === "第 1 天"');
   await capture('第一天-开场');
   await browser.wait('!document.querySelector("#ws-panel[open]") && document.querySelector("#ws-location strong")?.textContent === "青梧绣坊"');
+  assert.ok(await browser.evaluate('document.querySelector("[data-walk=loom]").hasAttribute("data-first-stitch")'));
   await browser.evaluate(probe.outputFiles[0].text);
   const sheet=await browser.evaluate(`(() => {
     window.expectedPoses=[];
@@ -232,10 +249,12 @@ try {
   assert.equal(await browser.evaluate('(/聊天 ·|工坊事务|工时|小时/).test(document.querySelector("#ws-panel").textContent)'),false);
   await topic('tea','laugh');
   assert.equal(await browser.evaluate('document.querySelector("[data-reply]") !== null'),false);
+  const pausedLine = await browser.evaluate('document.querySelector(".ws-spoken").textContent');
   await browser.send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
   await browser.send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
-  assert.equal(await browser.evaluate('Boolean(document.querySelector("#ws-panel[open]"))'),true);
-  assert.equal(await browser.evaluate('Boolean(document.querySelector("#ws-panel [data-command=back]"))'),false);
+  await browser.wait('document.querySelector(".ws-title-screen")');
+  await loadAutosave('document.querySelector("#ws-panel[open] .ws-spoken")');
+  assert.equal(await browser.evaluate('document.querySelector(".ws-spoken").textContent'), pausedLine);
   await browser.space();
   assert.equal(await browser.evaluate('document.querySelector("#ws-panel h2").textContent'),'你');
   await browser.wait('document.querySelector(".ws-portrait-player img")?.naturalWidth > 0');
@@ -265,6 +284,13 @@ try {
   }
   await browser.space();
   const nearWingCount = `document.querySelector('[data-swift-part="0"] small')?.textContent`;
+  await browser.wait(`${nearWingCount} === "1/2"`);
+  assert.ok(await browser.evaluate('document.querySelector(".ws-swift-note").textContent.includes("第一组针绣好了")'));
+  assert.equal((await snapshot()).resume.drafts.swift.main.length,1);
+  await reload('document.querySelector("#ws-map") && !document.querySelector("#ws-panel[open]")');
+  await go('loom');
+  await browser.wait('document.querySelector("#ws-panel[open] [data-action=stitch]")');
+  await browser.click('[data-action=stitch]');
   await browser.wait(`${nearWingCount} === "1/2"`);
   await browser.click('[data-command=swift-undo]');
   assert.equal(await browser.evaluate(nearWingCount),'0/2');
@@ -306,6 +332,7 @@ try {
   await browser.wait('document.querySelector("#ws-panel[open] .ws-swift-piece")');
   await browser.click('[data-command=back]');
   await travel('to-lane','春汛老街');
+  assert.equal((await snapshot()).resume.spot.scene, 'lane');
   await travel('to-archive','旧样档案室'); await capture('新版-档案室');
   await go('desk');
   await browser.wait('document.querySelector("#ws-panel[open] h2")?.textContent==="档案桌"');
@@ -390,7 +417,8 @@ try {
   await browser.evaluate('location.hash="#/"');
   await browser.wait('!document.querySelector("#ws-map")');
   await browser.evaluate('location.hash="#/workshop"');
-  await browser.wait('document.querySelector("#ws-panel[open] [data-reply]")');
+  await browser.wait('document.querySelector(".ws-title-screen")');
+  await loadAutosave('document.querySelector("#ws-panel[open] [data-reply]")');
   assert.equal((await saved()).display,'open');
   for(const [index, reply, mood, title] of [
     [0,'together','warm','并肩走一段'], [1,'friends','hurt','给彼此留个位子'], [2,'later','warm','桥头的约定'],
@@ -418,9 +446,36 @@ try {
   await browser.click('[data-command=reset]');
   await browser.click('[data-command=confirm-reset]');
   assert.deepEqual((await saved()).story,{memories:[],reply:'',completed:[],affinity:{},encounter:null});
+  await browser.wait('!document.querySelector("#ws-panel[open]")');
+  await browser.click('[data-command="saves"]');
+  await browser.click('[data-command="save-slot"][data-slot="3"]');
+  const manual = await browser.evaluate('localStorage.getItem("jz-workshop-slot-v1-3")');
+  assert.ok(manual);
+  await browser.click('[data-command="back"]');
+  await endDay();
+  await browser.click('[data-command="restart"]');
+  assert.equal((await saved()).day,2);
+  assert.ok(await browser.evaluate('document.activeElement?.matches(\'#ws-panel [data-command="back"]\')'));
+  await browser.click('#ws-panel [data-command="back"]');
+  await browser.click('[data-command="title"]');
+  await browser.click('[data-title-action="new"]');
+  await browser.click('.ws-title-confirm [data-title-action="cancel"]');
+  assert.equal((await saved()).day,2);
+  await browser.click('[data-title-action="new"]');
+  await browser.click('[data-title-action="confirm-new"]');
+  await browser.wait('document.querySelector(".ws-panel-day[open] h2")?.textContent === "第 1 天"');
+  assert.equal(await browser.evaluate('localStorage.getItem("jz-workshop-slot-v1-3")'),manual);
+  await browser.wait('!document.querySelector("#ws-panel[open]")');
+  await browser.evaluate('localStorage.setItem("jz-workshop-v1", "damaged")');
+  await browser.click('[data-command="title"]');
+  await browser.click('[data-title-action="load"]');
+  assert.ok(await browser.evaluate('document.querySelector(\'[data-title-save="auto"]\').disabled'));
+  await browser.click('[data-title-save="3"]');
+  await browser.wait('document.querySelector("#ws-map") && !document.querySelector("#ws-panel[open]")');
+  assert.deepEqual(await saved(),JSON.parse(manual).state);
   assert.deepEqual(browser.errors,[]);
   assert.deepEqual(await browser.evaluate('window.workshopConsoleErrors'),[]);
-  console.log('PASS one-time dialogue, Esc lock, refresh and route resume, affinity, mobile and three epilogues');
+  console.log('PASS dialogue pause and resume, stitch drafts, safe restart, refresh, affinity, mobile and three epilogues');
 } catch(error) {
   console.error(error.message);
   console.error(browser.errors);

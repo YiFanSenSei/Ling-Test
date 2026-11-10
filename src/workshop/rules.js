@@ -59,7 +59,7 @@ export function workshopActions(s, place) {
       ...(s.fur.sample && !s.fur.shared ? [{ key: 'fur-share', label: '和阿禾对照猫毛试布', hours: 1 }] : []),
     ];
     case 'loom': return [
-      ...(!hasSwift(s) ? [{ key: 'stitch', label: '绣一只雨燕 · 12 元', hours: 3, cost: 12 }] : []),
+      ...(!hasSwift(s) ? [{ key: 'stitch', label: '绣一只雨燕', hours: 3, cost: 12 }] : []),
       ...(s.fur.studied && !s.fur.sample ? [{ key: 'fur-sew', label: '试绣一撮白猫毛', hours: 1 }] : []),
     ];
     case 'desk': return s.recorded ? [] : [

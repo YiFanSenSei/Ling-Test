@@ -18,10 +18,18 @@ export const baselineFur = zones.map(() => [1, 1, 1]).concat([null, null, null])
 export const exampleFur = zones.map(({flow}) => [flow, 1, 2])
   .concat(zones.map(({flow}, i) => [flow, i === 1 ? 2 : 0, 0]));
 
+const validFurGroup = stitch => Array.isArray(stitch) && stitch.length === 3 &&
+  Array.from(stitch).every(value => Number.isInteger(value) && value >= 0 && value < 3);
+
 export function validFur(sample) {
-  return Array.isArray(sample) && sample.length === 6 && Array.from(sample).every(stitch =>
-    Array.isArray(stitch) && stitch.length === 3 &&
-    Array.from(stitch).every(value => Number.isInteger(value) && value >= 0 && value < 3));
+  return Array.isArray(sample) && sample.length === 6 && Array.from(sample).every(validFurGroup);
+}
+
+export function loadFurDraft(sample) {
+  const groups = blankFur().map((_, index) => validFurGroup(sample?.[index]) ? sample[index] : null);
+  const index = Math.max(0, groups.indexOf(null));
+  const layer = Math.floor(index / 3);
+  return { sample: groups, zone: index % 3, layer, values: groups[index]?.slice() ?? [1, 1, layer ? 0 : 1], guide: true };
 }
 
 export function loadFur(saved) {
