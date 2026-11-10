@@ -277,7 +277,7 @@ export function initHome() {
   const observer = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
     for (const entry of entries) {
       if (!entry.isIntersecting) continue;
-      entry.target.classList.remove('reveal-pending');
+      entry.target.classList.replace('reveal-pending', 'reveal-shown');
       observer.unobserve(entry.target);
     }
   }, { threshold: 0.08 }) : null;

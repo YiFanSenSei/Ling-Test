@@ -16,16 +16,14 @@ import { craftGuide } from '../crafts.js';
 import { EMBROIDERY_TERMS } from '../embroidery-terms.js';
 import { esc } from '../data.js';
 import { SectionTitle } from '../components/ui.js';
-import { exhibitPhoto } from '../components/exhibit-photo.js';
+import { exhibitHeading } from '../components/exhibit-photo.js';
 import { initEmbroidery } from '../sim/embroidery.js';
 import { initPaper } from '../sim/paper.js';
 import { initMortise } from '../sim/mortise.js';
 
 export async function SimulatorPage() {
   return `
-  <section class="page-head page-head--exhibit page-head--simulator">
-    ${exhibitPhoto('simulator')}
-    <div class="container">
+  ${exhibitHeading('simulator', `
       <nav class="breadcrumb" aria-label="面包屑导航">
         <a href="#/">首页</a>
         <span aria-hidden="true">/</span>
@@ -37,8 +35,7 @@ export async function SimulatorPage() {
         title: '技艺体验',
         sub: '选一门手艺，亲手做一遍。通过简化的互动，认识针法、抄纸与木构连接的原理。',
       })}
-    </div>
-  </section>
+  `)}
 
   <!-- 分页签 -->
   <div class="sim-tabs-bar">

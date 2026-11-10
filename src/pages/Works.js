@@ -1,5 +1,5 @@
 import { esc } from '../data.js';
-import { exhibitPhoto } from '../components/exhibit-photo.js';
+import { exhibitHeading } from '../components/exhibit-photo.js';
 import { online, worksRequest } from '../works-api.js';
 import { CRAFTS } from '../crafts.js';
 import { currentQuery, navigate } from '../router.js';
@@ -43,8 +43,11 @@ export async function WorksPage() {
   } else message = '你正在浏览离线作品。作品投稿和作品墙需要从在线展馆访问，本地保存仍可正常使用。';
   const canonical = worksPath(craft, message ? page : data.page);
   const destination = craft ? `#/simulator?tool=${craft}` : '#/simulator';
-  return `<section class="page-head page-head--exhibit">${exhibitPhoto('works')}<div class="container"><nav class="breadcrumb" aria-label="面包屑导航"><a href="#/">首页</a><span aria-hidden="true">/</span><span aria-current="page">作品墙</span></nav>
-    <h1 class="page-title">手上留痕</h1><p class="page-lede">来自访客的技艺练习。每件作品经审核后公开，练习评价不代表真实工艺水平。点击作品可查看原图与针脚、纤维或接缝细节。</p></div></section>
+  return `${exhibitHeading('works', `
+    <nav class="breadcrumb" aria-label="面包屑导航"><a href="#/">首页</a><span aria-hidden="true">/</span><span aria-current="page">作品墙</span></nav>
+    <h1 class="page-title">手上留痕</h1>
+    <p class="page-lede">来自访客的技艺练习。每件作品经审核后公开，练习评价不代表真实工艺水平。点击作品可查看原图与针脚、纤维或接缝细节。</p>
+  `)}
     <section class="section-tight"><div class="container" id="works-content" data-path="${esc(canonical)}">
     <nav class="works-filters" aria-label="按技艺筛选作品">${[{key:'',name:'全部'}, ...CRAFTS].map(c => `<a class="tag ${craft === c.key ? 'is-active' : ''}" ${craft === c.key ? 'aria-current="page"' : ''} href="${worksPath(c.key)}">${c.name}</a>`).join('')}</nav>
     ${message ? `<p class="works-message" role="status">${esc(message)}</p>${online() ? '<button class="btn btn-ghost" id="retry-works">重新读取</button>' : ''}` : `<p>共 ${data.total} 件已审核作品</p>

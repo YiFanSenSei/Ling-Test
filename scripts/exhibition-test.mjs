@@ -34,8 +34,13 @@ try {
   assert.equal(await run('document.activeElement.id'), 'home-experiences');
   assert.equal(await run('location.hash'), '#/');
   await run("document.querySelector('.cat-card').scrollIntoView({behavior:'instant',block:'center'})");
-  await wait("!document.querySelector('.cat-card').classList.contains('reveal-pending')");
-  console.log('✓ 首屏展开、可操作的向下入口与首次进入视口时浮现');
+  await wait("document.querySelectorAll('.cat-card.reveal-shown').length >= 3");
+  const starts = await run(`[...document.querySelectorAll('.cat-card')].slice(0, 3).map(card =>
+    card.getAnimations().find(animation => animation.animationName === 'home-enter')
+      ?.effect.getKeyframes()[0].translate.split(' ').map(parseFloat))`);
+  assert(starts[0]?.[0] < 0 && starts[1]?.[1] > 0 && starts[2]?.[0] > 0);
+  assert(await run('document.documentElement.scrollWidth <= innerWidth'));
+  console.log('✓ 向下入口可操作，图录卡片从左、下、右入场且无横向溢出');
 
   await send('Emulation.setEmulatedMedia', { features: [{ name:'prefers-reduced-motion', value:'reduce' }] });
   for (const width of [1920, 1440, 720, 390, 320]) {
@@ -45,13 +50,22 @@ try {
       assert(await run('document.documentElement.scrollWidth <= innerWidth'), `${width}px ${route}`);
       assert(await run("document.querySelector('.exhibit-photo figcaption a').host === 'www.metmuseum.org'"));
       if (key === 'home') await wait("getComputedStyle(document.querySelector('.cat-card')).opacity === '1'");
+      else {
+        const layout = await run(`(() => {
+          const copy = document.querySelector('.exhibit-copy').getBoundingClientRect();
+          const figure = document.querySelector('.exhibit-spread figure').getBoundingClientRect();
+          return { equal:Math.abs(copy.width - figure.width) < 1, beside:figure.left > copy.right,
+            stacked:figure.top > copy.bottom, fit:getComputedStyle(document.querySelector('.exhibit-spread img')).objectFit };
+        })()`);
+        assert(layout.equal && layout.fit === 'contain' && (width > 720 ? layout.beside : layout.stacked), `${width}px ${key} 图文布局`);
+      }
       if (width === 1440 && key !== 'home') await shot('exhibition-' + key + '-desktop', '.page-head--exhibit');
       if (width === 390 && ['home','inheritors','gallery'].includes(key)) {
         await shot('exhibition-' + key + '-mobile', key === 'home' ? '.hero' : '.page-head--exhibit');
       }
     }
   }
-  console.log('✓ 六张本地馆藏图在五种屏宽均可加载，来源可访问，减弱动态时内容直接显示');
+  console.log('✓ 五个栏目的图文等宽，窄屏上下排布，馆藏图完整显示，减弱动态时内容直接呈现');
 
   for (const id of ['eight-words','split-silk','double-sided','stitch-families']) {
     await browser.go(base + '#/simulator?tool=embroidery', "document.querySelector('.knowledge-link')");
