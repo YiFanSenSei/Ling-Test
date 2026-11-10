@@ -8,7 +8,9 @@
  */
 
 import { getMeta, getProjects, getDetailCoverage, getInheritorStats, projectCodePrefix, projectBaseName, batchLabel, num, esc } from '../data.js';
+import { exhibitHeading, exhibitCredits } from '../components/exhibit-photo.js';
 import { SectionTitle } from '../components/ui.js';
+import { initReadingNav } from '../reading-nav.js';
 
 export async function AboutPage() {
   const [meta, projects, coverage, inhStats] = await Promise.all([
@@ -50,16 +52,9 @@ export async function AboutPage() {
     .join('、');
 
   return `
-  <section class="page-head">
-    <div class="container">
-      <nav class="breadcrumb" aria-label="面包屑导航">
-        <a href="#/">首页</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">关于本站</span>
-      </nav>
-      ${SectionTitle({ num: '陆', title: '关于本站', sub: '作品说明、数据来源与技术声明。' })}
-    </div>
-  </section>
+  ${exhibitHeading('about', '关于本站', `
+      ${SectionTitle({ num: '陆', title: '关于本站', sub: '作品说明、数据来源与技术声明。', level: 1 })}
+  `)}
 
   <section class="section-tight">
     <div class="container about-layout">
@@ -169,13 +164,13 @@ export async function AboutPage() {
           <div class="about-callout">
             <h3>关于传承人档案中的空缺</h3>
             <p>
-              本站为 <strong>${num(inhStats.total)} 位</strong>国家级代表性传承人建立了档案页，
-              其中 ${num(inhStats.withCode)} 位有官方编号、${num(inhStats.withBirth)} 位有明确出生日期。
+              本站收录 <strong>${num(inhStats.total)} 条</strong>国家级代表性传承人档案记录，
+              其中 ${num(inhStats.withCode)} 条有官方编号、${num(inhStats.withBirth)} 条标注了出生日期；同一人可能关联多个项目。
             </p>
             <p>
               其余的空缺<strong>不是抓取遗漏</strong>：中国非物质文化遗产网的公开表格本身就没有这些字段。
-              ${blankBatches.length ? `其中${blankBatchLabel}（共 ${num(blankBatchTotal)} 位）的编号与出生日期两栏整体未填写；` : ''}
-              其余批次也有部分行留空，多集中在出生日期一栏。
+              ${blankBatches.length ? `其中所属项目为${blankBatchLabel}的档案（共 ${num(blankBatchTotal)} 条），编号与出生日期两栏整体未填写；` : ''}
+              其余项目批次也有部分行留空，多集中在出生日期一栏。这里的批次为项目公布批次，并非传承人的认定批次。
               本站照实留空并显示为「—」，不作任何推测性填补——档案的价值在于可信，而不在于看起来完整。
             </p>
           </div>
@@ -228,16 +223,16 @@ export async function AboutPage() {
 
         <article class="about-block" id="about-media">
           <h2>关于素材</h2>
+          <p>首页与栏目页头使用大都会艺术博物馆开放馆藏的公版图像。点击图注可查看原图与馆藏资料。</p>
+          ${exhibitCredits()}
           <p>
-            本站<strong>未使用任何来源不明的网络图片</strong>。打开名录你会发现，
-            每个项目卡片上没有照片，而是一枚门类徽记与一套几何纹样。
+            名录采用<strong>馆藏图录</strong>的视觉设计，以纸色、细墨线和低饱和点色，
+            描绘器物、材料与故事意象。封面为本站绘制的主题插画，不作为实物照片。
           </p>
           <p>
-            这是一个刻意的选择。官方公开数据并不附带可自由使用的项目配图，
-            而随手拿来的低分辨率网图，既不尊重这些手艺，也对不起观众的信任。
-            与其如此，不如把「没有照片」做成一套自洽的视觉语言：
-            <strong>十大门类各有专属纹样</strong>，由 SVG 绘制，可无损缩放、零加载开销，
-            也不存在版权问题。
+            <strong>十大门类各有对应图形</strong>：从文学的书页与声纹，到音乐的琴弦、
+            曲艺的折扇、民俗的节气草木。苏绣、宣纸、营造技艺等项目另有对应工艺封面，
+            同一项目的不同申报记录共用图形。插画由内联 SVG 绘制，可无损缩放并离线浏览。
           </p>
           <p>
             技艺体验部分的画面（绣布、纸浆、木料）同样是程序化绘制的，
@@ -298,30 +293,5 @@ export async function AboutPage() {
  * 因此改成按钮 + scrollIntoView。
  */
 export function initAbout() {
-  const links = [...document.querySelectorAll('.toc-link')];
-  if (!links.length) return;
-
-  links.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const target = document.getElementById(btn.dataset.toc);
-      if (!target) return;
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      // 焦点交给目标区块，方便键盘用户继续
-      target.setAttribute('tabindex', '-1');
-      target.focus({ preventScroll: true });
-    });
-  });
-
-  // 滚动时高亮当前所在的目录项
-  const blocks = links.map(b => document.getElementById(b.dataset.toc)).filter(Boolean);
-  if (!blocks.length || !('IntersectionObserver' in window)) return;
-
-  const io = new IntersectionObserver(entries => {
-    entries.forEach(en => {
-      if (!en.isIntersecting) return;
-      links.forEach(b => b.classList.toggle('is-active', b.dataset.toc === en.target.id));
-    });
-  }, { rootMargin: '-96px 0px -70% 0px', threshold: 0 });
-
-  blocks.forEach(b => io.observe(b));
+  return initReadingNav(document.querySelector('.about-layout'));
 }

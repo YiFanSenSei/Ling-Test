@@ -143,6 +143,8 @@ function copyPayload(target) {
   }
   // 显式逐项复制，避免部分 Windows 环境的目录快速复制返回 EIO。
   cpSync(distData, join(target, 'data'), { recursive: true, filter: () => true });
+  cpSync(join(ROOT, 'dist', 'media'), join(target, 'media'), { recursive: true });
+  cpSync(join(ROOT, 'dist', 'workshop'), join(target, 'workshop'), { recursive: true });
 }
 
 function zip(srcDir, zipPath) {

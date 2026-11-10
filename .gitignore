@@ -25,6 +25,7 @@ _submit/
 *.log
 *.tmp
 *.bak
+/_audit_css_dump.txt
 
 # 一次性诊断 / 修补脚本。
 # 这些是每轮调试现写现用的（_fix-xxx.cjs、_peek.cjs…），问题修完就没有价值了，
@@ -32,6 +33,7 @@ _submit/
 scripts/_*.cjs
 scripts/_*.mjs
 scripts/_*.py
+scripts/_*.html
 
 # 操作系统杂项
 .DS_Store

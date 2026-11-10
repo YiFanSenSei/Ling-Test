@@ -1,5 +1,7 @@
 import { craftStudy } from '../craft-study.js';
+import { initReadingNav } from '../reading-nav.js';
 import { galleryReturn } from '../browse-state.js';
+import { currentQuery } from '../router.js';
 /**
  * 项目详情页
  *
@@ -46,6 +48,7 @@ export async function ProjectPage(id) {
   //    早先这里写的是 p.ethnic / p.unit，两个都取不到值，于是 meta 行只剩编号——
   //    页面看起来「正常」，实际是静默丢了两个字段。
   const inheritors = Array.isArray(detail.inheritors) ? detail.inheritors : [];
+  const knownBirths = inheritors.map(person => birthYear(person.birth)).filter(Boolean).map(Number);
   const inheritorCards = inheritors.length ? `
     <ol class="inheritor-list">
       ${inheritors.map((p, i) => `
@@ -72,11 +75,7 @@ export async function ProjectPage(id) {
     <p class="inheritor-note">
       以上为国家级代表性传承人，数据来自中国非物质文化遗产网。
       点击姓名可进入本站为每位传承人建立的档案页。
-      ${inheritors.some(p => p.birth) ? `<br>可见传承人年龄跨度：${
-        Math.min(...inheritors.filter(p => p.birth).map(p => Number(birthYear(p.birth))))
-      } 年生 — ${
-        Math.max(...inheritors.filter(p => p.birth).map(p => Number(birthYear(p.birth))))
-      } 年生。` : ''}
+      ${knownBirths.length ? `<br>已收录档案中的出生年份范围：${Math.min(...knownBirths)} 年 — ${Math.max(...knownBirths)} 年（${knownBirths.length} 条有明确生年）。` : ''}
     </p>`
     : `<p class="inheritor-empty">本站暂未收录该项目的国家级代表性传承人信息。可在
        <a href="https://www.ihchina.cn" target="_blank" rel="noopener noreferrer">中国非物质文化遗产网 ↗</a> 查询。</p>`;
@@ -112,7 +111,7 @@ export async function ProjectPage(id) {
   for (const v of variants) keyCount[displayKey(v)] = (keyCount[displayKey(v)] || 0) + 1;
 
   const variantSection = variants.length ? `
-    <section class="project-section">
+    <section class="project-section" id="project-variants">
       <h2 class="ps-title">
         <span class="ps-mark">同一项目的其他申报地区</span>
         <span class="ps-count">${num(variants.length)} 处</span>
@@ -206,6 +205,9 @@ export async function ProjectPage(id) {
         </a>` : '<span class="sibling is-empty"></span>'}
     </nav>` : '';
 
+  const study = craftStudy(String(id));
+  const sections = [curation && ['project-curation', '策展手记'], study && ['project-principle', '工艺观察'],
+    ['project-intro', '项目介绍'], ['project-inheritors', '传承人'], variants.length && ['project-variants', '其他地区']].filter(Boolean);
   const html = `
   <article class="project">
     <!-- 顶部：档案头 -->
@@ -244,23 +246,26 @@ export async function ProjectPage(id) {
     </header>
 
     <div class="container project-body">
+      <nav class="project-reading-nav" aria-label="项目页内导航"><span>本页阅读</span>
+        ${sections.map(([target, label]) => `<button type="button" data-reading-target="${target}">${label}</button>`).join('')}
+      </nav>
       <div class="project-layout">
         <!-- 主栏 -->
         <div class="project-main">
-          ${curation ? `<aside class="curation-note" aria-label="本站策展手记">
+          ${curation ? `<aside class="curation-note" id="project-curation" aria-label="本站策展手记">
             <p class="curation-label">策展手记 · 带着问题看</p>
             <h2>${esc(curation.question)}</h2>
             <p>${esc(curation.reason)}</p><p>${esc(curation.observe)}</p>
           </aside>` : ''}
-          ${craftStudy(String(id))}
-          <section class="project-section">
+          ${study ? `<div id="project-principle">${study}</div>` : ''}
+          <section class="project-section" id="project-intro">
             <h2 class="ps-title"><span class="ps-mark">项目介绍</span></h2>
             ${paragraphs.length
               ? sharedNote + paragraphs.map(t => `<p class="project-text">${esc(t)}</p>`).join('')
               : emptyIntro}
           </section>
 
-          <section class="project-section">
+          <section class="project-section" id="project-inheritors">
             <h2 class="ps-title">
               <span class="ps-mark">代表性传承人</span>
               ${inheritors.length ? `<span class="ps-count">${num(inheritors.length)} 位</span>` : ''}
@@ -310,4 +315,24 @@ export async function ProjectPage(id) {
   </article>`;
 
   return { html, title: name };
+}
+
+export function initProject() {
+  const root = document.querySelector('.project');
+  const disposeReading = initReadingNav(root);
+  const { term } = currentQuery();
+  const target = term && [...root.querySelectorAll('[data-embroidery-term]')]
+    .find(item => item.dataset.embroideryTerm === term);
+  if (!target) return disposeReading;
+
+  target.open = true;
+  const frame = requestAnimationFrame(() => {
+    target.querySelector('summary').focus({ preventScroll: true });
+    const offset = parseFloat(root.style.getPropertyValue('--reading-offset')) || 152;
+    window.scrollTo({ top: scrollY + target.getBoundingClientRect().top - offset, behavior: 'instant' });
+  });
+  return () => {
+    cancelAnimationFrame(frame);
+    disposeReading();
+  };
 }

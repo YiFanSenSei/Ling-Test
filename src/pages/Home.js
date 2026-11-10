@@ -13,12 +13,13 @@
  *   六、批次年表 —— 五批时间轴
  */
 
-import { getMeta, getFeatured, getProjects, getInheritorStats, num, esc, categoryGlyph, batchLabel } from '../data.js';
+import { getMeta, getFeatured, getProjects, getInheritorStats, num, esc } from '../data.js';
 import { ProjectCard, SectionTitle } from '../components/ui.js';
-import { categoryMotif, CATEGORY_ORDER } from '../icons.js';
+import { CATEGORY_ORDER } from '../icons.js';
+import { catalogCover } from '../components/catalog-art.js';
 import { CRAFTS } from '../crafts.js';
 import { CURATION } from '../curation.js';
-import { HeroArtwork } from '../heroArt.js';
+import { exhibitPhoto } from '../components/exhibit-photo.js';
 
 export async function HomePage() {
   const [meta, featured, inhStats] = await Promise.all([
@@ -32,23 +33,19 @@ export async function HomePage() {
 
   /* ---- 门类十方 ---- */
   const catOrder = CATEGORY_ORDER;
-  /*
-   * 首卡放大：十张等大的方框排在一起，视觉上没有节奏，也没有落眼点。
-   * 让第一张（民间文学，条目最少的门类之一）跨两列两行，剩下九张铺满，
-   * 破掉「十个一模一样的格子」的呆板，同时不改变信息量。
-   *
-   * 用 grid-column / grid-row 的 span 实现，而不是重新切分结构——
-   * 移动端断点下 .cat-grid 变成 2 列或 1 列，span 2 依然成立，不需要额外适配。
-   */
+  // 分类入口与馆藏卡片共用插画；计数及分类筛选仍取自完整名录。
   const catCards = catOrder.map((name, i) => {
-    const hero = i === 0 ? ' cat-card--lead' : '';
+    const cover = catalogCover({ category: name });
     return `
-    <a class="cat-card${hero}" href="#/gallery?category=${encodeURIComponent(name)}">
-      <span class="cat-idx" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span>
-      <span class="cat-motif-wrap" aria-hidden="true">${categoryMotif(name)}</span>
-      <span class="cat-name">${esc(name)}</span>
-      <span class="cat-count">${num(byCategory[name] || 0)} <em>项</em></span>
-      <span class="cat-glyph-mini" aria-hidden="true">${categoryGlyph(name)}</span>
+    <a class="cat-card" href="#/gallery?category=${encodeURIComponent(name)}" style="${cover.style}">
+      <div class="pcard-media" aria-hidden="true">
+        <span class="cat-idx">${String(i + 1).padStart(2, '0')}</span>
+        ${cover.svg}<span class="pcard-caption">${cover.caption}</span>
+      </div>
+      <div class="cat-copy">
+        <span class="cat-name">${esc(name)}</span>
+        <div class="cat-bottom"><span class="cat-count">${num(byCategory[name] || 0)} <em>项</em></span><span class="pcard-arrow" aria-hidden="true">↗</span></div>
+      </div>
     </a>`;
   }).join('');
 
@@ -93,7 +90,8 @@ export async function HomePage() {
 
   return `
   <!-- ══════════ 一、序 ══════════ -->
-  <section class="hero">
+  <section class="hero hero--exhibit">
+    ${exhibitPhoto('home')}
     <div class="container hero-inner">
       <div class="hero-copy">
         <p class="hero-eyebrow">
@@ -107,51 +105,42 @@ export async function HomePage() {
         </h1>
 
         <p class="hero-lede">
-          从缂丝的经纬到宣纸的帘纹，从榫卯的咬合到青瓷的釉色——
-          这些手艺曾是无数人一生的功课。<br>
-          本站以国家级非物质文化遗产代表性项目为内容，
-          建一座可以走进去的数字展馆，并让其中几门手艺，在屏幕上重新动起来。
+          从苏绣的针脚、宣纸的帘纹，到榫卯的咬合。沿着馆藏寻访匠人，也亲手做一遍手艺。
         </p>
 
         <div class="hero-actions">
-          <a class="btn btn-primary btn-lg" href="#/simulator?tool=embroidery">亲手绣一朵花</a>
+          <a class="btn btn-primary btn-lg" href="#/workshop">试玩苏绣工坊</a>
           <a class="btn btn-ghost btn-lg" href="#/inheritors">寻访匠人</a>
           <a class="btn btn-ghost btn-lg" href="#/gallery">进入名录</a>
         </div>
-
-        <dl class="hero-facts">
-          <div>
-            <dt>代表性项目</dt>
-            <dd>${num(official.totalProjects || 1557)}<em>项</em></dd>
-          </div>
-          <div>
-            <dt>代表性传承人</dt>
-            <dd>${num(official.totalArtisans || 3998)}<em>位</em></dd>
-          </div>
-          <div>
-            <dt>人类非遗名录</dt>
-            <dd>${num(official.unescoItems || 45)}<em>项</em></dd>
-          </div>
-        </dl>
       </div>
-
-      <div class="hero-visual">
-        ${HeroArtwork()}
-        <div class="seal-stack" aria-hidden="true">
-          <span class="seal seal-1">匠</span>
-          <span class="seal seal-2">作</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="hero-scroll" aria-hidden="true">
-      <span>向下</span>
-      <span class="scroll-line"></span>
     </div>
   </section>
+  <div class="home-index">
+    <dl class="container hero-facts">
+      <div>
+        <dt>代表性项目</dt>
+        <dd>${num(official.totalProjects || 1557)}<em>项</em></dd>
+      </div>
+      <div>
+        <dt>代表性传承人</dt>
+        <dd>${num(official.totalArtisans || 3998)}<em>位</em></dd>
+      </div>
+      <div>
+        <dt>人类非遗名录</dt>
+        <dd>${num(official.unescoItems || 45)}<em>项</em></dd>
+      </div>
+    </dl>
+  </div>
+  <div class="home-cue">
+    <button type="button" class="hero-scroll" aria-controls="home-experiences">
+      <span>向下看展</span>
+      <span class="scroll-line" aria-hidden="true"></span>
+    </button>
+  </div>
 
   <!-- ══════════ 五、技艺体验 ══════════ -->
-  <section class="section section-dark">
+  <section class="section section-dark" id="home-experiences" tabindex="-1" aria-label="技艺互动体验">
     <div class="container sim-promo">
       <div class="sim-promo-copy">
         <p class="sim-promo-eyebrow">技艺互动体验</p>
@@ -271,4 +260,44 @@ export async function HomePage() {
       <a class="btn btn-primary btn-lg" href="#/gallery">走进名录</a>
     </div>
   </section>`;
+}
+
+export function initHome() {
+  const main = document.getElementById('main');
+  const jump = main.querySelector('.hero-scroll');
+  const experiences = main.querySelector('#home-experiences');
+  const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  const goDown = () => {
+    experiences.focus({ preventScroll: true });
+    experiences.scrollIntoView({ behavior: motion.matches ? 'instant' : 'smooth' });
+  };
+  jump.addEventListener('click', goDown);
+
+  const observers = [];
+  if ('IntersectionObserver' in window) {
+    const reveal = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.08) {
+          entry.target.classList.replace('reveal-pending', 'reveal-shown');
+        }
+      }
+    }, { threshold: 0.08 });
+    // 复位区比视口稍大，避免浮现的位移把元素推出视口后反复触发。
+    const rearm = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) entry.target.classList.replace('reveal-shown', 'reveal-pending');
+      }
+    }, { rootMargin: '56px 0px' });
+    observers.push(reveal, rearm);
+    const targets = main.querySelectorAll('.section-title, .sim-promo-copy, .sim-promo-list li, .stat, .cat-card, .pcard, .timeline, .region-list, .closing-inner');
+    for (const target of targets) {
+      target.classList.add('home-reveal', 'reveal-pending');
+      reveal.observe(target);
+      rearm.observe(target);
+    }
+  }
+  return () => {
+    jump.removeEventListener('click', goDown);
+    for (const observer of observers) observer.disconnect();
+  };
 }

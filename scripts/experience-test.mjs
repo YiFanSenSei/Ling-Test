@@ -77,8 +77,8 @@ try {
   await browser.go(file + '#/ages', "document.querySelector('.birth-row')");
   assert.equal(await run("document.querySelectorAll('.birth-row').length"), 8);
   assert.equal(await run("document.querySelector('main').textContent.includes('118 岁')"), false);
-  await browser.go(file + '#/', "document.querySelector('.pcard-question')");
-  assert.equal(await run("document.querySelectorAll('.pcard-question').length"), 8);
+  await browser.go(file + '#/', "document.querySelector('.pcard-curation')");
+  assert.equal(await run("document.querySelectorAll('.pcard-curation').length"), 8);
   for (const id of ['13978', '14376', '14306', '13133', '12484', '13581', '13794', '15059']) {
     await browser.go(file + `#/project/${id}`, "document.querySelector('.curation-note')");
   }

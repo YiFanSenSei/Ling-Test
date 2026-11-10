@@ -8,16 +8,18 @@
  *   传承人索引由 scripts/split-details.mjs 扁平化生成，本页按需加载（见 data.js）。
  *
  * 数据诚实原则：
- *   官网原表中有一部分（第五批 / 2021）传承人没有编号、没有出生日期。
- *   本页照实显示「—」，不做任何推测性填充。填一个假年份比留白恶劣得多。
+ *   所属项目为第五批（2021）的部分传承人表格没有编号与出生日期。
+ *   缺失字段照实标注为「未详」或「—」，不做任何推测性填充。
  */
 
 import {
-  queryInheritors, getInheritor, getInheritorSiblings, getInheritorStats,
-  esc, num, batchLabel, categoryGlyph, birthYear,
+  queryInheritors, getInheritor, getInheritorSiblings, getInheritorStats, getInheritorEthnicities,
+  esc, num, batchLabel, birthYear,
 } from '../data.js';
-import { navigate } from '../router.js';
-import { categoryPattern } from '../components/ui.js';
+import { currentQuery } from '../router.js';
+import { catalogCover } from '../components/catalog-art.js';
+import { exhibitHeading } from '../components/exhibit-photo.js';
+import { rememberInheritors, inheritorsReturn } from '../browse-state.js';
 
 const PAGE_SIZE = 24;
 
@@ -27,12 +29,23 @@ const CATEGORIES = [
   '传统体育、游艺与杂技', '传统美术', '传统技艺', '传统医药', '民俗',
 ];
 
-/** 生成一个传承人的标识字符：姓名首字。用作头像徽记。 */
-const initialOf = name => (name || '—').trim().charAt(0);
-
-/** 姓名转拼音首字母——用于按姓氏分组的锚点 */
-function surnameKey(name) {
-  return (name || '').trim().charAt(0);
+function listQuery(groups) {
+  const params = new URLSearchParams(currentQuery());
+  const page = Number(params.get('page'));
+  const ethnicity = params.get('ethnicity');
+  return { q: (params.get('q') || '').trim(), category: CATEGORIES.includes(params.get('category')) ? params.get('category') : '',
+    ethnicity: groups.some(([name]) => name === ethnicity) ? ethnicity : '',
+    sort: ['birth', 'name', 'default'].includes(params.get('sort')) ? params.get('sort') : 'birth',
+    page: Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1 };
+}
+function listPath(state) {
+  const params = new URLSearchParams();
+  if (state.q) params.set('q', state.q);
+  if (state.category) params.set('category', state.category);
+  if (state.ethnicity) params.set('ethnicity', state.ethnicity);
+  if (state.sort !== 'birth') params.set('sort', state.sort);
+  if (state.page > 1) params.set('page', state.page);
+  return '#/inheritors' + (params.size ? `?${params}` : '');
 }
 
 /* ============================================================
@@ -40,29 +53,28 @@ function surnameKey(name) {
  * ============================================================ */
 
 export async function InheritorsPage() {
-  const stats = await getInheritorStats();
+  const [stats, { groups, other }] = await Promise.all([getInheritorStats(), getInheritorEthnicities()]);
+  const options = other ? [...groups, ['其他', other]] : groups;
+  const state = listQuery(options);
   const { items, total, page, totalPages } = await queryInheritors({
-    page: 1, pageSize: PAGE_SIZE, sort: 'birth',
+    ...state, pageSize: PAGE_SIZE,
   });
 
   const html = `
-  <div class="page-head">
-    <div class="container">
-      <nav class="breadcrumb" aria-label="面包屑导航">
-        <a href="#/">首页</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">传承人</span>
-      </nav>
-      <p class="page-idx" aria-hidden="true">叁</p>
-      <h1 class="page-title">传承人</h1>
-      <p class="page-lede">
-        一门手艺的存续，最后落在具体的人身上。这里是本站收录的
-        <strong>${num(stats.total)}</strong> 条国家级代表性传承人档案记录（同一人可能关联多个项目），
-        分布在 <strong>${num(stats.projects)}</strong> 个项目、
-        <strong>${stats.categories}</strong> 个门类之中。
-      </p>
-    </div>
-  </div>
+  ${exhibitHeading('inheritors', '传承人', `
+    <header class="section-title">
+      <span class="section-num" aria-hidden="true">叁</span>
+      <div class="section-head">
+        <h1 class="page-title">传承人</h1>
+        <p class="page-lede">
+          一门手艺的存续，最后落在具体的人身上。这里是本站收录的
+          <strong>${num(stats.total)}</strong> 条国家级代表性传承人档案记录（同一人可能关联多个项目），
+          分布在 <strong>${num(stats.projects)}</strong> 个项目、
+          <strong>${stats.categories}</strong> 个门类之中。
+        </p>
+      </div>
+    </header>
+  `)}
 
   <div class="container">
     <!-- 统计条 -->
@@ -79,10 +91,10 @@ export async function InheritorsPage() {
         <span class="inh-stat-num">${num(stats.withCode)}</span>
         <span class="inh-stat-label">条有官方编号</span>
       </div>
-      <div class="inh-stat">
-        <span class="inh-stat-num">${stats.ethnicities}</span>
-        <span class="inh-stat-label">个民族</span>
-      </div>
+      <a class="inh-stat inh-stat-link" href="#/inheritors/ethnicities">
+        <span class="inh-stat-num">${groups.length}</span>
+        <span class="inh-stat-label">个民族 · 查看分布 →</span>
+      </a>
       <a class="inh-stat inh-stat-link" href="#/ages">
         <span class="inh-stat-num">${stats.birth?.median ?? '—'}<em>年</em></span>
         <span class="inh-stat-label">出生年份中位数 · 看年代分布 →</span>
@@ -92,8 +104,8 @@ export async function InheritorsPage() {
     <!-- 筛选区 -->
     <form class="filters" id="inh-filters" role="search" aria-label="传承人检索">
       <div class="filter-search">
-        <label class="sr-only" for="inh-q">搜索传承人姓名、项目或编号</label>
-        <input type="search" id="inh-q" name="q" placeholder="搜索姓名、所属项目或编号…"
+        <label class="sr-only" for="inh-q">搜索姓名、项目、民族或编号</label>
+        <input type="search" id="inh-q" name="q" placeholder="搜索姓名、项目、民族或编号…"
                autocomplete="off" />
         <button type="submit" class="filter-search-btn">查</button>
       </div>
@@ -109,6 +121,14 @@ export async function InheritorsPage() {
       </div>
 
       <div class="filter-row">
+        <label class="filter-label" for="inh-ethnicity">民族</label>
+        <select id="inh-ethnicity" class="ethnicity-select">
+          <option value="">全部民族</option>
+          ${options.map(([name, count]) => `<option value="${esc(name)}"${name === state.ethnicity ? ' selected' : ''}>${esc(name === '其他' ? '其他（原档标注）' : name)} · ${num(count)} 条</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="filter-row">
         <span class="filter-label">排序</span>
         <div class="filter-chips" id="inh-sort">
           <button type="button" class="tag tag-btn is-active" data-sort="birth">按出生年份</button>
@@ -116,16 +136,17 @@ export async function InheritorsPage() {
           <button type="button" class="tag tag-btn" data-sort="default">按项目归集</button>
         </div>
       </div>
+      <button type="button" class="btn btn-ghost btn-sm" id="inh-reset">清除筛选</button>
     </form>
 
     <!-- 结果 -->
     <div class="result-bar">
-      <p class="result-count" id="inh-count">共 <strong>${num(total)}</strong> 条传承人档案</p>
+      <p class="result-count" id="inh-count" role="status" tabindex="-1">共 <strong>${num(total)}</strong> 条传承人档案</p>
       <p class="result-page" id="inh-page">第 ${page} / ${totalPages} 页</p>
     </div>
 
     <div id="inh-list" class="inh-grid">
-      ${items.map(renderInheritorCard).join('')}
+      ${items.map(renderInheritorCard).join('') || '<p class="empty-note">没有符合条件的传承人，请换个关键词或清除门类筛选。</p>'}
     </div>
 
     <nav class="pager" id="inh-pager" aria-label="分页">
@@ -134,13 +155,37 @@ export async function InheritorsPage() {
 
     <p class="result-note">
       说明：本站传承人数据取自中国非物质文化遗产网各项目详情页的公开表格。
-      官网原表中第五批（2021）公布的传承人未标注编号与出生年份，
-      此处照实留空（显示为「—」），不作推测填补。
+      列表按所属项目的公布批次归集；该批次并非传承人的认定批次。
+      未标注的出生年份显示为「未详」。官方编号可在人物档案里查看。
       <a class="result-more" href="#/ages">查看档案的出生年代分布 →</a>
     </p>
   </div>`;
 
-  return { html, title: '传承人', init: initInheritors };
+  return { html, title: '传承人', init: options => initInheritors(state, options) };
+}
+
+export async function EthnicitiesPage() {
+  const { groups, unrecorded, other } = await getInheritorEthnicities();
+  return `
+  <div class="page-head"><div class="container">
+    <nav class="breadcrumb" aria-label="面包屑导航">
+      <a href="#/">首页</a><span aria-hidden="true">/</span>
+      <a href="#/inheritors">传承人</a><span aria-hidden="true">/</span>
+      <span aria-current="page">民族分布</span>
+    </nav>
+    <h1 class="page-title">传承人档案中的民族分布</h1>
+    <p class="page-lede">本站收录的公开档案中，已注明的民族共有 <strong>${groups.length}</strong> 个。选一个民族，查看相关传承人和技艺。</p>
+  </div></div>
+  <div class="container ethnicity-directory">
+    <ul class="ethnicity-grid">
+      ${groups.map(([name, count]) => `<li><a href="#/inheritors?ethnicity=${encodeURIComponent(name)}">
+        <strong>${esc(name)}</strong><span>${num(count)} 条档案</span><span aria-hidden="true">↗</span>
+      </a></li>`).join('')}
+    </ul>
+    <p class="result-note">按档案记录计数，同一人可能关联多个项目。另有 ${num(unrecorded)} 条记录未注明民族。
+      ${other ? `原表中有 <a class="result-more" href="#/inheritors?ethnicity=${encodeURIComponent('其他')}">${num(other)} 条标注为「其他」 →</a>，单独列出。` : ''}
+    </p>
+  </div>`;
 }
 
 /** 单个传承人卡片 */
@@ -148,23 +193,23 @@ function renderInheritorCard(p) {
   const yr = birthYear(p.birth);
   return `
   <a class="inh-card" href="#/inheritor/${esc(p.id)}">
-    <span class="inh-avatar" aria-hidden="true">
-      <span class="inh-avatar-glyph">${esc(initialOf(p.name))}</span>
+    <span class="inh-card-top">
+      <span class="inh-cat">${esc(p.projectCategory || '门类未详')}</span>
     </span>
     <span class="inh-main">
-      <span class="inh-head">
-        <strong class="inh-name">${esc(p.name || '—')}</strong>
+      <strong class="inh-name">${esc(p.name || '—')}</strong>
+      <span class="inh-meta">
         ${p.gender ? `<span class="inh-gender">${esc(p.gender)}</span>` : ''}
         ${yr ? `<span class="inh-birth">${esc(yr)} 年生</span>` : '<span class="inh-birth is-unknown">生年未详</span>'}
-      </span>
-      <span class="inh-project">${esc(p.projectTitle || '—')}</span>
-      <span class="inh-meta">
-        <span class="inh-cat">${esc(p.projectCategory || '')}</span>
         ${p.ethnicity ? `<span>${esc(p.ethnicity)}</span>` : ''}
-        ${p.declareUnit ? `<span class="inh-unit">${esc(p.declareUnit)}</span>` : ''}
       </span>
+      <span class="inh-project-label">传承项目</span>
+      <span class="inh-project">${esc(p.projectTitle || '—')}</span>
     </span>
-    <span class="inh-code">${p.code ? esc(p.code) : '编号未详'}</span>
+    <span class="inh-card-foot">
+      <span class="inh-unit"><span class="sr-only">项目申报地区或单位：</span>${esc(p.declareUnit || '申报地区或单位未详')}</span>
+      <span class="inh-card-arrow" aria-hidden="true">↗</span>
+    </span>
   </a>`;
 }
 
@@ -191,13 +236,8 @@ function renderPager(page, totalPages) {
 }
 
 /** 名录页交互：检索、筛选、排序、分页 */
-export function initInheritors() {
-  const state = {
-    q: '',
-    category: '',
-    sort: 'birth',
-    page: 1,
-  };
+function initInheritors(state, { restore = false } = {}) {
+  let alive = true, version = 0, restoreFrame = 0;
 
   const listEl = document.getElementById('inh-list');
   const countEl = document.getElementById('inh-count');
@@ -209,58 +249,73 @@ export function initInheritors() {
   // 但取不到时直接跳过绑定，避免再次出现「无守卫即解引用」。
   const catEl = document.getElementById('inh-category');
   const sortEl = document.getElementById('inh-sort');
+  const ethnicityEl = document.getElementById('inh-ethnicity');
+  const syncControls = () => {
+    document.getElementById('inh-reset').hidden = !state.q && !state.category && !state.ethnicity && state.sort === 'birth' && state.page === 1;
+    ethnicityEl.value = state.ethnicity;
+    catEl?.querySelectorAll('[data-category]').forEach(button => {
+      const active = button.dataset.category === state.category;
+      button.classList.toggle('is-active', active); button.setAttribute('aria-pressed', String(active));
+    });
+    sortEl?.querySelectorAll('[data-sort]').forEach(button => {
+      const active = button.dataset.sort === state.sort;
+      button.classList.toggle('is-active', active); button.setAttribute('aria-pressed', String(active));
+    });
+  };
 
   async function refresh() {
-    const res = await queryInheritors({ ...state, pageSize: PAGE_SIZE });
-    state.page = res.page;
+    const token = ++version;
+    const hashAtStart = location.hash;
+    listEl.setAttribute('aria-busy', 'true');
+    try {
+      const res = await queryInheritors({ ...state, pageSize: PAGE_SIZE });
+      if (!alive || token !== version || location.hash !== hashAtStart) return;
+      state.page = res.page;
 
-    listEl.innerHTML = res.items.length
-      ? res.items.map(renderInheritorCard).join('')
-      : `<p class="empty-note">没有符合条件的传承人。换个关键词，或点「全部」清除筛选。</p>`;
+      listEl.innerHTML = res.items.length
+        ? res.items.map(renderInheritorCard).join('')
+        : `<p class="empty-note">没有符合条件的传承人。请换个关键词，或点击「清除筛选」。</p>`;
 
-    if (countEl) {
-      const filtered = state.q || state.category;
-      countEl.innerHTML = filtered
-        ? `共 <strong>${num(res.total)}</strong> 条传承人档案 <span class="result-filtered">（已筛选）</span>`
-        : `共 <strong>${num(res.total)}</strong> 条传承人档案`;
-    }
-    if (pageEl) pageEl.textContent = `第 ${res.page} / ${res.totalPages} 页`;
-    if (pagerEl) pagerEl.innerHTML = renderPager(res.page, res.totalPages);
+      if (countEl) {
+        const filtered = state.q || state.category || state.ethnicity;
+        countEl.innerHTML = filtered
+          ? `共 <strong>${num(res.total)}</strong> 条传承人档案 <span class="result-filtered">（已筛选）</span>`
+          : `共 <strong>${num(res.total)}</strong> 条传承人档案`;
+      }
+      if (pageEl) pageEl.textContent = `第 ${res.page} / ${res.totalPages} 页`;
+      if (pagerEl) pagerEl.innerHTML = renderPager(res.page, res.totalPages);
+      listEl.removeAttribute('aria-busy'); syncControls();
 
-    // 把状态同步进地址栏，使结果可分享、可回退
-    const params = new URLSearchParams();
-    if (state.q) params.set('q', state.q);
-    if (state.category) params.set('category', state.category);
-    if (state.sort !== 'birth') params.set('sort', state.sort);
-    if (state.page > 1) params.set('page', String(state.page));
-    const qs = params.toString();
-    const target = `#/inheritors${qs ? `?${qs}` : ''}`;
-    if (window.location.hash !== target) {
-      window.history.replaceState(null, '', target);
+      // 把状态同步进地址栏，使结果可分享、可回退
+      const target = listPath(state);
+      if (window.location.hash !== target) {
+        window.history.replaceState(null, '', target);
+      }
+    } catch {
+      if (!alive || token !== version || location.hash !== hashAtStart) return;
+      listEl.removeAttribute('aria-busy');
+      countEl.textContent = '列表暂时无法更新，请重新搜索或选择筛选。';
     }
   }
 
   // 监听器在文件末尾统一绑定（具名函数，便于 dispose 时摘除）
 
   // 从 URL 恢复筛选状态（支持直接分享带筛选的链接）
-  const hash = window.location.hash;
-  const qi = hash.indexOf('?');
-  if (qi !== -1) {
-    const params = new URLSearchParams(hash.slice(qi + 1));
-    state.q = params.get('q') || '';
-    state.category = params.get('category') || '';
-    state.sort = params.get('sort') || 'birth';
-    state.page = Number(params.get('page') || 1);
-    const input = document.getElementById('inh-q');
-    if (input) input.value = state.q;
-    if (catEl) catEl.querySelectorAll('[data-category]').forEach(c => {
-      c.classList.toggle('is-active', c.dataset.category === state.category);
-    });
-    if (sortEl) sortEl.querySelectorAll('[data-sort]').forEach(c => {
-      c.classList.toggle('is-active', c.dataset.sort === state.sort);
-    });
-    if (state.q || state.category || state.sort !== 'birth' || state.page > 1) refresh();
-  }
+  const renderedPage = Number(pagerEl?.querySelector('[aria-current]')?.dataset.page) || 1;
+  state.page = renderedPage;
+  document.getElementById('inh-q').value = state.q;
+  history.replaceState(null, '', listPath(state));
+  syncControls();
+  const remember = event => {
+    const card = event.target.closest('.inh-card');
+    if (card) rememberInheritors(card.getAttribute('href').split('/').pop());
+  };
+  listEl.addEventListener('click', remember);
+  const saved = restore ? inheritorsReturn() : null;
+  if (saved?.hash === location.hash) restoreFrame = requestAnimationFrame(() => {
+    listEl.querySelector(`[href="#/inheritor/${saved.personId}"]`)?.focus({ preventScroll: true });
+    window.scrollTo({ top: saved.y, behavior: 'instant' });
+  });
 
   // 返回清理函数（约定见 main.js）。
   // 这些监听器都挂在本次渲染出来的元素上，会随 innerHTML 替换而消失，
@@ -268,7 +323,7 @@ export function initInheritors() {
   const onFormSubmit = /** @type {EventListener} */ (e) => {
     e.preventDefault();
     const input = document.getElementById('inh-q');
-    state.q = input ? input.value : '';
+    state.q = input ? input.value.trim() : '';
     state.page = 1;
     refresh();
   };
@@ -295,8 +350,22 @@ export function initInheritors() {
     if (!btn || btn.disabled) return;
     state.page = Number(btn.dataset.page);
     refresh();
-    listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    countEl.focus({ preventScroll: true });
+    countEl.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
   };
+  const reset = document.getElementById('inh-reset');
+  const onEthnicityChange = () => {
+    state.ethnicity = ethnicityEl.value;
+    state.page = 1;
+    refresh();
+  };
+  const onReset = () => {
+    Object.assign(state, { q: '', category: '', ethnicity: '', sort: 'birth', page: 1 });
+    document.getElementById('inh-q').value = ''; refresh();
+    countEl.focus({ preventScroll: true });
+  };
+  reset.addEventListener('click', onReset);
+  ethnicityEl.addEventListener('change', onEthnicityChange);
 
   if (formEl) { formEl.removeEventListener('submit', onFormSubmit); formEl.addEventListener('submit', onFormSubmit); }
   if (catEl) { catEl.removeEventListener('click', onCatClick); catEl.addEventListener('click', onCatClick); }
@@ -304,6 +373,10 @@ export function initInheritors() {
   if (pagerEl) { pagerEl.removeEventListener('click', onPagerClick); pagerEl.addEventListener('click', onPagerClick); }
 
   return () => {
+    alive = false; version++; cancelAnimationFrame(restoreFrame);
+    listEl.removeEventListener('click', remember);
+    reset.removeEventListener('click', onReset);
+    ethnicityEl.removeEventListener('change', onEthnicityChange);
     if (formEl) formEl.removeEventListener('submit', onFormSubmit);
     if (catEl) catEl.removeEventListener('click', onCatClick);
     if (sortEl) sortEl.removeEventListener('click', onSortClick);
@@ -321,6 +394,7 @@ export async function InheritorPage(id) {
 
   const { sameProject, sameCategory, sameCategoryLabel } = await getInheritorSiblings(person);
   const yr = birthYear(person.birth);
+  const cover = catalogCover({ category: person.projectCategory, projectNo: person.projectNo });
 
   // 档案字段——空值一律显示「—」，不隐藏行（隐藏会让人以为是漏抓）
   const rows = [
@@ -330,7 +404,7 @@ export async function InheritorPage(id) {
     ['民族', person.ethnicity || '—'],
     ['所属门类', person.projectCategory || '—'],
     ['申报地区或单位', person.declareUnit || '—'],
-    ['批次', person.batch ? batchLabel(person.batch) : '—'],
+    ['所属项目公布批次', person.batch ? batchLabel(person.batch) : '—'],
   ];
 
   // 项目链接：优先用项目编号找详情页
@@ -342,7 +416,7 @@ export async function InheritorPage(id) {
       <nav class="breadcrumb" aria-label="面包屑导航">
         <a href="#/">首页</a>
         <span aria-hidden="true">/</span>
-        <a href="#/inheritors">传承人</a>
+        <a href="${esc(inheritorsReturn()?.hash || '#/inheritors')}">返回传承人列表</a>
         <span aria-hidden="true">/</span>
         <span aria-current="page">${esc(person.name)}</span>
       </nav>
@@ -350,13 +424,9 @@ export async function InheritorPage(id) {
   </div>
 
   <div class="container inh-detail">
-    <header class="inh-hero">
-      <div class="inh-hero-avatar" aria-hidden="true">
-        <span class="inh-hero-pattern">${categoryPattern(person.projectCategory)}</span>
-        <span class="inh-hero-glyph">${esc(initialOf(person.name))}</span>
-      </div>
+    <header class="inh-hero" style="${cover.style}">
       <div class="inh-hero-main">
-        <p class="inh-hero-cat">${esc(person.projectCategory || '传承人')}</p>
+        <p class="inh-hero-cat">传承人档案 <span class="inh-code">${person.code ? `编号 ${esc(person.code)}` : '编号未详'}</span></p>
         <h1 class="inh-hero-name">${esc(person.name)}</h1>
         <p class="inh-hero-sub">
           ${person.gender ? `<span>${esc(person.gender)}</span>` : ''}
@@ -367,12 +437,16 @@ export async function InheritorPage(id) {
           代表性项目：<a href="${projectHref}">${esc(person.projectTitle)}</a>
         </p>
       </div>
+      <div class="inh-hero-art">
+        ${cover.svg}
+        <p>技艺意象 · ${esc(person.projectCategory || '传统技艺')}</p>
+      </div>
     </header>
 
     <div class="inh-detail-layout">
       <div class="inh-detail-main">
         <section class="project-section">
-          <h2 class="ps-title"><span class="ps-mark">${person.gender === '女' ? '她是谁' : '他是谁'}</span></h2>
+          <h2 class="ps-title"><span class="ps-mark">人物档案</span></h2>
           <p class="project-text">
             这是中国非物质文化遗产网公开收录的国家级代表性传承人
             <strong>${esc(person.name)}</strong>，
@@ -383,19 +457,15 @@ export async function InheritorPage(id) {
             ${person.declareUnit ? `该项目的申报地区或单位为 ${esc(person.declareUnit)}。` : ''}
           </p>
           <p class="project-text">
-            国家级代表性传承人的认定，意味着这位匠人被官方确认为
-            ${esc(person.projectTitle)}这一技艺谱系中具有代表性的传承者。
-            ${yr && Number(yr) < 1950
-              ? `生于 ${esc(yr)} 年，其技艺养成跨越了二十世纪中期以来的社会变迁——这份履历本身就是一份活的技艺档案。`
-              : ''}
+            本页依据所属项目官方页面公开列出的传承人字段整理，
+            未收录其完整生平、从艺经历或近况；相关认定信息以官方档案为准。
           </p>
           ${!person.birth || !person.code ? `
           <div class="about-callout">
             <h3>为什么有些字段是空的？</h3>
             <p>
-              中国非物质文化遗产网在第五批（2021 年公布）传承人的公开表格中，
-              未标注编号与出生日期。本站照实呈现这一空缺，不作推测性填补——
-              档案的价值在于可信，而不在于看起来完整。
+              这条公开档案未完整标注编号或出生日期，本站按原始记录留空。
+              侧栏批次取自所属项目的公布信息，不代表这位传承人的认定批次。
             </p>
           </div>` : ''}
         </section>
@@ -434,7 +504,7 @@ export async function InheritorPage(id) {
               </div>`).join('')}
           </dl>
           <p class="archive-source">
-            数据来源：<a href="https://www.ihchina.cn" target="_blank" rel="noopener noreferrer">中国非物质文化遗产网 ↗</a>
+            数据来源：<a href="https://www.ihchina.cn/project_details/${esc(person.projectId)}.html" target="_blank" rel="noopener noreferrer">所属项目官方档案 ↗</a>
           </p>
         </div>
 

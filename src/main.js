@@ -1,4 +1,5 @@
-import { WorksPage } from './pages/Works.js';
+import { WorksPage, initWorks } from './pages/Works.js';
+import { WorkshopPage, initWorkshop } from './pages/Workshop.js';
 /**
  * 匠作 · 应用入口
  *
@@ -11,6 +12,7 @@ import './styles/base.css';
 import './styles/layout.css';
 import './styles/components.css';
 import './styles/pages.css';
+import './styles/exhibition.css';
 // 大屏断点必须放在最后：它要覆盖前面各文件里定义的 --maxw 与栅格列数
 import './styles/wide.css';
 
@@ -21,10 +23,10 @@ import { getMeta } from './data.js';
 import { EmptyState } from './components/ui.js';
 import { initIntro } from './intro.js';
 
-import { HomePage } from './pages/Home.js';
+import { HomePage, initHome } from './pages/Home.js';
 import { GalleryPage, initGallery } from './pages/Gallery.js';
-import { ProjectPage } from './pages/Project.js';
-import { InheritorsPage, initInheritors, InheritorPage } from './pages/Inheritors.js';
+import { ProjectPage, initProject } from './pages/Project.js';
+import { InheritorsPage, InheritorPage, EthnicitiesPage } from './pages/Inheritors.js';
 import { AgesPage } from './pages/Ages.js';
 import { SimulatorPage, initSimulator } from './pages/Simulator.js';
 import { AboutPage, initAbout } from './pages/About.js';
@@ -92,7 +94,8 @@ let disposeCurrent = null;
  */
 let intro;
 
-async function render(html, { title, init } = {}) {
+async function render(html, { title, init, immersive = false } = {}) {
+  if (immersive) intro?.skip();
   if (typeof disposeCurrent === 'function') {
     try { disposeCurrent(); } catch (err) { console.error('页面清理失败', err); }
   }
@@ -100,14 +103,14 @@ async function render(html, { title, init } = {}) {
 
   const app = document.getElementById('app');
   app.innerHTML = `
-    ${Header()}
+    ${immersive ? '' : Header()}
     <main id="main" tabindex="-1">${html}</main>
-    ${Footer(meta)}`;
+    ${immersive ? '' : Footer(meta)}`;
 
   // initHeader 每次渲染都会重建页头，并在 window / document 上挂
   // hashchange、keydown、scroll 三个监听器。它们不属于被 innerHTML
   // 替换掉的 DOM，因此必须显式摘除，否则每翻一页就多留一份。
-  const disposeHeader = initHeader();
+  const disposeHeader = immersive ? null : initHeader();
 
   const pageDisposers = [];
   if (typeof disposeHeader === 'function') pageDisposers.push(disposeHeader);
@@ -135,7 +138,7 @@ async function render(html, { title, init } = {}) {
 
 route('/', async ({ render }) => {
   const html = await HomePage();
-  await render(html);
+  await render(html, { init: initHome });
 });
 
 route('/gallery', async ({ render, fromPath }) => {
@@ -151,7 +154,7 @@ route('/project/:id', async ({ params, render }) => {
       '<p style="margin-top:1.5rem"><a class="btn btn-primary" href="#/gallery">返回名录</a></p>'), { title: '未收录' });
     return;
   }
-  await render(html, { title });
+  await render(html, { title, init: initProject });
 });
 
 route('/simulator', async ({ render }) => {
@@ -159,9 +162,17 @@ route('/simulator', async ({ render }) => {
   await render(html, { title: '技艺体验', init: initSimulator });
 });
 
-route('/inheritors', async ({ render }) => {
+route('/workshop', async ({ render }) => {
+  await render(WorkshopPage(), { title: '工坊还有三十天', init: initWorkshop, immersive: true });
+});
+
+route('/inheritors', async ({ render, fromPath }) => {
   const { html, init } = await InheritorsPage();
-  await render(html, { title: '传承人', init });
+  await render(html, { title: '传承人', init: () => init({ restore: fromPath.startsWith('/inheritor/') }) });
+});
+
+route('/inheritors/ethnicities', async ({ render }) => {
+  await render(await EthnicitiesPage(), { title: '传承人民族分布' });
 });
 
 route('/inheritor/:id', async ({ params, render }) => {
@@ -192,9 +203,7 @@ setNotFound(async ({ render }) => {
 });
 
 route('/works', async ({ render }) => {
-  await render(await WorksPage(), { title: '作品墙', init: () => {
-    document.getElementById('retry-works')?.addEventListener('click', () => navigate(location.hash.slice(1), { replace: true }));
-  } });
+  await render(await WorksPage(), { title: '作品墙', init: initWorks });
 });
 
 /* ---------------- 启动 ---------------- */

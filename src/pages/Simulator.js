@@ -1,4 +1,5 @@
 import { submissionDialog, initSubmission } from '../work-submission.js';
+import { initRadioControls } from '../components/radio-controls.js';
 import { craftNext, craftResult, initResultActions } from '../craft-feedback.js';
 /**
  * 技艺体验页 —— 三个可交互的技艺模拟器
@@ -12,28 +13,24 @@ import { craftNext, craftResult, initResultActions } from '../craft-feedback.js'
  */
 
 import { craftGuide } from '../crafts.js';
+import { EMBROIDERY_TERMS } from '../embroidery-terms.js';
 import { esc } from '../data.js';
 import { SectionTitle } from '../components/ui.js';
+import { exhibitHeading } from '../components/exhibit-photo.js';
 import { initEmbroidery } from '../sim/embroidery.js';
 import { initPaper } from '../sim/paper.js';
 import { initMortise } from '../sim/mortise.js';
 
 export async function SimulatorPage() {
   return `
-  <section class="page-head">
-    <div class="container">
-      <nav class="breadcrumb" aria-label="面包屑导航">
-        <a href="#/">首页</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">技艺体验</span>
-      </nav>
+  ${exhibitHeading('simulator', '技艺体验', `
       ${SectionTitle({
         num: '肆',
+        level: 1,
         title: '技艺体验',
         sub: '选一门手艺，亲手做一遍。通过简化的互动，认识针法、抄纸与木构连接的原理。',
       })}
-    </div>
-  </section>
+  `)}
 
   <!-- 分页签 -->
   <div class="sim-tabs-bar">
@@ -158,7 +155,7 @@ export async function SimulatorPage() {
             <div class="tool-group">
               <h3 class="tool-title">进度与评价</h3>
               <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
-                   aria-valuenow="0" id="emb-progress-bar">
+                   aria-valuenow="0" aria-label="绣品覆盖进度" id="emb-progress-bar">
                 <span id="emb-progress" style="width:0%"></span>
               </div>
               <p class="grade-line"><span>覆盖</span><strong id="emb-covered">0 / 0 格</strong></p>
@@ -188,22 +185,10 @@ export async function SimulatorPage() {
         <div class="sim-knowledge">
           <h3>关于苏绣</h3>
           <div class="knowledge-grid">
-            <div class="knowledge-item">
-              <h4>八字诀</h4>
-              <p>平、齐、细、密、匀、顺、和、光——这是评判一幅苏绣作品的八个字，每一个字都对应着一项极难达到的手上功夫。</p>
-            </div>
-            <div class="knowledge-item">
-              <h4>劈丝</h4>
-              <p>一根普通的丝线可以劈成 1/2、1/4、1/8 乃至 1/64。绣制细腻处时，绣娘用的线比头发丝还细。</p>
-            </div>
-            <div class="knowledge-item">
-              <h4>双面绣</h4>
-              <p>苏绣的绝技之一。一根针在两层透明底料间穿行，正反两面同时成形，且两面图案完全不同、针脚全无痕迹。</p>
-            </div>
-            <div class="knowledge-item">
-              <h4>针法谱系</h4>
-              <p>苏绣针法逾四十种，平针、齐针、散套针、施针、打籽、锁针……不同题材用不同针法，这是靠师徒口手相传的体系。</p>
-            </div>
+            ${EMBROIDERY_TERMS.map(term => `<a class="knowledge-item knowledge-link" href="#/project/13978?term=${term.id}">
+              <h4>${term.title} <span aria-hidden="true">↗</span></h4>
+              <p>${term.summary}</p>
+            </a>`).join('')}
           </div>
         </div>
       </div>
@@ -385,7 +370,7 @@ export async function SimulatorPage() {
             <div class="tool-group">
               <h3 class="tool-title">插入深度</h3>
               <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"
-                   aria-valuenow="0" id="joint-progress-bar">
+                   aria-valuenow="0" aria-label="榫卯插入深度" id="joint-progress-bar">
                 <span id="joint-progress" style="width:0%"></span>
               </div>
             </div>
@@ -478,6 +463,7 @@ export function initSimulator() {
   initOne('苏绣模拟器', initEmbroidery);
   initOne('宣纸模拟器', initPaper);
   initOne('榫卯模拟器', initMortise);
+  disposers.push(initRadioControls(document.getElementById('main')));
 
   /* ---- URL 参数直达某个模拟器：/simulator?tool=paper ---- */
   const tool = new URLSearchParams(window.location.hash.split('?')[1] || '').get('tool');

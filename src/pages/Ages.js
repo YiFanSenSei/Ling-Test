@@ -48,11 +48,11 @@ export async function AgesPage() {
       <ul class="birth-chart">${bars || '<li>当前没有可用的出生年份记录。</li>'}</ul>
     </section>
     <section class="age-section" aria-labelledby="birth-coverage-title">
-      <h2 class="ps-title" id="birth-coverage-title">各批次的信息覆盖率</h2>
-      <p class="age-note">缺失数据在不同批次间分布不均，阅读上方图表时需同时参考下表。</p>
+      <h2 class="ps-title" id="birth-coverage-title">按项目公布批次归集的信息覆盖率</h2>
+      <p class="age-note">下表按传承人所属项目的公布批次归集，并非传承人的认定批次。缺失数据分布不均，阅读上方图表时需同时参考覆盖率。</p>
       <div class="about-table-wrap"><table class="about-table age-table">
-        <caption>按认定批次统计的出生年份覆盖率</caption>
-        <thead><tr><th scope="col">批次</th><th scope="col">记录数</th><th scope="col">有出生年份</th><th scope="col">覆盖率</th><th scope="col">出生年份中位数</th></tr></thead>
+        <caption>按所属项目公布批次归集的出生年份覆盖率</caption>
+        <thead><tr><th scope="col">项目公布批次</th><th scope="col">记录数</th><th scope="col">有出生年份</th><th scope="col">覆盖率</th><th scope="col">出生年份中位数</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
       <p class="result-note">中位数为「—」表示没有可用出生年份。偶数条样本取中间两年的平均值，因此可能出现半年的数值。</p>

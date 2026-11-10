@@ -103,28 +103,13 @@ strong { font-size: inherit; line-height: inherit; }
   min-height: calc(100svh - var(--header-h));
   /*
    * ⚠️ 必须是 column。
-   *    .hero 有两个直接子元素：.container.hero-inner 与 .hero-scroll。
-   *    一开始写的是 align-items: center（隐含 flex-direction: row），
-   *    结果「向下」提示被摆到了 .container 的右边，
-   *    在 1440 下贴着屏幕右边缘、只剩半截，像页面被裁了一刀。
-   *    改成列方向后，「向下」自然落在正文下方，再各自居中。
+   *    列布局让首屏正文沿垂直方向对齐。
    */
   display: flex;
   flex-direction: column;
   justify-content: center;
   padding: clamp(40px, 6vh, 80px) 0 clamp(32px, 5vh, 64px);
   overflow: hidden;
-}
-
-.hero-inner {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
-  gap: var(--sp-9);
-  align-items: center;
-  /* flex 子项默认 min-width:auto，栅格会被内容撑破，显式收成 0 才能正常压缩 */
-  width: 100%;
-  min-width: 0;
-  margin-inline: auto;
 }
 
 .hero-copy { max-width: 46rem; }
@@ -218,114 +203,6 @@ strong { font-size: inherit; line-height: inherit; }
   margin-left: 3px;
 }
 
-/* 右侧：印章 + 圆形纹样。
-   这里的尺寸必须被显式约束，否则内联 SVG 会撑满整个栅格列。 */
-/*
- * 印章与纹样环的构图。
- *
- * ⚠️ 印章原本是 position: absolute; top: 4%; left: 0，
- *    挂在 .hero-visual 的左上角，而纹样环是 place-items: center 居中的。
- *    1440 下两者勉强叠在一起，一到 1920（内容框放宽到 1440），
- *    .hero-visual 变宽，印章被甩到环的左侧一百多像素之外，
- *    竖排的「匠/作」孤零零悬在空白里，像两个掉下来的图钉。
- *
- * 改成：整个视觉区作为一个整体居中，印章与环用同一套相对定位叠放，
- * 不再各自为政。这样任何宽度下二者的相对关系都是固定的。
- */
-.hero-visual {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-height: 260px;
-}
-
-.seal-stack {
-  position: absolute;
-  /* 压在纹样环的左上方，与环的 10 点方向相交 */
-  top: calc(50% - min(24vw, 190px));
-  left: calc(50% - min(24vw, 190px));
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  z-index: 2;
-}
-
-.seal-stack .seal {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  background: var(--cinnabar);
-  color: #FBF9F3;
-  font-family: var(--font-serif);
-  font-size: 26px;
-  line-height: 1;
-  border-radius: 2px;
-  box-shadow: 0 1px 3px rgba(140, 42, 32, 0.35);
-}
-
-.seal-stack .seal-2 {
-  background: #FBF9F3;
-  color: var(--cinnabar);
-  box-shadow: inset 0 0 0 1.5px var(--cinnabar);
-}
-
-/*
- * 首屏主视觉：一幅绣绷。
- *
- * 原先这里是三个同心圆环，中间一个转轴，空得能跑马——
- * 评委第一眼看到的是空白而不是手艺。换成程序化生成的绣绷图后，
- * 「苏绣」这个作品最核心的意象在第一屏就落地了。
- *
- * 宽高用 min() 双向约束：既不能在小屏上撑破格栅，也不能在 1920 下
- * 变成一块小邮票贴在角落。
- */
-.hero-art {
-  width: min(100%, 460px);
-  height: auto;
-  aspect-ratio: 1;
-  display: block;
-  /* 一点点投影，让绷面从纸底上浮起来；过重会显脏 */
-  filter: drop-shadow(0 10px 28px rgba(88, 62, 38, 0.13));
-}
-
-/* 枝与花入场时轻轻自左向右展开，不动的话只是一张静态插图 */
-.hero-art__branch {
-  stroke-dasharray: 620;
-  stroke-dashoffset: 0;
-  animation: branchDraw 1.5s var(--ease) both;
-}
-
-.hero-art__blossom {
-  opacity: 0;
-  animation: blossomIn 0.7s var(--ease) 0.75s both;
-}
-
-.hero-art__caption {
-  font-family: var(--font-serif);
-  font-size: 11px;
-  letter-spacing: 0.42em;
-  fill: var(--ink-faint);
-  opacity: 0;
-  animation: blossomIn 0.9s var(--ease) 1.15s both;
-}
-
-@keyframes branchDraw {
-  from { stroke-dashoffset: 620; }
-  to   { stroke-dashoffset: 0; }
-}
-
-@keyframes blossomIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: none; }
-}
-
-/* 印章改为压在绷框外侧的 1 点方向，不再和图案中心抢位置 */
-.hero-visual .seal-stack {
-  top: calc(50% - min(23vw, 214px));
-  left: calc(50% + min(23vw, 150px));
-}
-
 /*
  * 画布拿到键盘焦点时的描边。
  *
@@ -336,52 +213,6 @@ strong { font-size: inherit; line-height: inherit; }
 .sim-canvas-wrap canvas:focus-visible {
   outline: 2px solid var(--cinnabar);
   outline-offset: 3px;
-}
-
-/* 向下滚动提示 */.hero-scroll {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  /*
-   * 它是 .hero 的 flex 子项（.hero 是 column 方向），
-   * 默认 align-items 是 stretch，得显式居中，否则会横着铺满。
-   */
-  align-self: center;
-  gap: var(--sp-2);
-  margin-top: var(--sp-8);
-  font-size: var(--fs-xs);
-  letter-spacing: 0.3em;
-  /* 「向下」是有信息量的提示，不该用装饰色。2.0:1 的极淡色读不出来。 */
-  color: var(--ink-faint);
-}
-
-.scroll-line {
-  width: 1px;
-  height: 40px;
-  background: linear-gradient(var(--ink-faint), transparent);
-  animation: scrollHint 2.4s var(--ease) infinite;
-}
-
-@keyframes scrollHint {
-  0%   { transform: scaleY(0); transform-origin: top; }
-  45%  { transform: scaleY(1); transform-origin: top; }
-  55%  { transform: scaleY(1); transform-origin: bottom; }
-  100% { transform: scaleY(0); transform-origin: bottom; }
-}
-
-/*
- * 矮屏幕上收起「向下」提示。
- *
- * .hero 现在是「正好一屏」高（100vh - 页头），提示又挂在内容下方，
- * 所以屏幕越矮，它越容易被折线切掉半截，看着像页面被裁了一块。
- * 800 是分界：比这矮的窗口里，首屏本身已经满得没地方放提示了。
- * 它本来只是「下面还有内容」的辅助暗示，屏够高时才值得出现。
- *
- * ⚠️ 阈值别卡太死。上一版写的是 820，恰好把 1440×900 这类主流
- *    笔记本屏（可用高度约 828）挡在门外——最常见的演示规格反而看不到提示。
- */
-@media (max-height: 800px) {
-  .hero-scroll { display: none; }
 }
 
 /* ==========================================================================
@@ -425,127 +256,53 @@ strong { font-size: inherit; line-height: inherit; }
 .cat-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1px;
-  background: var(--rule);
-  border: 1px solid var(--rule);
+  gap: 24px;
   margin-top: var(--sp-6);
 }
-
 .cat-card {
-  position: relative;
+  --pcard-sheet: #f7f3e8;
+  --pcard-drawing: #686052;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
-  min-height: 176px;
-  padding: var(--sp-5);
+  min-width: 0;
   background: var(--paper-light);
-  text-decoration: none;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
   overflow: hidden;
-  transition: background var(--dur) var(--ease);
+  transition: border-color var(--dur) var(--ease);
 }
-
-.cat-card:hover { background: #fff; }
-
-/*
- * 首卡放大 2×2。
- *
- * 十张等大的方框排成一片，没有任何落眼点——眼睛不知道该先看哪里，
- * 整块区域读起来就像一张表格。让第一张占 2×2，大小对比一出来，
- * 这一段的节奏就有了。
- *
- * ⚠️ 1×1 时不做设定。5 列 ×「首卡占 2×2」+ 其余 9 张 1×1 = 共 13 格，
- *    而 5×2 只有 10 格，必然空出 3 格（实测右下角一大块空底色，很难看）。
- *    所以只在能整除的列数上放大：4 列（13 格 → 4×4=16 格里排 13 格太稀）
- *    也不行，只有 3 列（13 格 → 3×5=15）留 2 格空，仍然不好看。
- *    结论是：放大只在 1 列（手机单列，每张都占满宽）时不需要，
- *    其余断点一律用统一尺寸，靠纹样本身撑起差异。
- */
-.cat-card--lead {
-  background: var(--paper);
+.cat-card:hover, .cat-card:focus-visible { border-color: var(--cinnabar); }
+.cat-card:hover .pcard-media svg { transform: scale(1.035); }
+.cat-card:hover .pcard-arrow, .cat-card:focus-visible .pcard-arrow {
+  background: var(--cinnabar);
+  border-color: var(--cinnabar);
+  color: var(--paper-light);
 }
-
-.cat-card--lead .cat-motif {
-  width: min(56%, 200px);
+.cat-idx {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  color: var(--ink-faint);
+  font: 11px/1.6 var(--font-sans);
+  letter-spacing: .12em;
 }
-
-.cat-card--lead .cat-name {
-  font-size: var(--fs-lg);
-}
-
-/* 720px 以下网格变 2 列：10 格正好填满 5 行，不空行 */
+.cat-copy { display: flex; flex-direction: column; flex: 1; padding: 20px; }
+.cat-name { font: 600 20px/1.6 var(--font-serif); color: var(--ink); overflow-wrap: anywhere; }
+.cat-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 14px; }
+.cat-count { font: 13px/1.6 var(--font-sans); color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.cat-count em { font-style: normal; }
 @media (max-width: 720px) {
   .age-table td[data-label]::before { content: attr(data-label) '：'; color: var(--ink-soft); }
-  .cat-card--lead .cat-name { font-size: var(--fs-md); }
-  .cat-card--lead .cat-motif { width: min(72%, 92px); }
+  .cat-grid { gap: 14px; }
+  .cat-card .pcard-media { height: 155px; }
+  .cat-card .pcard-media svg { padding: 12px 0; }
+  .cat-card .pcard-caption { font-size: 10px; letter-spacing: .08em; }
+  .cat-copy { padding: 14px; }
+  .cat-name { font-size: 17px; }
 }
-
-.cat-idx {
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  color: var(--ink-faint);
+@media (max-width: 360px) {
+  .cat-card .pcard-media { height: 190px; }
 }
-
-/*
- * 门类纹样：程序化生成的线描图，十类各不相同。
- *
- * 原先这里是一个单字（文/乐/舞/戏…）。单字当图标的问题在于——
- * 它不构成图形，十张卡看起来就是「十个方框里各有一个大字」。
- * 换成线描纹样后，同一套朱砂色、同一套笔画粗细，既统一又各自可辨。
- */
-.cat-motif-wrap {
-  display: flex;
-  align-items: center;
-  margin: var(--sp-2) 0 auto;
-}
-
-.cat-motif {
-  width: min(72%, 92px);
-  height: auto;
-  aspect-ratio: 1;
-  color: var(--ink-soft);
-  opacity: 0.86;
-  transition: color var(--dur) var(--ease), opacity var(--dur) var(--ease),
-              transform var(--dur) var(--ease);
-}
-
-.cat-card:hover .cat-motif {
-  color: var(--cinnabar);
-  opacity: 1;
-  transform: translateY(-2px);
-}
-
-.cat-name {
-  font-family: var(--font-serif);
-  font-size: var(--fs-md);
-  letter-spacing: 0.04em;
-  color: var(--ink);
-  margin-top: auto;
-}
-
-.cat-count {
-  font-size: var(--fs-xs);
-  color: var(--ink-faint);
-  font-variant-numeric: tabular-nums;
-}
-
-.cat-count em {
-  font-style: normal;
-  opacity: 0.7;
-}
-
-/* 右上角的小字码，作为图形之外的第二重识别，不抢戏 */
-.cat-glyph-mini {
-  position: absolute;
-  top: var(--sp-5);
-  right: var(--sp-5);
-  font-family: var(--font-serif);
-  font-size: 13px;
-  line-height: 1;
-  color: var(--ink-decor);
-  transition: color var(--dur) var(--ease);
-}
-
-.cat-card:hover .cat-glyph-mini { color: var(--cinnabar); }
 
 /* ==========================================================================
    首页 · 技艺体验引导
@@ -814,6 +571,7 @@ strong { font-size: inherit; line-height: inherit; }
   border-bottom: 1px solid var(--rule);
   margin-bottom: var(--sp-5);
 }
+.filters.has-selection { margin-bottom: 0; padding-bottom: 8px; border-bottom: 0; }
 
 .filter-search {
   position: relative;
@@ -880,12 +638,6 @@ strong { font-size: inherit; line-height: inherit; }
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.filter-actions {
-  margin-top: var(--sp-4);
-  padding-top: var(--sp-4);
-  border-top: 1px dashed var(--rule);
 }
 
 /*
@@ -967,6 +719,15 @@ strong { font-size: inherit; line-height: inherit; }
 
 .result-filtered { color: var(--gold-ink); margin-left: 4px; }
 .result-page { font-variant-numeric: tabular-nums; }
+
+/* 将筛选条件与结果放在一起，便于逐项移除并继续浏览。 */
+.selected-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 20px; padding: 16px 0; border-bottom: 1px solid var(--rule); }
+.selected-label { color: var(--ink-faint); font-size: 12px; letter-spacing: .1em; margin-right: 4px; }
+.selected-filter { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; max-width: 100%; padding: 7px 12px; border: 1px solid var(--cinnabar-wash); border-radius: 3px; color: var(--cinnabar-deep); background: var(--paper-light); font-size: 13px; }
+.selected-filter span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.selected-filter span:last-child { font-size: 19px; line-height: 1; }
+.selected-filter:hover { border-color: var(--cinnabar); background: var(--cinnabar-wash); }
+.selected-clear { display: inline-flex; align-items: center; min-height: 44px; padding: 4px 8px; color: var(--ink-soft); font-size: 13px; text-decoration: underline; text-underline-offset: 4px; }
 
 /* 门类级关键词提示：与其给一堆沾边的结果，不如把真正该去的入口递到手边 */
 .result-hint {
@@ -2396,9 +2157,6 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 
 /* 900 及以下：单栏化 */
 @media (max-width: 900px) {
-  .hero-inner { grid-template-columns: 1fr; gap: var(--sp-7); }
-  .hero-visual { min-height: 0; }
-  .hero-ornament { width: min(70%, 300px); margin: 0 auto; }
   .hero-facts { max-width: none; }
   .cat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .sim-promo { grid-template-columns: 1fr; gap: var(--sp-7); }
@@ -2437,8 +2195,8 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   .hero-facts dd { font-size: var(--fs-lg); }
   .scrim { display: block; }
   .cat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .cat-card { min-height: 138px; padding: var(--sp-4); }
-  .cat-glyph { font-size: 28px; }
+
+
   .knowledge-grid { grid-template-columns: 1fr; }
   .sim-promo-list li { grid-template-columns: 24px 1fr auto; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); }
   .sim-promo-glyph { display: none; }
@@ -2458,7 +2216,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 
 /* 480 及以下：极限窄屏 */
 @media (max-width: 480px) {
-  .cat-grid { grid-template-columns: 1fr; }
+  .cat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /*
    * ⚠️ 这里曾经是 grid-template-columns: 1fr —— 首屏「1,557 项 / 3,998 位 / 45 项」
    *    三个短数字各占一整行，240px 高度里竖着排三个数字，还带着一条贯穿的竖线。
@@ -2530,23 +2288,25 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 /* ---------- 名录页：统计条 ---------- */
 .inh-stats {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: 1.15fr repeat(3, 1fr) 1.4fr;
   border: 1px solid var(--rule);
   background: var(--paper-light);
   margin: var(--sp-6) 0 var(--sp-7);
 }
 
 .inh-stat {
-  padding: var(--sp-5) var(--sp-4);
-  text-align: center;
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   border-right: 1px solid var(--rule);
 }
+.inh-stat:first-child { background: var(--paper-deep); }
+.inh-stat:first-child .inh-stat-num { color: var(--cinnabar); }
 .inh-stat:last-child { border-right: none; }
 
-/* 第五格整格是链接（中位年龄 → 年龄结构页），做成可点的样子：
-   默认与其它格一致，只在悬停/聚焦时变朱砂，避免和数字格割裂。 */
+/* 出生年份中位数链接到年代分布；保留整格的点击区域。 */
 .inh-stat-link {
-  display: block;
   text-decoration: none;
   color: inherit;
   transition: background var(--dur) var(--ease);
@@ -2576,7 +2336,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 .inh-stat-num {
   display: block;
   font-family: var(--font-serif);
-  font-size: var(--fs-2xl);
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
   font-weight: 600;
   color: var(--ink);
   line-height: 1.1;
@@ -2594,100 +2354,118 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 /* ---------- 名录页：传承人卡片网格 ---------- */
 .inh-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1px;
-  background: var(--rule);       /* 用背景色透出 1px 细线，比 border 更干净 */
-  border: 1px solid var(--rule);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: var(--sp-4);
   margin-bottom: var(--sp-6);
 }
 
 .inh-card {
-  display: grid;
-  grid-template-columns: 52px 1fr auto;
-  align-items: center;
-  gap: var(--sp-4);
-  padding: var(--sp-4) var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--sp-5);
+  border: 1px solid var(--rule);
   background: var(--paper-light);
   text-decoration: none;
   color: inherit;
-  transition: background var(--dur-fast) var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
-.inh-card:hover { background: var(--paper); }
+.inh-card:hover,
+.inh-card:focus-visible { border-color: var(--cinnabar); }
 
-/* 头像徽记：姓名首字，朱砂描边 */
-.inh-avatar {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border: 1px solid var(--rule);
-  background: var(--paper);
-}
-.inh-avatar::after {
-  /* 内层细框，做出「印」的双边感 */
-  content: '';
-  position: absolute;
-  inset: 4px;
-  border: 1px solid var(--cinnabar-wash);
-}
-.inh-avatar-glyph {
-  position: relative;
-  z-index: 1;
-  font-family: var(--font-serif);
-  font-size: var(--fs-lg);
-  color: var(--cinnabar);
-  line-height: 1;
-}
-
-.inh-main { min-width: 0; }
-
-.inh-head {
+.inh-card-top {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 0.5em;
+  gap: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-5);
 }
+.inh-cat {
+  font-size: var(--fs-xs);
+  color: var(--azurite);
+}
+.inh-cat::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 1px;
+  background: var(--gold);
+  vertical-align: middle;
+  margin-right: var(--sp-2);
+}
+
+.inh-main { min-width: 0; flex: 1; }
 
 .inh-name {
+  display: block;
   font-family: var(--font-serif);
-  font-size: var(--fs-md);
+  font-size: var(--fs-xl);
   font-weight: 600;
   color: var(--ink);
-  letter-spacing: 0.02em;
-}
-
-.inh-gender,
-.inh-birth {
-  font-size: var(--fs-xs);
-  color: var(--ink-faint);
-}
-.inh-birth.is-unknown { color: var(--ink-faint); }
-
-.inh-project {
-  display: block;
-  margin-top: var(--sp-2);
-  font-size: var(--fs-sm);
-  color: var(--ink-soft);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: var(--lh-snug);
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
 }
 
 .inh-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75em;
-  margin-top: var(--sp-2);
+  gap: 0 var(--sp-3);
+  margin-top: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--ink-faint);
+}
+.inh-meta > span + span::before {
+  content: '·';
+  margin-right: var(--sp-3);
+  color: var(--ink-decor);
+}
+.inh-project-label {
+  display: block;
+  margin-top: var(--sp-5);
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  letter-spacing: var(--ls-wide);
+}
+.inh-project {
+  display: block;
+  margin-top: var(--sp-1);
+  margin-bottom: var(--sp-5);
+  font-family: var(--font-serif);
+  font-size: var(--fs-base);
+  color: var(--ink-soft);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+
+.inh-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--rule);
   font-size: var(--fs-xs);
   color: var(--ink-faint);
 }
-.inh-meta .inh-cat { color: var(--azurite); }
-.inh-meta .inh-unit {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 16em;
+.inh-unit { min-width: 0; overflow-wrap: anywhere; }
+.inh-card-arrow {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  height: 28px;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  font-size: var(--fs-base);
+  color: var(--cinnabar);
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.inh-card:hover .inh-card-arrow,
+.inh-card:focus-visible .inh-card-arrow {
+  background: var(--cinnabar);
+  border-color: var(--cinnabar);
+  color: var(--paper-light);
 }
 
 .inh-code {
@@ -2700,9 +2478,11 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 
 /* 紧凑网格：档案页的「同门」推荐 */
 .inh-grid-compact {
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   margin-top: var(--sp-4);
 }
+.inh-grid-compact .inh-name { font-size: var(--fs-lg); }
+.inh-grid-compact .inh-card-top { margin-bottom: var(--sp-4); }
 
 .result-filtered {
   color: var(--cinnabar);
@@ -2766,48 +2546,39 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 .inh-detail { padding-top: var(--sp-5); }
 
 .inh-hero {
+  --pcard-sheet: #f7f3e8;
+  --pcard-drawing: #686052;
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: minmax(0, 1fr) 260px;
   gap: var(--sp-6);
   align-items: center;
-  padding-bottom: var(--sp-6);
-  border-bottom: 1px solid var(--rule);
+  padding: var(--sp-6) var(--sp-7);
+  border: 1px solid var(--rule);
+  background: var(--paper-light);
   margin-bottom: var(--sp-7);
 }
 
-.inh-hero-avatar {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 140px;
-  height: 140px;
-  border: 1px solid var(--rule);
-  background: var(--paper-light);
+.inh-hero-art {
+  padding-left: var(--sp-5);
+  border-left: 1px solid var(--rule);
+  text-align: center;
 }
-
-.inh-hero-pattern {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  opacity: 0.5;
+.inh-hero-art svg { display: block; width: 100%; height: auto; }
+.inh-hero-art p {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+  letter-spacing: var(--ls-wide);
 }
-.inh-hero-pattern svg { width: 100%; height: 100%; }
-
-.inh-hero-glyph {
-  position: relative;
-  z-index: 1;
-  font-family: var(--font-serif);
-  font-size: 3.5rem;
-  color: var(--cinnabar);
-  line-height: 1;
-}
-
 .inh-hero-cat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-4);
   font-size: var(--fs-xs);
   color: var(--cinnabar);
   letter-spacing: var(--ls-wide);
-  margin-bottom: var(--sp-2);
+  margin-bottom: var(--sp-4);
 }
 
 .inh-hero-name {
@@ -2817,6 +2588,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   color: var(--ink);
   line-height: var(--lh-tight);
   letter-spacing: var(--ls-tight);
+  overflow-wrap: anywhere;
 }
 
 .inh-hero-sub {
@@ -2832,6 +2604,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   margin-top: var(--sp-4);
   font-size: var(--fs-md);
   color: var(--ink-soft);
+  overflow-wrap: anywhere;
 }
 .inh-hero-project a {
   color: var(--cinnabar);
@@ -2865,47 +2638,31 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 
 @media (max-width: 900px) {
   .inh-detail-layout { grid-template-columns: 1fr; }
-@media (max-width: 900px) {
   .inh-stats { grid-template-columns: repeat(2, 1fr); }
-  /* 5 格在 2 列下最后一行只有一个，右侧空出来——让它在版面上居中，
-     比留一个突兀的半格更稳。 */
   .inh-stat:nth-child(5) { grid-column: 1 / -1; border-right: none; border-top: 1px solid var(--rule); }
-}
-  .inh-stat:nth-child(2) { border-right: none; }
+  .inh-stat:nth-child(even) { border-right: none; }
   .inh-stat:nth-child(1),
   .inh-stat:nth-child(2) { border-bottom: 1px solid var(--rule); }
-  .inh-hero { grid-template-columns: 100px 1fr; gap: var(--sp-4); }
-  .inh-hero-avatar { width: 100px; height: 100px; }
-  .inh-hero-glyph { font-size: 2.5rem; }
+  .inh-hero { grid-template-columns: minmax(0, 1fr) 200px; padding: var(--sp-5); }
 }
 
 @media (max-width: 720px) {
   .inh-grid,
   .inh-grid-compact { grid-template-columns: 1fr; }
-  .inh-card {
-    grid-template-columns: 44px 1fr;
-    gap: var(--sp-3);
-    padding: var(--sp-3) var(--sp-4);
-  }
-  .inh-avatar { width: 44px; height: 44px; }
-  /* 编号在窄屏另起一行，避免和姓名挤在一起 */
-  .inh-code {
-    grid-column: 2 / -1;
-    margin-top: calc(var(--sp-2) * -1);
-  }
-  .inh-meta .inh-unit { max-width: 100%; }
   .pager-btn { min-width: 34px; height: 34px; padding: 0 var(--sp-2); }
-  .inh-hero { grid-template-columns: 1fr; gap: var(--sp-4); }
 }
 
 @media (max-width: 480px) {
-  .inh-stat-num { font-size: var(--fs-xl); }
-  .inh-stats { grid-template-columns: 1fr 1fr; }
+  .inh-stat { padding: var(--sp-4); }
+  .inh-hero { grid-template-columns: 1fr; gap: var(--sp-5); }
+  .inh-hero-art { display: flex; align-items: center; gap: var(--sp-3); border-left: 0; border-top: 1px solid var(--rule); padding: var(--sp-3) 0 0; text-align: left; }
+  .inh-hero-art svg { flex: 0 0 104px; width: 104px; }
+  .inh-hero-art p { margin-top: 0; }
 }
 
 /* 触摸设备：纹样常显 */
 @media (hover: none) {
-  .cat-card .cat-glyph { color: var(--cinnabar); }
+
 }
 
 /* ============================================================
@@ -2971,13 +2728,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 
 /* 减弱动效 */
 @media (prefers-reduced-motion: reduce) {
-  .scroll-line,
   .sim-hint-icon { animation: none; }
-  /* 首屏主视觉是一段「枝慢慢长出来、花再开」的动画。
-     对选择减弱动效的人，直接跳到终态，别让他们看一场不得不看的动画。 */
-  .hero-art__branch,
-  .hero-art__blossom,
-  .hero-art__caption { animation: none; opacity: 1; stroke-dashoffset: 0; }
 }
 
 /* 打印 */
@@ -3183,8 +2934,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 }
 .route-status { position: fixed; z-index: 100; bottom: 24px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 16px 24px; background: var(--ink); color: var(--paper); border: 1px solid var(--gold); box-shadow: 0 6px 24px #0002; font-size: 14px; }
 #restore-cleared[hidden] { display: none; }
-.pcard-curation { margin: 12px 0 8px; color: var(--ink-soft); line-height: 1.9; font-size: 14px; }
-.pcard-question { color: var(--cinnabar); font-size: 13px; line-height: 1.8; margin-bottom: 16px; }
+.pcard-curation { margin: 10px 0 2px; color: var(--ink-soft); line-height: 1.85; font-size: 14px; }
 .curation-note { border-left: 2px solid var(--cinnabar); background: var(--paper-light); padding: 24px; margin-bottom: 36px; }
 .curation-label { color: var(--cinnabar); font-size: 13px; letter-spacing: .12em; }
 .curation-note h2 { font-family: var(--font-serif); font-size: clamp(20px, 3vw, 26px); font-weight: 500; margin: 12px 0; line-height: 1.7; }
@@ -3231,8 +2981,6 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 .tool-note { font-size: 13px; }
 .tool-opt-desc { font-size: 12px; }
 @media (min-width: 901px) {
-  .hero-inner { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); }
-  .hero-art { width: min(100%, 480px); }
   .project-hero { padding-block: 32px; }
 }
 @media (max-width: 600px) {
@@ -3252,3 +3000,37 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
 .work-dialog label{display:block;font-size:14px;margin:12px 0 4px}.work-dialog input{width:100%;padding:10px;border:1px solid var(--rule);background:var(--paper);font:inherit}.work-dialog-actions{margin:20px 0 0}
 @media(max-width:900px){.works-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.works-grid{grid-template-columns:1fr}.work-dialog{padding:20px}}
 .work-dialog [hidden]{display:none!important}
+
+.works-filters a { min-height: 44px; display: inline-flex; align-items: center; }
+.works-filters a[aria-current] { color: var(--paper); background: var(--cinnabar); border-color: var(--cinnabar); }
+.visitor-work-preview { display: block; width: 100%; padding: 0; border: 0; background: var(--paper-deep); color: var(--ink-soft); cursor: zoom-in; font: inherit; text-align: left; }
+.visitor-work-preview > span { display: block; padding: 10px 20px; font-size: 13px; }
+.visitor-work-preview:focus-visible { outline: 3px solid var(--cinnabar); outline-offset: -3px; }
+.visitor-work .work-image-error { margin: 0; padding: 16px 20px; background: var(--paper-deep); }
+.work-image-error .btn { margin-top: 10px; }
+.work-viewer-open, .work-submit-open { overflow: hidden; }
+.work-viewer { width: min(1100px, calc(100% - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: clamp(16px, 3vw, 28px); border: 1px solid var(--rule); background: var(--paper-light); color: var(--ink); overflow: auto; }
+.work-viewer::backdrop { background: #1c1a17cc; }
+.work-viewer-head, .work-viewer-actions { display: flex; gap: 12px; align-items: center; justify-content: space-between; }
+.work-viewer-head h2 { font: 500 clamp(20px, 3vw, 28px)/1.6 var(--font-serif); overflow-wrap: anywhere; min-width: 0; }
+.work-viewer-head button { flex-shrink: 0; }
+.work-viewer p { font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; margin-block: 10px; }
+.work-viewer-media { overflow: auto; max-height: 60dvh; background: var(--paper-deep); overscroll-behavior: contain; }
+.work-viewer-media img { display: block; max-width: 100%; max-height: 60dvh; width: auto; height: auto; object-fit: contain; margin-inline: auto; }
+.work-viewer.is-zoomed .work-viewer-media img { max-width: none; max-height: none; margin: 0; }
+.work-viewer-actions { justify-content: flex-start; flex-wrap: wrap; margin-top: 16px; }
+.work-viewer .btn { min-height: 44px; }
+.work-viewer-note { color: var(--ink-soft); }
+.work-viewer [hidden], .visitor-work [hidden] { display: none !important; }
+
+.project-reading-nav { position: sticky; top: var(--header-h, 72px); z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 10px 0; margin-bottom: 28px; background: var(--paper); border-block: 1px solid var(--rule); }
+.project-reading-nav > span { font-size: 12px; color: var(--ink-faint); margin-right: 8px; }
+.project-reading-nav button { min-height: 44px; padding: 8px 12px; font: inherit; font-size: 14px; color: var(--ink-soft); background: transparent; border: 0; cursor: pointer; border-bottom: 2px solid transparent; }
+.project-reading-nav button[aria-current] { color: var(--cinnabar); border-bottom-color: var(--cinnabar); }
+.reading-section { scroll-margin-top: var(--reading-offset, 100px); }
+.reading-section:focus-visible { outline: 2px solid var(--cinnabar); outline-offset: 6px; }
+.project .project-aside { top: var(--reading-offset, 170px); }
+@media (max-width: 600px) { .project-reading-nav { gap: 4px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .project-reading-nav::-webkit-scrollbar { display: none; } .project-reading-nav > span { display: none; } .project-reading-nav button { flex: 0 0 auto; padding-inline: 8px; white-space: nowrap; } }
+@media print { .project-reading-nav { display: none; } }
+
+@media (max-width: 360px) { .cat-grid { grid-template-columns: minmax(0, 1fr); } }
