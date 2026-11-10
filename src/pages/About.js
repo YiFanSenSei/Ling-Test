@@ -223,7 +223,7 @@ export async function AboutPage() {
 
         <article class="about-block" id="about-media">
           <h2>关于素材</h2>
-          <p>首页与栏目页头使用大都会艺术博物馆开放馆藏的公版图像。页头展示藏品局部，点击图注可查看完整图像与馆藏资料。</p>
+          <p>首页与栏目页头使用大都会艺术博物馆开放馆藏的公版图像。点击图注可查看原图与馆藏资料。</p>
           ${exhibitCredits()}
           <p>
             名录采用<strong>馆藏图录</strong>的视觉设计，以纸色、细墨线和低饱和点色，
