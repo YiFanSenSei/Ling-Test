@@ -1,4 +1,5 @@
 import { WorksPage, initWorks } from './pages/Works.js';
+import { WorkshopPage, initWorkshop } from './pages/Workshop.js';
 /**
  * 匠作 · 应用入口
  *
@@ -93,7 +94,8 @@ let disposeCurrent = null;
  */
 let intro;
 
-async function render(html, { title, init } = {}) {
+async function render(html, { title, init, immersive = false } = {}) {
+  if (immersive) intro?.skip();
   if (typeof disposeCurrent === 'function') {
     try { disposeCurrent(); } catch (err) { console.error('页面清理失败', err); }
   }
@@ -101,14 +103,14 @@ async function render(html, { title, init } = {}) {
 
   const app = document.getElementById('app');
   app.innerHTML = `
-    ${Header()}
+    ${immersive ? '' : Header()}
     <main id="main" tabindex="-1">${html}</main>
-    ${Footer(meta)}`;
+    ${immersive ? '' : Footer(meta)}`;
 
   // initHeader 每次渲染都会重建页头，并在 window / document 上挂
   // hashchange、keydown、scroll 三个监听器。它们不属于被 innerHTML
   // 替换掉的 DOM，因此必须显式摘除，否则每翻一页就多留一份。
-  const disposeHeader = initHeader();
+  const disposeHeader = immersive ? null : initHeader();
 
   const pageDisposers = [];
   if (typeof disposeHeader === 'function') pageDisposers.push(disposeHeader);
@@ -158,6 +160,10 @@ route('/project/:id', async ({ params, render }) => {
 route('/simulator', async ({ render }) => {
   const html = await SimulatorPage();
   await render(html, { title: '技艺体验', init: initSimulator });
+});
+
+route('/workshop', async ({ render }) => {
+  await render(WorkshopPage(), { title: '工坊还有三十天', init: initWorkshop, immersive: true });
 });
 
 route('/inheritors', async ({ render, fromPath }) => {

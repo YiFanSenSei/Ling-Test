@@ -12,8 +12,9 @@ const NAV_ITEMS = [
   { path: '/gallery',      label: '名录',   num: '贰' },
   { path: '/inheritors',   label: '传承人', num: '叁', also: '/inheritor/' },
   { path: '/simulator',    label: '技艺',   num: '肆' },
-  { path: '/works', label: '作品墙', num: '伍' },
-  { path: '/about',        label: '关于',   num: '陆' },
+  { path: '/workshop',     label: '工坊',   num: '伍' },
+  { path: '/works',        label: '作品墙', num: '陆' },
+  { path: '/about',        label: '关于',   num: '柒' },
 ];
 
 export function Header() {
@@ -83,7 +84,7 @@ export function initHeader() {
       const target = a.getAttribute('data-nav');
       const item = NAV_ITEMS.find(it => it.path === target);
       const extra = item && item.also ? path.startsWith(item.also) : false;
-      const active = target === '/' ? path === '/' : (path.startsWith(target) || extra);
+      const active = path === target || (target !== '/' && path.startsWith(`${target}/`)) || extra;
       a.classList.toggle('is-active', active);
       if (active) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');

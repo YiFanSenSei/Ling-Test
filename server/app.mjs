@@ -160,6 +160,7 @@ export function createApp({ dataDir, distDir, adminPassword, publicOrigin, secur
       const file = resolve(distDir, '.' + decoded);
       if (!file.startsWith(distDir + sep)) fail(404, '文件不存在');
       res.setHeader('Content-Type', file.endsWith('.webp') ? 'image/webp'
+        : file.endsWith('.png') ? 'image/png'
         : file.endsWith('.js') ? 'text/javascript'
         : file.endsWith('.json') ? 'application/json'
         : file.endsWith('.css') ? 'text/css' : 'text/html; charset=utf-8');
