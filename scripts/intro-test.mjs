@@ -48,9 +48,9 @@ try {
   assert.equal(await run("document.getElementById('app').inert"), false);
   console.log('✓ 无关动画事件被忽略，CSS 动画停用时超时兜底仍有效');
 
-  for (const [width, height] of [[844,390], [720,400], [320,480], [320,360]]) {
-    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: true });
-    await go(base + '?case=short-' + width + '-' + height, "document.querySelector('.intro-joint-cap')");
+  for (const [width, height] of [[1440,900], [390,844], [844,621], [844,600], [844,561], [844,390], [720,400], [320,480], [320,360]]) {
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width <= 720 });
+    await go(base + '?case=layout-' + width + '-' + height, "document.querySelector('.intro-joint-cap')");
     const layout = await run(`(() => {
       const intro = document.getElementById('intro');
       for (const child of intro.children) {
@@ -60,11 +60,16 @@ try {
       }
       const stage = intro.querySelector('.intro-stage').getBoundingClientRect();
       const skip = intro.querySelector('.intro-skip').getBoundingClientRect();
-      return stage.top >= 0 && stage.bottom <= skip.top && skip.bottom <= innerHeight && skip.height >= 44;
+      const joint = intro.querySelector('.intro-joint').getBoundingClientRect();
+      return { fits: stage.top >= 0 && stage.bottom <= skip.top && skip.bottom <= innerHeight
+        && document.documentElement.scrollWidth <= innerWidth, jointWidth: Math.round(joint.width), skipHeight: skip.height };
     })()`);
-    assert(layout, `${width}×${height} 开屏内容与跳过按钮须完整显示`);
+    assert(layout.fits, `${width}×${height} 开屏内容与跳过按钮须完整显示`);
+    if (height <= 620) assert(layout.skipHeight >= 44);
+    if (width === 1440) assert.equal(layout.jointWidth, 440);
+    if (width === 390) assert(layout.jointWidth > 300);
   }
-  console.log('✓ 横屏和矮窗口的榫卯图版、提示与跳过入口无裁切或重叠');
+  console.log('✓ 桌面和手机开屏图版放大，横屏与矮窗口无裁切或重叠');
 
   await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
   await go(base + '?case=reduced#/simulator?tool=paper', "document.getElementById('canvas-paper')");
