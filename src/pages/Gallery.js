@@ -1,4 +1,5 @@
 import { rememberGallery, galleryReturn } from '../browse-state.js';
+import { MapPanel, initMapPanel } from './Map.js';
 import { exhibitHeading } from '../components/exhibit-photo.js';
 /**
  * 名录页 —— 全量检索、筛选、分页
@@ -47,7 +48,7 @@ export async function GalleryPage() {
   const result = await queryProjects({ q, category, region, batch, page, pageSize: PAGE_SIZE });
 
   const categories = CATEGORIES;
-  const canonical = '#' + buildPath({ q, category, region, batch, page: result.page });
+  const canonical = '#' + buildPath({ q, category, region, batch, page: result.page, mapRegion: params.mapRegion });
   /*
    * 地区筛选项：33 个省级行政区 + 「中直单位及机构」。
    *
@@ -201,6 +202,7 @@ export async function GalleryPage() {
 
   <section class="section-tight gallery-section">
     <div class="container" id="gallery-content" data-path="${esc(canonical)}">
+      ${await MapPanel(params.mapRegion)}
       ${filters}
 
       ${selected}
@@ -224,6 +226,7 @@ export async function GalleryPage() {
 /** 绑定筛选与结果导航，离开时释放监听器和待执行的滚动。 */
 export function initGallery({ restore = false } = {}) {
   const cleanups = [];
+  cleanups.push(initMapPanel());
   const requestedHash = location.hash;
   history.replaceState(null, '', document.getElementById('gallery-content').dataset.path);
   const initialHash = location.hash;
@@ -233,7 +236,7 @@ export function initGallery({ restore = false } = {}) {
     const card = e.target.closest('.pcard');
     if (card) rememberGallery(card.getAttribute('href').split('/').pop());
     const filter = e.target.closest('a[href^="#/gallery"]');
-    if (filter && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && filter.hash !== location.hash)
+    if (filter && !filter.getAttribute('href').includes('mapRegion=') && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && filter.hash !== location.hash)
       pendingView = { path: filter.hash, mode: 'results' };
   };
   document.getElementById('main').addEventListener('click', onProjectClick);
