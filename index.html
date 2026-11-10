@@ -71,7 +71,7 @@
       display: flex;
       gap: 0.2em;
       margin: 0 0 20px;
-      font-size: clamp(2.6rem, 7.5vw, 4.6rem);
+      font-size: clamp(3rem, min(9vw, 12svh), 5.75rem);
       font-weight: 500;
       line-height: 1;
     }
@@ -122,7 +122,7 @@
     /* —— 第三拍：榫卯。榫条自右沿轴向推入，落榫后朱线描出合缝 ——
        动效不做弹跳：木件是靠手推到底的，末段只该「稳下来」。 */
     .intro-joint {
-      width: min(76vw, 330px);
+      width: min(84vw, 54svh, 440px);
       margin: 22px 0 0;
       opacity: 0;
       transform: translateY(10px);
@@ -223,7 +223,7 @@
     .intro-skip:focus-visible { outline: 1px solid #B23A2E; outline-offset: 4px; }
 
     /* 横屏和矮窗口给跳过按钮留出单独一行，图版随可用高度缩放。 */
-    @media (max-height: 560px) {
+    @media (max-height: 620px) {
       #intro {
         grid-template-rows: minmax(0, 1fr) auto;
         padding-block: 8px;
@@ -233,7 +233,7 @@
         font-size: clamp(1.65rem, 10svh, 3.5rem);
       }
       .intro-sub, .intro-joint, .intro-hint { margin-top: 10px; }
-      .intro-joint { width: min(76vw, 50svh, 330px); }
+      .intro-joint { width: min(80vw, 54svh, 360px); }
       .intro-joint-cap { margin-top: 6px; }
       .intro-skip { position: static; translate: none; min-height: 44px; }
     }
