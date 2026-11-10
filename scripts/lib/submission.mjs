@@ -1,6 +1,7 @@
 import { EXHIBIT_PHOTOS, exhibitPhotoPath } from '../../src/components/exhibit-photo.js';
 
 const workshopPortraits = ['apprentice', 'master', 'merchant', 'player', 'scholar', 'shop', 'teaSeller', 'visitor'];
+const workshopAudio = ['ripples.mp3', 'guzheng-city.mp3', 'river.mp3', 'ledger-close.mp3', 'CREDITS.md'];
 
 /** 匿名化必须确实找到成员章节，匹配失败时不能悄悄输出原文。 */
 export function anonymizeReadme(text) {
@@ -18,5 +19,6 @@ export function requiredBuildFiles(index) {
   return ['index.html', 'data/inheritors.js',
     ...Array.from({ length: index.shardCount }, (_, i) => `data/detail-${i}.js`),
     ...Object.keys(EXHIBIT_PHOTOS).map(exhibitPhotoPath),
-    ...workshopPortraits.map(id => `workshop/portrait-${id}-v2.png`)];
+    ...workshopPortraits.map(id => `workshop/portrait-${id}-v2.png`),
+    ...workshopAudio.map(file => `workshop/audio/${file}`)];
 }
