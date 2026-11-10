@@ -52,12 +52,7 @@ export async function AboutPage() {
     .join('、');
 
   return `
-  ${exhibitHeading('about', `
-      <nav class="breadcrumb" aria-label="面包屑导航">
-        <a href="#/">首页</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">关于本站</span>
-      </nav>
+  ${exhibitHeading('about', '关于本站', `
       ${SectionTitle({ num: '陆', title: '关于本站', sub: '作品说明、数据来源与技术声明。', level: 1 })}
   `)}
 
@@ -228,7 +223,7 @@ export async function AboutPage() {
 
         <article class="about-block" id="about-media">
           <h2>关于素材</h2>
-          <p>首页与栏目页头使用大都会艺术博物馆开放馆藏的公版 WebP 图像。首页与名录采用手卷局部，其余栏目页头保留完整画面。</p>
+          <p>首页与栏目页头使用大都会艺术博物馆开放馆藏的公版图像。页头展示藏品局部，点击图注可查看完整图像与馆藏资料。</p>
           ${exhibitCredits()}
           <p>
             名录采用<strong>馆藏图录</strong>的视觉设计，以纸色、细墨线和低饱和点色，

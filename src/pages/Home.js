@@ -272,23 +272,31 @@ export function initHome() {
   };
   jump.addEventListener('click', goDown);
 
-  const targets = [...main.querySelectorAll('.section-title, .sim-promo-copy, .sim-promo-list li, .stat, .cat-card, .pcard, .timeline, .region-list, .closing-inner')];
-  const observer = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      entry.target.classList.replace('reveal-pending', 'reveal-shown');
-      observer.unobserve(entry.target);
-    }
-  }, { threshold: 0.08 }) : null;
-
-  if (observer && !motion.matches) {
-    targets.forEach(target => {
+  const observers = [];
+  if ('IntersectionObserver' in window) {
+    const reveal = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.08) {
+          entry.target.classList.replace('reveal-pending', 'reveal-shown');
+        }
+      }
+    }, { threshold: 0.08 });
+    // 复位区比视口稍大，避免浮现的位移把元素推出视口后反复触发。
+    const rearm = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) entry.target.classList.replace('reveal-shown', 'reveal-pending');
+      }
+    }, { rootMargin: '56px 0px' });
+    observers.push(reveal, rearm);
+    const targets = main.querySelectorAll('.section-title, .sim-promo-copy, .sim-promo-list li, .stat, .cat-card, .pcard, .timeline, .region-list, .closing-inner');
+    for (const target of targets) {
       target.classList.add('home-reveal', 'reveal-pending');
-      observer.observe(target);
-    });
+      reveal.observe(target);
+      rearm.observe(target);
+    }
   }
   return () => {
     jump.removeEventListener('click', goDown);
-    observer?.disconnect();
+    for (const observer of observers) observer.disconnect();
   };
 }

@@ -23,12 +23,7 @@ import { initMortise } from '../sim/mortise.js';
 
 export async function SimulatorPage() {
   return `
-  ${exhibitHeading('simulator', `
-      <nav class="breadcrumb" aria-label="面包屑导航">
-        <a href="#/">首页</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page">技艺体验</span>
-      </nav>
+  ${exhibitHeading('simulator', '技艺体验', `
       ${SectionTitle({
         num: '肆',
         level: 1,

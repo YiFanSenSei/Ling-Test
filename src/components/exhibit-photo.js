@@ -1,10 +1,10 @@
 export const EXHIBIT_PHOTOS = {
   home: { id: 41493, title: '《乾隆南巡图》第六卷（水岸局部）', era: '清代', alt: '江南水岸的桥梁、船只和沿河市街', position: 'center 55%' },
-  gallery: { id: 41493, title: '《乾隆南巡图》第六卷（山水局部）', era: '清代', alt: '设色长卷中的江南山峦、河道和塔楼', position: 'center 54%' },
-  inheritors: { id: 51416, title: '庭园仕女与孩童', era: '清代', alt: '设色手卷中聚在水边亭廊的仕女与孩童' },
-  simulator: { id: 68450, title: '花鸟刺绣挂屏', era: '十八世纪', alt: '丝织底面上以彩线绣成的花枝和鸟' },
-  works: { id: 46342, title: '莲瓣形瓷盘', era: '清代', alt: '绘有彩色花卉的莲瓣形瓷盘' },
-  about: { id: 51575, title: '园居图', era: '十七世纪', alt: '青绿色山峦之间的水岸与楼阁' },
+  gallery: { id: 41493, title: '《乾隆南巡图》第六卷（山水局部）', era: '清代', alt: '设色长卷中的江南山峦、河道和塔楼', position: 'center 54%', mobilePosition: '34% center' },
+  inheritors: { id: 51903, title: '《制丝图》册（局部）', era: '清代', alt: '几位女子在木架前协作整理一幅红色丝织物', mobilePosition: '50% center' },
+  simulator: { id: 70776, title: '刺绣山水帐檐（局部）', era: '清代', alt: '丝缎上以彩色丝线和金属线绣出的层叠山峰、云纹和楼阁', mobilePosition: '51% center' },
+  works: { id: 65059, title: '缂丝秋园图桌围（局部）', era: '清代', alt: '深蓝底上的金色花木、岩石和飞鸟织纹', mobilePosition: '68% center' },
+  about: { id: 41478, title: '《杏园雅集图》（局部）', era: '明代', alt: '庭园里围坐的宾客与桌上的书卷、古器', mobilePosition: '66% center' },
 };
 
 export const exhibitPhotoPath = key => `media/exhibit-${key}.webp`;
@@ -13,25 +13,26 @@ const sourceURL = id => `https://www.metmuseum.org/art/collection/search/${id}`;
 export function exhibitPhoto(key) {
   const photo = EXHIBIT_PHOTOS[key];
   const src = `./${exhibitPhotoPath(key)}`;
-  const image = `<img src="${src}" alt="${photo.alt}" decoding="async"${key === 'home' ? ' fetchpriority="high"' : ''}>`;
-  const detail = key === 'simulator' ? `<span class="exhibit-photo-detail" aria-hidden="true">
-    <img src="${src}" alt="" decoding="async"><span>局部</span>
-  </span>` : '';
-  return `<figure class="exhibit-photo exhibit-photo--${key}"${photo.position ? ` style="--photo-position:${photo.position}"` : ''}>
-    ${key === 'home' ? image : `<div class="exhibit-photo-stage">${image}${detail}</div>`}
+  return `<figure class="exhibit-photo exhibit-photo--${key}" style="--photo-position:${photo.position || 'center'};--photo-mobile-position:${photo.mobilePosition || 'center'}">
+    <img src="${src}" alt="${photo.alt}" decoding="async" fetchpriority="high">
     <figcaption>${key === 'home' ? '' : '<span class="exhibit-caption-label">馆藏图</span>'}<a href="${sourceURL(photo.id)}" target="_blank" rel="noopener noreferrer">
       ${photo.era} · ${photo.title} <span aria-hidden="true">↗</span>
     </a></figcaption>
   </figure>`;
 }
 
-export function exhibitHeading(key, copy) {
-  return `<section class="page-head page-head--exhibit">
-    <div class="container exhibit-spread">
-      <div class="exhibit-copy">${copy}</div>
-      ${exhibitPhoto(key)}
+export function exhibitHeading(key, page, copy = '') {
+  return `<div class="exhibit-masthead${copy ? ' page-head' : ''}">
+    ${exhibitPhoto(key)}
+    <div class="container">
+      <nav class="breadcrumb" aria-label="面包屑导航">
+        <a href="#/">首页</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">${page}</span>
+      </nav>
+      ${copy ? `<div class="exhibit-copy">${copy}</div>` : ''}
     </div>
-  </section>`;
+  </div>`;
 }
 
 export function exhibitCredits() {
