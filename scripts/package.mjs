@@ -9,7 +9,7 @@
  * 可识别个人 / 本机 / 队伍的信息。扫描不通过就整体失败退出，
  * 避免把带个人信息的包误投出去——这类错误一旦发生无法挽回。
  *
- * 运行：node scripts/package.mjs <队伍名> <队长姓名>
+ * 运行：node scripts/package.mjs <队伍名> <队长姓名> [完整版 README 路径]
  *
  * ⚠️ 注意：扫描规则只针对「个人信息」，不针对作品标题。
  *    「匠作」是全站作品名，当然会出现在每个源文件里，不能当敏感词。
@@ -27,8 +27,7 @@ const teamName = process.argv[2];
 const leader = process.argv[3];
 
 if (!teamName || !leader) {
-  console.error('用法: node scripts/package.mjs <队伍名> <队长姓名>');
-  console.error('例如: node scripts/package.mjs 匠心小队 张三');
+  console.error('用法: node scripts/package.mjs <队伍名> <队长姓名> [完整版 README 路径]');
   process.exit(1);
 }
 
@@ -117,7 +116,7 @@ function copyPayload(target) {
     mkdirSync(join(target, item, '..'), { recursive: true });
     cpSync(src, join(target, item), {
       recursive: true,
-      filter: (s) => !/node_modules|_shots|[\\/]dist[\\/]?$/.test(s) && !GENERATED.test(s),
+      filter: (s) => !/(?:^|[\\/])(?:node_modules|_shots|dist)(?:[\\/]|$)/.test(relative(ROOT, s)) && !GENERATED.test(s),
     });
   }
 
@@ -137,14 +136,10 @@ function copyPayload(target) {
   }
   cpSync(distIndex, join(target, '打开作品.html'));
 
-  const distData = join(ROOT, 'dist', 'data');
-  if (!existsSync(distData)) {
-    throw new Error('dist/data 不存在——先跑 pnpm build');
+  // 启用逐项复制，避开 Windows 上可能异常退出的快速目录复制。
+  for (const directory of ['data', 'media', 'workshop']) {
+    cpSync(join(ROOT, 'dist', directory), join(target, directory), { recursive: true, filter: () => true });
   }
-  // 显式逐项复制，避免部分 Windows 环境的目录快速复制返回 EIO。
-  cpSync(distData, join(target, 'data'), { recursive: true, filter: () => true });
-  cpSync(join(ROOT, 'dist', 'media'), join(target, 'media'), { recursive: true });
-  cpSync(join(ROOT, 'dist', 'workshop'), join(target, 'workshop'), { recursive: true });
 }
 
 function zip(srcDir, zipPath) {
@@ -163,7 +158,8 @@ function zip(srcDir, zipPath) {
 
 console.log(`队伍：${teamName}   队长：${leader}   分组：${GROUP}\n`);
 
-const anonymousReadme = anonymizeReadme(readFileSync(join(ROOT, 'README.md'), 'utf8'));
+const fullReadme = readFileSync(process.argv[4] || join(ROOT, 'README.md'), 'utf8');
+const anonymousReadme = anonymizeReadme(fullReadme);
 const detailIndex = JSON.parse(readFileSync(join(ROOT, 'public/data/detail-index.json'), 'utf8'));
 for (const file of requiredBuildFiles(detailIndex)) {
   if (!existsSync(join(ROOT, 'dist', file))) throw new Error(`缺少构建产物 ${file}，请重新构建`);
@@ -174,6 +170,7 @@ mkdirSync(OUT_ROOT, { recursive: true });
 const fullDir = join(OUT_ROOT, FULL_NAME);
 console.log('[1/3] 生成完整版本…');
 copyPayload(fullDir);
+writeFileSync(join(fullDir, 'README.md'), fullReadme, 'utf8');
 const fullZip = join(OUT_ROOT, `${FULL_NAME}.zip`);
 zip(fullDir, fullZip);
 console.log(`      → ${fullZip}\n`);
