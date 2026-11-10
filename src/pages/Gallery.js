@@ -1,5 +1,5 @@
 import { rememberGallery, galleryReturn } from '../browse-state.js';
-import { exhibitPhoto } from '../components/exhibit-photo.js';
+import { exhibitHeading } from '../components/exhibit-photo.js';
 /**
  * 名录页 —— 全量检索、筛选、分页
  *
@@ -189,9 +189,7 @@ export async function GalleryPage() {
       );
 
   return `
-  <section class="page-head page-head--exhibit">
-    ${exhibitPhoto('gallery')}
-    <div class="container">
+  ${exhibitHeading('gallery', `
       <nav class="breadcrumb" aria-label="面包屑导航">
         <a href="#/">首页</a>
         <span aria-hidden="true">/</span>
@@ -203,8 +201,7 @@ export async function GalleryPage() {
         title: '非遗名录',
         sub: `收录国家级非物质文化遗产代表性项目按申报地区拆分的 ${num(meta.heritageCount || 0)} 条子项记录，可按门类、批次、地区检索。`,
       })}
-    </div>
-  </section>
+  `)}
 
   <section class="section-tight">
     <div class="container" id="gallery-content" data-path="${esc(canonical)}">

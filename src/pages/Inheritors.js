@@ -18,7 +18,7 @@ import {
 } from '../data.js';
 import { currentQuery } from '../router.js';
 import { catalogCover } from '../components/catalog-art.js';
-import { exhibitPhoto } from '../components/exhibit-photo.js';
+import { exhibitHeading } from '../components/exhibit-photo.js';
 import { rememberInheritors, inheritorsReturn } from '../browse-state.js';
 
 const PAGE_SIZE = 24;
@@ -61,9 +61,7 @@ export async function InheritorsPage() {
   });
 
   const html = `
-  <div class="page-head page-head--exhibit">
-    ${exhibitPhoto('inheritors')}
-    <div class="container">
+  ${exhibitHeading('inheritors', `
       <nav class="breadcrumb" aria-label="面包屑导航">
         <a href="#/">首页</a>
         <span aria-hidden="true">/</span>
@@ -77,8 +75,7 @@ export async function InheritorsPage() {
         分布在 <strong>${num(stats.projects)}</strong> 个项目、
         <strong>${stats.categories}</strong> 个门类之中。
       </p>
-    </div>
-  </div>
+  `)}
 
   <div class="container">
     <!-- 统计条 -->
