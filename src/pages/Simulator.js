@@ -263,6 +263,7 @@ export async function SimulatorPage() {
               <p class="grade-line"><span>积浆进度</span><strong id="paper-deposit">0%</strong></p>
               <p class="grade-line"><span>匀度</span><strong id="grade-even">—</strong></p>
               <p class="grade-line"><span>厚度</span><strong id="grade-thick">—</strong></p>
+              <p class="grade-line"><span>荡帘</span><strong id="grade-swing">—</strong></p>
               <p class="grade-line"><span>品级</span><strong id="grade-rank">未完成</strong></p>
             </div>
             <p class="tool-note" id="paper-draft-status" role="status">抄造进度会自动保存在此浏览器。</p>

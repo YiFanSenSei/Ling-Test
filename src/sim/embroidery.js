@@ -29,6 +29,7 @@ import { readLocal, writeLocal } from '../storage.js';
 
 import { downloadWork } from './export.js';
 import { createPushIn, prefersReducedMotion } from './camera.js';
+import { haptic } from './feel.js';
 
 /**
  * 线色。
@@ -53,6 +54,23 @@ const DASH_OF = {
   seed: [1, 3],
   chain: [6, 4],
 };
+
+/** 悬停格里的针法小注：字要短到一格放得下 */
+const STITCH_LABEL = {
+  satin: '齐',
+  flat: '平',
+  seed: '籽',
+  chain: '锁',
+};
+
+/**
+ * 完成线。
+ *
+ * 图纸是一朵朵铺出来的：花瓣边缘的格子覆盖率只有两三成，
+ * 要求一格不漏地补完，最后几格会变成对着放大镜找像素。
+ * 98% 已经能把整幅轮廓绣完整，留一点边角不绣，不影响成品。
+ */
+const COMPLETE_AT = 0.98;
 
 /**
  * 成品图纸。
@@ -514,6 +532,9 @@ export function initEmbroidery() {
   let drawing = false;
   let last = null;
   let lastCell = null;
+  /** 指针悬停的格子：只在鼠标/触控笔、且未落针时显示 */
+  let hover = null;
+  let hoverFrame = 0;
   /** 打籽绣与锁针的节流：记录上一次落点距离 */
   const SEED_GAP = 9;
 
@@ -701,6 +722,47 @@ export function initEmbroidery() {
     }
     ctx.setLineDash([]);
     ctx.restore();
+  }
+
+  /**
+   * 悬停预览。
+   *
+   * 图纸有 80×60 格，光靠底稿的淡色很难判断「下一针落在哪」。
+   * 鼠标移过时把当前格圈出来，并写上这一格该用的针法，
+   * 不点下去也能先对一眼——这是键盘光标之外的另一条「先看后落」的路。
+   */
+  function drawHover() {
+    if (!hover || mode !== 'template' || drawing || !cols || !rows) return;
+    const { cx, cy } = hover;
+    const cell = grid[cy]?.[cx];
+    if (!cell || filled.has(`${cx},${cy}`)) return;
+    const { size, ox, oy } = geom();
+    const x = ox + cx * size;
+    const y = oy + cy * size;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(178,58,46,0.52)';
+    ctx.lineWidth = Math.max(1, size * 0.07);
+    ctx.setLineDash([Math.max(2, size * 0.26), Math.max(2, size * 0.2)]);
+    ctx.strokeRect(x + 0.75, y + 0.75, size - 1.5, size - 1.5);
+    ctx.setLineDash([]);
+    if (size >= 13) {
+      ctx.fillStyle = 'rgba(178,58,46,0.5)';
+      ctx.font = `${Math.max(8, Math.round(size * 0.34))}px "Songti SC", "SimSun", serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(STITCH_LABEL[cell.stitch] || '针', x + size / 2, y + size / 2);
+    }
+    ctx.restore();
+  }
+
+  /** 悬停只在格子变化时重绘，并合并到下一帧，避免快速划过时连着重画整幅 */
+  function scheduleHover() {
+    if (hoverFrame) return;
+    hoverFrame = requestAnimationFrame(() => {
+      hoverFrame = 0;
+      if (alive) redraw();
+    });
   }
 
   /* ---------- 丝线质感：带光泽的线 ---------- */
@@ -920,6 +982,7 @@ export function initEmbroidery() {
     cam.apply();
     drawClothFrame();
     drawPlan();
+    drawHover();
     for (const s of stitches) paintStitch(s);
     paintPieceLight();
     drawKeyCursor();
@@ -1145,6 +1208,7 @@ export function initEmbroidery() {
           span: { left: span.left, right: span.right, row: cy },
         });
       }
+      haptic(4);
       return true;
     } else if (stitch === 'chain') {
       segs = [{ x1: x + inset, y1: midY, x2: x + size - inset, y2: midY, w: Math.max(1.6, size * 0.12) }];
@@ -1180,6 +1244,7 @@ export function initEmbroidery() {
           span: { left: span.left, right: span.right, row: cy },
         });
       }
+      haptic(4);
       return true;
     }
 
@@ -1188,6 +1253,7 @@ export function initEmbroidery() {
       stitches.push({ ...sg, color: cell.color, type: stitch, exact: true, fit, cell: key });
     }
     filled.add(key);
+    haptic(4);
     return true;
   }
 
@@ -1277,9 +1343,15 @@ export function initEmbroidery() {
   }
 
   /* ---------- 进度与评价 ---------- */
+  /*
+   * 品级不再等到 100% 才给。边缘格的覆盖率只有两三成，
+   * 差最后几格却一直停在「绣制中」，会让人以为怎么绣都没完。
+   * 到 COMPLETE_AT 就落款，针法契合度决定上中下品。
+   */
   function rankOf(coverPct, fitPct) {
-    if (coverPct < 0.999) return coverPct >= 0.6 ? '绣制中' : '未完成';
-    if (fitPct >= 0.99) return '上品 · 针针合谱';
+    if (coverPct < 0.6) return '未完成';
+    if (coverPct < COMPLETE_AT) return '绣制中';
+    if (fitPct >= 0.97) return '上品 · 针针合谱';
     if (fitPct >= 0.85) return '中品 · 略有出入';
     return '下品 · 针法多误';
   }
@@ -1308,6 +1380,8 @@ export function initEmbroidery() {
 
     const done = filled.size;
     const coverPct = targetCount ? done / targetCount : 0;
+    const complete = coverPct >= COMPLETE_AT;
+    const remaining = Math.max(0, Math.ceil(targetCount * COMPLETE_AT) - done);
     // 一格可能落了不止一针（齐针是并排两针），所以按「格子」统计而不是按针脚，
     // 否则契合度会算成 190% 这种荒唐值
     const fitCells = new Set(
@@ -1321,8 +1395,8 @@ export function initEmbroidery() {
     if (fitEl) fitEl.textContent = done ? `${Math.round(fitPct * 100)}%` : '—';
     if (rankEl) rankEl.textContent = rankOf(coverPct, fitPct);
     updateCraftFeedback('embroidery', {
-      hint: wrong ? `有 ${wrong} 格针法与图纸不同，可点击「拆除错针」后重绣。` : coverPct >= 0.999 ? '图纸已绣满，向下查看作品札记，保存后可继续了解苏绣。' : `沿图纸落针，还剩 ${targetCount - done} 格；开启跟随图纸可自动换针。`,
-      complete: coverPct >= 0.999, title: '一幅绣品，从针脚中成形',
+      hint: wrong ? `有 ${wrong} 格针法与图纸不同，可点击「拆除错针」后重绣。` : complete ? '轮廓已经绣全，向下查看作品札记，保存后可继续了解苏绣。' : `沿图纸落针，还差 ${remaining} 格；开启跟随图纸可自动换针。`,
+      complete, title: '一幅绣品，从针脚中成形',
       metrics: [`覆盖 ${Math.round(coverPct * 100)}%`, `针法契合 ${Math.round(fitPct * 100)}%`, rankOf(coverPct, fitPct)],
     });
   }
@@ -1354,6 +1428,7 @@ export function initEmbroidery() {
     filled = new Set();
     last = null;
     lastCell = null;
+    hover = null;
 
     if (mode === 'template') {
       const parsed = parseTemplate(key);
@@ -1393,6 +1468,22 @@ export function initEmbroidery() {
 
   /* ---------- 事件 ---------- */
   let activePointer = null;
+
+  /**
+   * 未落针时更新悬停格。
+   *
+   * 开场推镜还没落定时，屏幕坐标和图纸坐标差着一个比例，
+   * 这时候算出来的格子会偏。让预览等镜头停稳再出现，比算一个会跳的框诚实。
+   */
+  function updateHover(e) {
+    if (mode !== 'template' || drawing) return;
+    if (e.pointerType && e.pointerType !== 'mouse' && e.pointerType !== 'pen') return;
+    const next = cam.done() ? cellAt(pos(e)) : null;
+    if ((next?.cx ?? -1) === (hover?.cx ?? -1) && (next?.cy ?? -1) === (hover?.cy ?? -1)) return;
+    hover = next;
+    scheduleHover();
+  }
+
   function onDown(e) {
     if (e.isPrimary === false || e.button !== 0 || activePointer !== null) return;
     rememberStep();
@@ -1406,6 +1497,7 @@ export function initEmbroidery() {
     if (!cam.done()) cam.finish();
     e.preventDefault();
     drawing = true;
+    if (hover) { hover = null; scheduleHover(); }
     if (hint) hint.classList.add('is-hidden');
     const p = pos(e);
     last = p;
@@ -1421,7 +1513,8 @@ export function initEmbroidery() {
   }
 
   function onMove(e) {
-    if (!drawing || e.pointerId !== activePointer) return;
+    if (!drawing) { updateHover(e); return; }
+    if (e.pointerId !== activePointer) return;
     e.preventDefault();
     const p = pos(e);
 
@@ -1450,14 +1543,22 @@ export function initEmbroidery() {
     if (e && e.pointerId !== activePointer) return;
     activePointer = null;
     drawing = false; last = null; lastCell = null;
+    if (e?.type === 'pointerup') updateHover(e);
+    else if (hover) { hover = null; scheduleHover(); }
   }
 
   canvas.addEventListener('pointerdown', onDown);
-  canvas.addEventListener('pointermove', onMove);
-  canvas.addEventListener('pointerup', onUp);
-  canvas.addEventListener('pointerleave', onUp);
-  canvas.addEventListener('pointercancel', onUp);
-  canvas.addEventListener('lostpointercapture', onUp);
+  /*
+   * 移动和收笔挂在 window 上，而不是依赖 setPointerCapture。
+   *
+   * 捕获并不总是牢靠：浏览器有时在 pointerdown 之后很快就把捕获交还，
+   * 这时把 lostpointercapture 当成收笔，一整笔会被拦腰截断。
+   * onMove / onUp 自己认 pointerId，挂在 window 上既不会串手指，
+   * 也不怕指针滑出画布。
+   */
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
   // 触摸时阻止页面滚动
   canvas.style.touchAction = 'none';
 
@@ -1826,11 +1927,15 @@ export function initEmbroidery() {
     redraw,
     dispose() {
       alive = false;
+      if (hoverFrame) cancelAnimationFrame(hoverFrame);
       for (const frame of layoutFrames) cancelAnimationFrame(frame);
       layoutFrames.clear();
       flushDraft();
       clearTimeout(draftTimer);
       window.removeEventListener('pagehide', flushDraft);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
       cam.finish();
       window.removeEventListener('resize', fitCanvas);
       window.removeEventListener('sim:activate', onActivate);

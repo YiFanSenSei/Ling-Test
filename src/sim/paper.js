@@ -17,6 +17,7 @@ import { createDraft } from './draft.js';
 
 import { downloadWork } from './export.js';
 import { createPushIn, prefersReducedMotion } from './camera.js';
+import { haptic } from './feel.js';
 
 export function initPaper() {
   const canvas = document.getElementById('canvas-paper');
@@ -30,6 +31,20 @@ export function initPaper() {
   let draft = null;
   let swinging = false;
   let swingPhase = 0;
+  /**
+   * 帘框的横向位移。
+   *
+   * 之前是让 swingPhase 自己按正弦摆动，手只负责「告诉它动」，
+   * 手往左、帘往右都有可能，像在遥控而不是在端着一张帘。
+   * 现在 handX 记录手的目标位置，swingOffset 带惯性追过去：
+   * 拖到哪帘就到哪，松手后在水阻里慢慢回中。
+   */
+  let handX = 0;
+  let swingOffset = 0;
+  /** 左右各荡了多少像素，用来判断是不是只顾往一边推 */
+  let strokeL = 0;
+  let strokeR = 0;
+  let lastStrokeDir = 0;
 
   /** 沉积网格：记录帘面上每个格子的纤维量 */
   const COLS = 60, ROWS = 42;
@@ -69,6 +84,8 @@ export function initPaper() {
     deposit = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
     motionSpeed = 0; motionUntil = 0; average = 0;
     liftProgress = 0;
+    handX = 0; swingOffset = 0;
+    strokeL = 0; strokeR = 0; lastStrokeDir = 0;
   }
 
   /* ---------- 纸浆槽 ---------- */
@@ -118,8 +135,11 @@ export function initPaper() {
   function drawScreen() {
     const w = W(), h = H();
     const isIn = step === 'dip' || step === 'swing';
-    const swing = Math.sin(swingPhase) * (isIn ? 26 : 0);
-    const lift = liftProgress * h * 0.3;
+    // 手推帘占主导；水面自身的呼吸只留 1.5px，不能盖过「拖到哪帘到哪」
+    const swing = isIn ? swingOffset + Math.sin(swingPhase) * 1.5 : 0;
+    // 出水由慢到快再到稳：水越沥越轻，手也跟着松
+    const liftK = liftProgress * liftProgress * (3 - 2 * liftProgress);
+    const lift = liftK * h * 0.3;
 
     const sw = Math.min(w * 0.72, 640);
     const sh = Math.min(h * 0.5, 340);
@@ -299,15 +319,29 @@ export function initPaper() {
     })();
     const sd = Math.sqrt(variance);
 
-    // 匀度：标准差越小越好
-    const evenScore = Math.max(0, 100 - (sd / Math.max(avg, 0.01)) * 175);
+    /*
+     * 匀度：标准差越小越好。
+     * 再乘一个不重的「左右均衡」系数——真捞纸是来回荡，只往一边推
+     * 会把纤维赶向一侧，纸上就会出现一道厚边。系数只占两成，
+     * 不让它盖过厚度与标准差这两个主指标。
+     */
+    const baseEven = Math.max(0, 100 - (sd / Math.max(avg, 0.01)) * 175);
+    const balance = strokeBalance();
+    const evenScore = Math.max(0, baseEven * (0.78 + 0.22 * balance));
 
     const evenEl = document.getElementById('grade-even');
     const thickEl = document.getElementById('grade-thick');
+    const swingEl = document.getElementById('grade-swing');
     const rankEl = document.getElementById('grade-rank');
 
     if (evenEl) evenEl.textContent = avg > 0.02 ? `${evenScore.toFixed(0)} 分` : '—';
     if (thickEl) thickEl.textContent = avg > 0.02 ? (avg < 0.4 ? '偏薄' : avg > 1 ? '偏厚' : '适中') : '—';
+    if (swingEl) {
+      swingEl.textContent = avg <= 0.02 || strokeL + strokeR < 1 ? '—'
+        : balance > 0.8 ? '左右均衡'
+        : balance > 0.45 ? '略有偏侧'
+        : '偏往一边';
+    }
 
     if (rankEl) {
       if (avg < 0.25) { rankEl.textContent = avg ? '继续荡帘积浆' : '未开始'; rankEl.className = ''; }
@@ -427,7 +461,7 @@ export function initPaper() {
       if (live.textContent !== texts[step]) live.textContent = texts[step];
       updateCraftFeedback('paper', { hint: texts[step], complete: step === 'press',
         title: '一张湿纸，留住这次手上练习',
-        metrics: ['grade-even', 'grade-thick', 'grade-rank'].map((id, i) => `${['匀度', '厚度', '评价'][i]} ${document.getElementById(id)?.textContent.trim() || '—'}`),
+        metrics: ['grade-even', 'grade-thick', 'grade-swing', 'grade-rank'].map((id, i) => `${['匀度', '厚度', '荡帘', '评价'][i]} ${document.getElementById(id)?.textContent.trim() || '—'}`),
       });
     }
   }
@@ -437,11 +471,37 @@ export function initPaper() {
   let lastX = null;
   let lastY = null;
   let startY = null;
+  let startX = null;
+  let handBase = 0;
+
+  /** 帘框最多能被推到多远：留出画布边缘，不让它整个滑出去 */
+  function swingLimit() {
+    return Math.min(W() * 0.16, 120);
+  }
+
+  /** 记一笔左右行程；方向一变就给一记很轻的触觉，像帘子换向时的那一下 */
+  function noteStroke(amount, direction) {
+    if (direction > 0) strokeR += amount;
+    else if (direction < 0) strokeL += amount;
+    if (direction && direction !== lastStrokeDir) {
+      lastStrokeDir = direction;
+      haptic(3, 90);
+    }
+  }
+
+  /** 0 = 只往一边荡，1 = 左右一样多。没有记录时按 1 算，不冤枉旧草稿 */
+  function strokeBalance() {
+    const total = strokeL + strokeR;
+    if (total < 1) return 1;
+    return 1 - Math.abs(strokeL - strokeR) / total;
+  }
 
   function tryLift() {
     if (step !== 'swing' || average < 0.25) return;
     swinging = false;
+    handX = 0;
     advance('lift');
+    haptic(10, 80);
     redraw();
   }
 
@@ -453,6 +513,10 @@ export function initPaper() {
     motionUntil = performance.now() + 220;
     swinging = true;
     swingPhase += direction * 0.45;
+    const amp = Math.min(W() * 0.12, 90);
+    const limit = swingLimit();
+    handX = Math.max(-limit, Math.min(limit, handX + direction * amp));
+    noteStroke(amp, direction);
   }
 
   function pos(e) {
@@ -475,18 +539,35 @@ export function initPaper() {
     e.preventDefault();
     dragging = true;
     const p = pos(e);
-    lastX = p.x; lastY = p.y; startY = p.y;
+    lastX = p.x; lastY = p.y; startX = p.x; startY = p.y;
+    handBase = handX;
     lastMotion = performance.now();
     swinging = false;
     if (step === 'dip') advance('swing');
   });
 
-  canvas.addEventListener('pointermove', e => {
+  /*
+   * 指针移动与抬起挂在 window 上，而不是画布上。
+   *
+   * 原先用 canvas.setPointerCapture + lostpointercapture 结束拖动。
+   * 但在页面刚布局完的一段时间里，浏览器会莫名其妙地丢掉捕获，
+   * lostpointercapture 紧跟着 pointerdown 触发，拖动刚开始就被判成结束：
+   * 手还在画布上划，浆却一点不积。指针捕获只是一层保险，
+   * 真正的「还在拖」应该由 window 上的 pointermove / pointerup 判断。
+   */
+  function onPointerMove(e) {
     if (!dragging || e.pointerId !== activePointer) return;
     e.preventDefault();
     const p = pos(e);
     const dx = p.x - lastX;
     const dy = p.y - lastY;
+
+    if (step === 'swing' && startX != null) {
+      // 帘框跟着手走：从按下点算位移，乘以 0.8 留一点「水里的迟滞」
+      const limit = swingLimit();
+      handX = Math.max(-limit, Math.min(limit, handBase + (p.x - startX) * 0.8));
+      if (Math.abs(dx) > 0.5) noteStroke(Math.abs(dx) * 0.8, Math.sign(dx));
+    }
 
     if (step === 'swing' && Math.abs(dx) > 0.5) {
       const now = performance.now();
@@ -498,7 +579,7 @@ export function initPaper() {
     if (p.y - startY < -Math.max(28, H() * 0.08) && Math.abs(dy) > Math.abs(dx)) tryLift();
 
     lastX = p.x; lastY = p.y;
-  });
+  }
 
   function endDrag(e) {
     if (e && e.pointerId !== activePointer) return;
@@ -507,9 +588,9 @@ export function initPaper() {
     dragging = false;
     swinging = false;
   }
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', endDrag);
-  canvas.addEventListener('lostpointercapture', endDrag);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
   canvas.style.touchAction = 'none';
   canvas.addEventListener('keydown', e => {
     if (!['ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) return;
@@ -544,14 +625,23 @@ export function initPaper() {
     if (swinging) swingPhase += dt * 5.2;
     else swingPhase += dt * 1.1;   // 静止时水面仍有微动
 
+    // 帘框追手：拖动时跟得紧，松手后在水阻里慢慢回中
+    swingOffset += (handX - swingOffset) * Math.min(1, dt * (dragging ? 18 : 7));
+    if (!dragging) {
+      if (Math.abs(handX) > 0.3) handX *= Math.exp(-dt * 3.2);
+      else handX = 0;
+    }
+
     if (step === 'dip' || step === 'swing') {
       depositFibers(dt);
       evaluate();
     }
     if (step === 'lift') {
-      liftProgress = Math.min(1, liftProgress + dt * 0.42);
+      // 出水由慢到快：水越沥越轻，手也跟着松
+      const speed = 0.28 + liftProgress * 0.34;
+      liftProgress = Math.min(1, liftProgress + dt * speed);
       draft?.schedule();
-      if (liftProgress >= 1) advance('press');
+      if (liftProgress >= 1) { advance('press'); haptic(10, 120); }
     }
 
     redraw();
@@ -604,15 +694,20 @@ export function initPaper() {
 
   /* ---------- 启动 ---------- */
   draft = createDraft({ key: 'jz-paper-v1', statusId: 'paper-draft-status',
-    snapshot: () => ({ version: 1, step, barkRatio, lineCount, liftProgress, deposit: deposit.flat() }),
+    snapshot: () => ({ version: 1, step, barkRatio, lineCount, liftProgress, strokeL, strokeR, deposit: deposit.flat() }),
     restore(value) {
       if (value.version !== 1 || !['dip','swing','lift','press'].includes(value.step) ||
           !Number.isInteger(value.barkRatio) || value.barkRatio < 10 || value.barkRatio > 90 ||
           !Number.isInteger(value.lineCount) || value.lineCount < 8 || value.lineCount > 40 ||
           !Number.isFinite(value.liftProgress) || value.liftProgress < 0 || value.liftProgress > 1 ||
+          (value.strokeL != null && (!Number.isFinite(value.strokeL) || value.strokeL < 0)) ||
+          (value.strokeR != null && (!Number.isFinite(value.strokeR) || value.strokeR < 0)) ||
           !Array.isArray(value.deposit) || value.deposit.length !== COLS * ROWS ||
           value.deposit.some(n => !Number.isFinite(n) || n < 0 || n > 1.15)) return false;
       step = value.step; barkRatio = value.barkRatio; lineCount = value.lineCount; liftProgress = value.liftProgress;
+      // 旧草稿没有行程记录：按 0 处理，strokeBalance() 会当成「不偏」而不倒扣
+      strokeL = value.strokeL || 0; strokeR = value.strokeR || 0;
+      lastStrokeDir = 0;
       deposit = Array.from({ length: ROWS }, (_, r) => value.deposit.slice(r * COLS, (r + 1) * COLS));
       barkInput.value = barkRatio; barkValue.textContent = `${barkRatio}%`;
       linesInput.value = lineCount; linesValue.textContent = String(lineCount);
@@ -649,6 +744,9 @@ export function initPaper() {
       cam.finish();
       if (rafId) cancelAnimationFrame(rafId);
       rafId = 0;
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
       window.removeEventListener('resize', fitCanvas);
       window.removeEventListener('sim:activate', onActivate);
     },

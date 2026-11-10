@@ -24,6 +24,7 @@ import { createDraft } from './draft.js';
 
 import { downloadWork } from './export.js';
 import { prefersReducedMotion } from './camera.js';
+import { haptic } from './feel.js';
 
 /* ══════════════ 1. 三维基础 ══════════════ */
 
@@ -283,6 +284,9 @@ export function initMortise() {
   let t = 0;              // 插入进度 0..1（唯一的自由度）
   let lift = 0;           // 垂直于轴的「提拉」演示位移
   let seated = false;
+  let wasSeated = false;  // 只在上一次还没咬合时触发一次落位反馈
+  let hoverPiece = false; // 指针是否停在可拖动的木件上
+  let seatTimer = 0;
   let alive = true;
   let raf = 0;
   let dragging = null;    // { mode:'move'|'orbit', ... }
@@ -506,8 +510,27 @@ export function initMortise() {
   }
 
   /* ---- 4.2 状态与动画 ---- */
+  /**
+   * 咬合那一下：画布外沿亮一圈，像木头碰实了。
+   * 减少动态效果的用户只保留触觉，不加这段光。
+   */
+  function seatPulse() {
+    if (prefersReducedMotion()) return;
+    const wrap = canvas.closest('.sim-canvas-wrap');
+    if (!wrap) return;
+    clearTimeout(seatTimer);
+    wrap.classList.remove('is-seated');
+    void wrap.offsetWidth;   // 强制重排，让同一个类名能再次触发动画
+    wrap.classList.add('is-seated');
+    seatTimer = setTimeout(() => wrap.classList.remove('is-seated'), 560);
+  }
+
   function updateState() {
-    seated = t >= 0.999 && lift < 0.4;
+    const nextSeated = t >= 0.999 && lift < 0.4;
+    if (nextSeated && !wasSeated) { haptic(14, 120); seatPulse(); }
+    wasSeated = nextSeated;
+    seated = nextSeated;
+    const contact = !seated && lift < 0.5 && t >= 0.9;
     const pct = Math.round(t * 100);
     const stateEl = document.getElementById('joint-state');
     const tipEl = document.getElementById('joint-tip');
@@ -517,9 +540,10 @@ export function initMortise() {
     if (stateEl) {
       stateEl.textContent = seated ? '已咬合 · 严丝合缝'
         : lift > 0.5 ? (scene.retains ? '被卡住 · 提不动' : '提得动 · 不防脱')
+        : contact ? `接触卯口 · 再推 ${100 - pct}%`
         : t < 0.02 ? '未插入'
         : `插入中 ${pct}%`;
-      stateEl.className = `joint-state ${seated ? 'is-ok' : (t > 0.02 ? 'is-near' : '')}`;
+      stateEl.className = `joint-state ${seated ? 'is-ok' : contact ? 'is-contact' : (t > 0.02 ? 'is-near' : '')}`;
     }
     updateCraftFeedback('mortise', {
       hint: seated ? '构件已咬合。试着向上提拉，观察当前榫卯对脱出的约束。' : '抓住活动木件沿轴向推进；抓空白处可调整观察角度。',
@@ -539,6 +563,8 @@ export function initMortise() {
           : '方榫一提就起来。它不防脱，靠的是胶与木材的摩擦。';
       } else if (seated) {
         tipEl.textContent = scene.hint;
+      } else if (contact) {
+        tipEl.textContent = '榫舌已经抵住卯口，再推进一点就咬合。';
       } else if (t < 0.02) {
         tipEl.textContent = '抓住木件，沿榫卯的轴向推进去。拖空白处可以转视角。';
       } else {
@@ -556,6 +582,8 @@ export function initMortise() {
     pushZoom = () => 1;
     dragging = null;
     activePointer = null;
+    hoverPiece = false;
+    canvas.style.cursor = 'crosshair';
   }
   function moveBy(amount) {
     stopAnimation();
@@ -567,6 +595,7 @@ export function initMortise() {
   function testPull() {
     if (t < 0.999) return;
     stopAnimation();
+    haptic(8, 80);
     tween(900, k => {
       lift = Math.sin(Math.PI * k) * scene.liftMax;
       updateState();
@@ -633,6 +662,8 @@ export function initMortise() {
     const cam = camNow();
     if (hitMoving(x, y, cam, offsetOf())) {
       demonstrated = false;
+      hoverPiece = true;
+      canvas.style.cursor = 'grabbing';
       dragging = { mode: 'move', x, y, t0: t, lift0: lift };
     } else {
       dragging = { mode: 'orbit', x, y, yaw0: view.yaw, pitch0: view.pitch };
@@ -640,8 +671,25 @@ export function initMortise() {
     if (hint) hint.classList.add('is-hidden');
   });
 
-  canvas.addEventListener('pointermove', e => {
-    if (!dragging || e.pointerId !== activePointer) return;
+  /*
+   * 与苏绣、宣纸一致：移动和收笔挂在 window 上。
+   * 指针捕获可能在 pointerdown 后立刻被浏览器交还，
+   * 把 lostpointercapture 当收笔会让构件拖到一半突然脱手。
+   */
+  function onPointerMove(e) {
+    if (!dragging) {
+      // 未拖动时只做一件事：告诉手「这里抓得动」
+      if (e.pointerType === 'mouse' && activePointer === null) {
+        const [x, y] = posOf(e);
+        const hit = hitMoving(x, y, camNow(), offsetOf());
+        if (hit !== hoverPiece) {
+          hoverPiece = hit;
+          canvas.style.cursor = hit ? 'grab' : 'crosshair';
+        }
+      }
+      return;
+    }
+    if (e.pointerId !== activePointer) return;
     e.preventDefault();
     const [x, y] = posOf(e);
     const dx = x - dragging.x, dy = y - dragging.y;
@@ -688,14 +736,22 @@ export function initMortise() {
     }
     updateState();
     render();
-  });
+  }
 
   function endDrag(e) {
     if (e && e.pointerId !== activePointer) return;
     activePointer = null;
-    if (!dragging) return;
+    if (!dragging) { canvas.style.cursor = 'crosshair'; return; }
     const wasMove = dragging.mode === 'move';
     dragging = null;
+    // 松手后重新判断指针是否还压在木件上，让光标及时变回「可抓」
+    if (wasMove && e && Number.isFinite(e.clientX)) {
+      const [x, y] = posOf(e);
+      hoverPiece = hitMoving(x, y, camNow(), offsetOf());
+    } else if (!wasMove) {
+      hoverPiece = false;
+    }
+    canvas.style.cursor = hoverPiece ? 'grab' : 'crosshair';
     if (!wasMove) return;
     if (lift > 0.5) {
       const a = lift;
@@ -707,9 +763,9 @@ export function initMortise() {
     }
     updateState();
   }
-  canvas.addEventListener('pointerup', endDrag);
-  canvas.addEventListener('pointercancel', endDrag);
-  canvas.addEventListener('lostpointercapture', endDrag);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', endDrag);
+  window.addEventListener('pointercancel', endDrag);
   canvas.style.touchAction = 'none';
 
   canvas.addEventListener('wheel', e => {
@@ -895,7 +951,11 @@ export function initMortise() {
     dispose() {
       draft.dispose();
       alive = false;
+      clearTimeout(seatTimer);
       cancelAnimationFrame(raf);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
       window.removeEventListener('resize', fitCanvas);
       window.removeEventListener('sim:activate', onActivate);
     },

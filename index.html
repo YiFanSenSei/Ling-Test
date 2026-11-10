@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -26,7 +26,7 @@
        颜色一律写字面值：此刻 tokens.css 尚未生效，var(--paper) 取不到值。
 
        动效语汇沿用全站：不用 bounce、不用旋转飞入，只做「线拉开—字化开—
-       印落下—纸揭起」四拍，缓动与 tokens.css 的 --ease-out 同一条曲线。
+       榫推入—纸揭起」四拍，缓动与 tokens.css 的 --ease-out 同一条曲线。
        =================================================================== -->
   <style>
     #intro {
@@ -119,43 +119,51 @@
       to   { opacity: 1; transform: none; }
     }
 
-    /* —— 第三拍：朱印按下。真印章落纸是「压下去再稳住」，不是弹跳 —— */
-    .intro-seal {
-      position: relative;
-      display: grid;
-      place-items: center;
-      width: 50px;
-      height: 50px;
-      margin-top: 30px;
-      border-radius: 2px;
-      background: #B23A2E;
-      color: #FBF9F3;
-      font-size: 26px;
-      font-weight: 600;
-      line-height: 1;
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18),
-                  0 2px 10px rgba(140, 42, 32, 0.18);
+    /* —— 第三拍：榫卯。榫条自右沿轴向推入，落榫后朱线描出合缝 ——
+       动效不做弹跳：木件是靠手推到底的，末段只该「稳下来」。 */
+    .intro-joint {
+      width: min(76vw, 330px);
+      margin: 22px 0 0;
       opacity: 0;
-      animation: introSeal 520ms cubic-bezier(0.2, 0.9, 0.15, 1) 640ms both;
+      transform: translateY(10px);
+      animation: introUp 560ms cubic-bezier(0.16, 1, 0.3, 1) 420ms both;
     }
-    @keyframes introSeal {
-      0%   { opacity: 0; transform: scale(1.4) rotate(-9deg); filter: blur(5px); }
-      55%  { opacity: 1; filter: blur(0); }
-      100% { opacity: 1; transform: scale(1) rotate(-3deg); }
+    .intro-joint .ij {
+      display: block;
+      width: 100%;
+      height: auto;
     }
-    /* 落印的朱色扩散：只走一次，不循环 */
-    .intro-seal::after {
-      content: "";
-      position: absolute;
-      inset: -6px;
-      border: 1px solid #B23A2E;
-      border-radius: 3px;
+    /* 榫条：从右侧推入到位，末段收得很慢（ease-out），像手推到底停住。
+       62px 的起点让榫舌尖端正好抵在立柱右面，推入时是「接着往里送」，
+       而不是先从半空里起步。 */
+    .ij-rail {
+      transform: translateX(62px);
+      animation: ijSlide 560ms cubic-bezier(0.16, 1, 0.3, 1) 560ms both;
+    }
+    @keyframes ijSlide {
+      to { transform: translateX(0); }
+    }
+    /* 图版小注：像《营造法式》里给图配的那一行字 */
+    .intro-joint-cap {
+      margin: 10px 0 0;
+      font-size: 10px;
+      letter-spacing: 0.3em;
+      margin-right: -0.3em;
+      color: #8A8279;
       opacity: 0;
-      animation: introSealHalo 700ms ease-out 700ms both;
+      animation: introUp 420ms ease-out 1240ms both;
     }
-    @keyframes introSealHalo {
-      0%   { opacity: 0.5; transform: scale(0.86); }
-      100% { opacity: 0;   transform: scale(1.5); }
+
+    /* 合缝线：两处接缝各自从一端描出来，第二处略晚，像视线跟着走 */
+    .ij-seam {
+      stroke: #B23A2E;
+      stroke-width: 1.2;
+      stroke-linecap: round;
+    }
+    .ij-seam-a { animation: ijSeam 260ms ease-out 1120ms both; }
+    .ij-seam-b { animation: ijSeam 200ms ease-out 1280ms both; }
+    @keyframes ijSeam {
+      to { stroke-dashoffset: 0; }
     }
 
     /* —— 「还在开」的诚实指示：不确定进度就用不确定的滑块，不编百分比 —— */
@@ -233,6 +241,49 @@
     }
 
     /*
+     * 走在裁切线上的「卷边」。
+     *
+     * 光靠 clip-path，揭幕是一条没有厚度的硬边；补上一道卷起纸筒的高光
+     * 与它落在余下纸面上的阴影，画面才像纸被卷走，而不是被矩形擦掉。
+     *
+     * 为什么必须是 #intro 的兄弟节点：clip-path 会把 #intro 的子元素一起
+     * 裁掉，画在里面就永远看不见。用相邻兄弟选择器让它跟随
+     * data-state="out"，#intro 被移除后选择器自然失配，无需 JS 清理。
+     *
+     * 线条在元素内的 45px 处；从 -45px 移到 100vh-45px，正好与
+     * clip-path 的 inset 边界同步（同一条缓动曲线、同样 720ms）。
+     */
+    .intro-edge {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 3001;
+      height: 120px;
+      display: none;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-45px);
+      background: linear-gradient(to bottom,
+                  rgba(251, 248, 240, 0) 0,
+                  rgba(251, 248, 240, 0.5) 37px,
+                  rgba(120, 105, 82, 0.18) 44px,
+                  rgba(28, 26, 23, 0.26) 45px,
+                  rgba(28, 26, 23, 0.12) 47px,
+                  rgba(28, 26, 23, 0.05) 74px,
+                  rgba(28, 26, 23, 0) 120px);
+    }
+    #intro[data-state="out"] + .intro-edge {
+      display: block;
+      animation: introEdge 720ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes introEdge {
+      0%   { opacity: 1; transform: translateY(-45px); }
+      85%  { opacity: 1; }
+      100% { opacity: 0; transform: translateY(calc(100vh - 45px)); }
+    }
+
+    /*
      * 兜底：万一样式之外的脚本整段失败，开场层也不许永久挡着展馆。
      * 9 秒后自行隐去（data-state="out" 的规则优先级更高，会正常接管）。
      */
@@ -274,7 +325,66 @@
       </p>
       <span class="intro-rule" aria-hidden="true"></span>
       <p class="intro-sub" aria-hidden="true">非物质文化遗产 · 数字展馆</p>
-      <span class="intro-seal" aria-hidden="true">匠</span>
+
+      <!--
+        第三拍：榫卯。直榫（明榫）的榫舌沿轴向推入立柱的卯眼，
+        从另一侧探出——「插进去了」这件事在静止画面上也成立。
+
+        为什么是直榫而不是燕尾：燕尾榫在几何上没法水平滑入，
+        画一条燕尾还让它横着推进去，等于在动画最引人注目的那一刻
+        撒谎。直榫确实能滑进去，也是体验页三门榫卯之一。
+
+        全部内联 SVG，零请求；动画只由 CSS 驱动，不依赖 JS。
+      -->
+      <div class="intro-joint" aria-hidden="true">
+        <svg class="ij" viewBox="15 8 244 166" focusable="false">
+          <defs>
+            <linearGradient id="ij-wood-a" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#C8A164" stop-opacity="0.62"/>
+              <stop offset="100%" stop-color="#9E7840" stop-opacity="0.44"/>
+            </linearGradient>
+            <linearGradient id="ij-wood-b" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#D9B87F" stop-opacity="0.68"/>
+              <stop offset="100%" stop-color="#B4894F" stop-opacity="0.48"/>
+            </linearGradient>
+          </defs>
+
+          <!--
+            榫舌先画：穿过卯眼的那一段必须被立柱挡住。若画在立柱之后，
+            推进时它会浮在柱面上，看着像在表面滑过去，而不是穿进木头里。
+            整根榫舌从 x=34（探出的端面）连续到 x=96，起点与榫条同宽相连，
+            推入后中段被立柱遮住，左侧只留下 22 单位的出头。
+          -->
+          <g class="ij-rail">
+            <rect x="34" y="80" width="62" height="24"
+                  fill="url(#ij-wood-b)" stroke="rgba(48,34,18,0.8)" stroke-width="1.05"/>
+            <!-- 端面比舌身略深，一道竖线交代出棱 -->
+            <rect x="34" y="80" width="10" height="24" fill="rgba(48,34,18,0.12)"/>
+            <line x1="44" y1="80" x2="44" y2="104"
+                  stroke="rgba(48,34,18,0.5)" stroke-width="0.9"/>
+          </g>
+
+          <g class="ij-post">
+            <rect x="56" y="18" width="40" height="144"
+                  fill="url(#ij-wood-a)" stroke="rgba(48,34,18,0.8)" stroke-width="1.15"/>
+            <g stroke="rgba(88,64,36,0.16)" stroke-width="0.8"><line x1="63" y1="42" x2="89" y2="42"/><line x1="63" y1="60" x2="89" y2="60"/><line x1="63" y1="128" x2="89" y2="128"/><line x1="63" y1="148" x2="89" y2="148"/></g>
+          </g>
+
+          <g class="ij-rail">
+            <rect x="96" y="70" width="144" height="44"
+                  fill="url(#ij-wood-b)" stroke="rgba(48,34,18,0.8)" stroke-width="1.15"/>
+            <g stroke="rgba(88,64,36,0.16)" stroke-width="0.8"><line x1="120" y1="84" x2="228" y2="84"/><line x1="120" y1="100" x2="228" y2="100"/></g>
+          </g>
+
+          <!-- 合缝：落榫之后，朱砂沿两处接缝各自描出 -->
+          <line class="ij-seam ij-seam-a" x1="96" y1="71" x2="96" y2="113"
+                stroke-dasharray="42" stroke-dashoffset="42"/>
+          <line class="ij-seam ij-seam-b" x1="56" y1="81" x2="56" y2="103"
+                stroke-dasharray="22" stroke-dashoffset="22"/>
+        </svg>
+        <p class="intro-joint-cap">直榫 · 明榫</p>
+      </div>
+
       <p class="intro-hint" role="status">
         <span class="intro-track" aria-hidden="true"><span></span></span>
         展馆开启中
@@ -282,6 +392,9 @@
     </div>
     <button type="button" class="intro-skip" aria-label="跳过开场动画">跳过开场</button>
   </div>
+
+  <!-- 卷边必须与 #intro 平级：clip-path 会连子元素一起裁掉 -->
+  <div class="intro-edge" aria-hidden="true"></div>
 
   <div id="app">
     <div id="app-loading" style="min-height:100vh;display:grid;place-items:center;color:#8A8279;font-family:serif;letter-spacing:.2em">
