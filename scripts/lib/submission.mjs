@@ -1,3 +1,5 @@
+import { EXHIBIT_PHOTOS, exhibitPhotoPath } from '../../src/components/exhibit-photo.js';
+
 /** 匿名化必须确实找到成员章节，匹配失败时不能悄悄输出原文。 */
 export function anonymizeReadme(text) {
   const section = /^## 二、组内成员与分工[^\r\n]*\r?\n[\s\S]*?(?=^## |^---\s*$|(?![\s\S]))/m;
@@ -12,5 +14,6 @@ export function requiredBuildFiles(index) {
     throw new Error('详情分片索引无效，请重新构建');
   }
   return ['index.html', 'data/inheritors.js',
-    ...Array.from({ length: index.shardCount }, (_, i) => `data/detail-${i}.js`)];
+    ...Array.from({ length: index.shardCount }, (_, i) => `data/detail-${i}.js`),
+    ...Object.keys(EXHIBIT_PHOTOS).map(exhibitPhotoPath)];
 }

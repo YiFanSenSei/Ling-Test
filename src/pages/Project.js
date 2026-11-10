@@ -1,6 +1,7 @@
 import { craftStudy } from '../craft-study.js';
 import { initReadingNav } from '../reading-nav.js';
 import { galleryReturn } from '../browse-state.js';
+import { currentQuery } from '../router.js';
 /**
  * 项目详情页
  *
@@ -316,4 +317,22 @@ export async function ProjectPage(id) {
   return { html, title: name };
 }
 
-export const initProject = () => initReadingNav(document.querySelector('.project'));
+export function initProject() {
+  const root = document.querySelector('.project');
+  const disposeReading = initReadingNav(root);
+  const { term } = currentQuery();
+  const target = term && [...root.querySelectorAll('[data-embroidery-term]')]
+    .find(item => item.dataset.embroideryTerm === term);
+  if (!target) return disposeReading;
+
+  target.open = true;
+  const frame = requestAnimationFrame(() => {
+    target.querySelector('summary').focus({ preventScroll: true });
+    const offset = parseFloat(root.style.getPropertyValue('--reading-offset')) || 152;
+    window.scrollTo({ top: scrollY + target.getBoundingClientRect().top - offset, behavior: 'instant' });
+  });
+  return () => {
+    cancelAnimationFrame(frame);
+    disposeReading();
+  };
+}

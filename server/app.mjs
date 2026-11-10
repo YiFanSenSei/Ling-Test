@@ -159,7 +159,10 @@ export function createApp({ dataDir, distDir, adminPassword, publicOrigin, secur
       try { decoded = decodeURIComponent(path === '/' ? '/index.html' : path); } catch { fail(400, '文件地址格式不正确'); }
       const file = resolve(distDir, '.' + decoded);
       if (!file.startsWith(distDir + sep)) fail(404, '文件不存在');
-      res.setHeader('Content-Type', file.endsWith('.js') ? 'text/javascript' : file.endsWith('.json') ? 'application/json' : file.endsWith('.css') ? 'text/css' : 'text/html; charset=utf-8');
+      res.setHeader('Content-Type', file.endsWith('.webp') ? 'image/webp'
+        : file.endsWith('.js') ? 'text/javascript'
+        : file.endsWith('.json') ? 'application/json'
+        : file.endsWith('.css') ? 'text/css' : 'text/html; charset=utf-8');
       try { res.end(readFileSync(file)); } catch { fail(404, '文件不存在，请先构建'); }
     } catch (error) {
       if (!res.headersSent) json(error.status || 500, { error: error.status ? error.message : '服务暂时不可用，请稍后重试' });

@@ -13,15 +13,18 @@ import { craftNext, craftResult, initResultActions } from '../craft-feedback.js'
  */
 
 import { craftGuide } from '../crafts.js';
+import { EMBROIDERY_TERMS } from '../embroidery-terms.js';
 import { esc } from '../data.js';
 import { SectionTitle } from '../components/ui.js';
+import { exhibitPhoto } from '../components/exhibit-photo.js';
 import { initEmbroidery } from '../sim/embroidery.js';
 import { initPaper } from '../sim/paper.js';
 import { initMortise } from '../sim/mortise.js';
 
 export async function SimulatorPage() {
   return `
-  <section class="page-head">
+  <section class="page-head page-head--exhibit page-head--simulator">
+    ${exhibitPhoto('simulator')}
     <div class="container">
       <nav class="breadcrumb" aria-label="面包屑导航">
         <a href="#/">首页</a>
@@ -30,6 +33,7 @@ export async function SimulatorPage() {
       </nav>
       ${SectionTitle({
         num: '肆',
+        level: 1,
         title: '技艺体验',
         sub: '选一门手艺，亲手做一遍。通过简化的互动，认识针法、抄纸与木构连接的原理。',
       })}
@@ -189,22 +193,10 @@ export async function SimulatorPage() {
         <div class="sim-knowledge">
           <h3>关于苏绣</h3>
           <div class="knowledge-grid">
-            <div class="knowledge-item">
-              <h4>八字诀</h4>
-              <p>平、齐、细、密、匀、顺、和、光——这是评判一幅苏绣作品的八个字，每一个字都对应着一项极难达到的手上功夫。</p>
-            </div>
-            <div class="knowledge-item">
-              <h4>劈丝</h4>
-              <p>一根普通的丝线可以劈成 1/2、1/4、1/8 乃至 1/64。绣制细腻处时，绣娘用的线比头发丝还细。</p>
-            </div>
-            <div class="knowledge-item">
-              <h4>双面绣</h4>
-              <p>苏绣的绝技之一。一根针在两层透明底料间穿行，正反两面同时成形，且两面图案完全不同、针脚全无痕迹。</p>
-            </div>
-            <div class="knowledge-item">
-              <h4>针法谱系</h4>
-              <p>苏绣针法逾四十种，平针、齐针、散套针、施针、打籽、锁针……不同题材用不同针法，这是靠师徒口手相传的体系。</p>
-            </div>
+            ${EMBROIDERY_TERMS.map(term => `<a class="knowledge-item knowledge-link" href="#/project/13978?term=${term.id}">
+              <h4>${term.title} <span aria-hidden="true">↗</span></h4>
+              <p>${term.summary}</p>
+            </a>`).join('')}
           </div>
         </div>
       </div>

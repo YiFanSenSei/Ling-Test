@@ -8,6 +8,7 @@
  */
 
 import { getMeta, getProjects, getDetailCoverage, getInheritorStats, projectCodePrefix, projectBaseName, batchLabel, num, esc } from '../data.js';
+import { exhibitPhoto, exhibitCredits } from '../components/exhibit-photo.js';
 import { SectionTitle } from '../components/ui.js';
 import { initReadingNav } from '../reading-nav.js';
 
@@ -51,14 +52,15 @@ export async function AboutPage() {
     .join('、');
 
   return `
-  <section class="page-head">
+  <section class="page-head page-head--exhibit">
+    ${exhibitPhoto('about')}
     <div class="container">
       <nav class="breadcrumb" aria-label="面包屑导航">
         <a href="#/">首页</a>
         <span aria-hidden="true">/</span>
         <span aria-current="page">关于本站</span>
       </nav>
-      ${SectionTitle({ num: '陆', title: '关于本站', sub: '作品说明、数据来源与技术声明。' })}
+      ${SectionTitle({ num: '陆', title: '关于本站', sub: '作品说明、数据来源与技术声明。', level: 1 })}
     </div>
   </section>
 
@@ -229,6 +231,8 @@ export async function AboutPage() {
 
         <article class="about-block" id="about-media">
           <h2>关于素材</h2>
+          <p>首页与栏目页头使用大都会艺术博物馆开放馆藏的公版图像。本站将原图等比缩小并转为 WebP，页头按屏幕宽度裁切显示。</p>
+          ${exhibitCredits()}
           <p>
             名录采用<strong>馆藏图录</strong>的视觉设计，以纸色、细墨线和低饱和点色，
             描绘器物、材料与故事意象。封面为本站绘制的主题插画，不作为实物照片。

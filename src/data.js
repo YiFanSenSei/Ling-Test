@@ -452,10 +452,10 @@ export const getInheritors = loadInheritors;
 
 /**
  * 传承人检索。
- * @param {{q?:string, category?:string, batch?:string, hasBirth?:boolean, page?:number, pageSize?:number}} opts
+ * @param {{q?:string, category?:string, ethnicity?:string, batch?:string, sort?:string, page?:number, pageSize?:number}} opts
  */
 export async function queryInheritors({
-  q = '', category = '', batch = '', sort = 'default', page = 1, pageSize = 24,
+  q = '', category = '', ethnicity = '', batch = '', sort = 'default', page = 1, pageSize = 24,
 } = {}) {
   let list = await getInheritors();
 
@@ -470,6 +470,7 @@ export async function queryInheritors({
     );
   }
   if (category) list = list.filter(p => p.projectCategory === category);
+  if (ethnicity) list = list.filter(p => (p.ethnicity || '').trim() === ethnicity);
   if (batch !== '' && batch !== null && batch !== undefined) {
     list = list.filter(p => String(p.batch) === String(batch));
   }
@@ -494,6 +495,20 @@ export async function queryInheritors({
   const start = (safePage - 1) * pageSize;
 
   return { items: list.slice(start, start + pageSize), total, page: safePage, pageSize, totalPages };
+}
+
+export async function getInheritorEthnicities() {
+  const counts = new Map();
+  let unrecorded = 0;
+  let other = 0;
+  for (const person of await getInheritors()) {
+    const name = (person.ethnicity || '').trim();
+    if (!name) unrecorded++;
+    else if (name === '其他') other++;
+    else counts.set(name, (counts.get(name) || 0) + 1);
+  }
+  const groups = [...counts].sort(([a], [b]) => a.localeCompare(b, 'zh'));
+  return { groups, unrecorded, other };
 }
 
 /** 按 id 取单个传承人 */

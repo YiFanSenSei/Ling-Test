@@ -22,8 +22,6 @@
   /* 首屏正文列不要让行宽无限延长，多出来的空间交给右侧留白 */
   .hero-copy { max-width: 42rem; }
 
-  /* 超宽屏下首屏右侧那枚纹样环可以被放大一些，否则显得局促 */
-  .hero-ornament { width: min(100%, 460px); }
 }
 
 @media (min-width: 2000px) {
