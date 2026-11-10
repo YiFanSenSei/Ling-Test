@@ -46,14 +46,22 @@ try {
   console.log('✓ 滚出视口再进入两次，均重新播放首页浮现');
 
   await send('Emulation.setEmulatedMedia', { features: [{ name:'prefers-reduced-motion', value:'reduce' }] });
-  for (const width of [1920, 1440, 720, 390, 320]) {
+  for (const width of [2560, 1920, 1440, 720, 390, 320]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height:900, deviceScaleFactor:1, mobile:width<=720 });
     for (const [key, route] of routes) {
       await browser.go(base + route, readyPhoto(key));
       assert(await run('document.documentElement.scrollWidth <= innerWidth'), `${width}px ${route}`);
       assert(await run("document.querySelector('.exhibit-photo figcaption a').host === 'www.metmuseum.org'"));
-      if (key === 'home') await wait("getComputedStyle(document.querySelector('.cat-card')).opacity === '1'");
-      else {
+      if (key === 'home') {
+        await wait("getComputedStyle(document.querySelector('.cat-card')).opacity === '1'");
+        assert(await run(`(() => {
+          const cue = document.querySelector('.hero-scroll').getBoundingClientRect();
+          const index = document.querySelector('.home-index').getBoundingClientRect();
+          const section = document.getElementById('home-experiences').getBoundingClientRect();
+          return index.bottom <= cue.top && cue.bottom <= section.top && cue.height >= 44
+            && Math.abs((cue.left + cue.right) / 2 - (index.left + index.right) / 2) < 1;
+        })()`), `${width}px 向下看展居中位于数字条与下一节之间`);
+      } else {
         const layout = await run(`(() => {
           const masthead = document.querySelector('.exhibit-masthead');
           const figure = masthead.querySelector('figure').getBoundingClientRect();
@@ -64,7 +72,20 @@ try {
             stacked:figure.bottom <= breadcrumb.top && breadcrumb.bottom <= heading.top,
             fit:getComputedStyle(masthead.querySelector('img')).objectFit };
         })()`);
-        assert(layout.fullWidth && layout.overlay && layout.stacked && layout.fit === 'cover', `${width}px ${key} 通栏馆藏图`);
+        assert(layout.fullWidth && layout.overlay && layout.stacked && layout.fit === (key === 'inheritors' ? 'contain' : 'cover'),
+          `${width}px ${key} 通栏馆藏图`);
+        if (key === 'inheritors') {
+          assert(await run(`(() => {
+            const img = document.querySelector('.exhibit-photo--inheritors img');
+            const photo = img.getBoundingClientRect();
+            const nav = document.querySelector('.site-header').getBoundingClientRect();
+            const caption = img.nextElementSibling.getBoundingClientRect();
+            const originalRatio = img.naturalWidth / img.naturalHeight;
+            return originalRatio > 1.4 && originalRatio < 1.6
+              && Math.abs(photo.width / photo.height - originalRatio) < .01
+              && photo.top >= nav.bottom && photo.bottom <= caption.top;
+          })()`), `${width}px 制丝图完整呈现，避开导航和图注`);
+        }
       }
       if (width === 1440) await shot('exhibition-' + key + '-desktop');
       if (width === 390) await shot('exhibition-' + key + '-mobile');

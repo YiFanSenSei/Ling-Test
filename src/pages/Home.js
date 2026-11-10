@@ -115,11 +115,6 @@ export async function HomePage() {
         </div>
       </div>
     </div>
-
-    <button type="button" class="hero-scroll" aria-controls="home-experiences">
-      <span>向下看展</span>
-      <span class="scroll-line" aria-hidden="true"></span>
-    </button>
   </section>
   <div class="home-index">
     <dl class="container hero-facts">
@@ -136,6 +131,12 @@ export async function HomePage() {
         <dd>${num(official.unescoItems || 45)}<em>项</em></dd>
       </div>
     </dl>
+  </div>
+  <div class="home-cue">
+    <button type="button" class="hero-scroll" aria-controls="home-experiences">
+      <span>向下看展</span>
+      <span class="scroll-line" aria-hidden="true"></span>
+    </button>
   </div>
 
   <!-- ══════════ 五、技艺体验 ══════════ -->

@@ -103,11 +103,7 @@ strong { font-size: inherit; line-height: inherit; }
   min-height: calc(100svh - var(--header-h));
   /*
    * ⚠️ 必须是 column。
-   *    .hero 有两个直接子元素：.container.hero-inner 与 .hero-scroll。
-   *    一开始写的是 align-items: center（隐含 flex-direction: row），
-   *    结果「向下」提示被摆到了 .container 的右边，
-   *    在 1440 下贴着屏幕右边缘、只剩半截，像页面被裁了一刀。
-   *    改成列方向后，「向下」自然落在正文下方，再各自居中。
+   *    列布局让首屏正文沿垂直方向对齐。
    */
   display: flex;
   flex-direction: column;
