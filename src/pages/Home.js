@@ -92,7 +92,6 @@ export async function HomePage() {
   <!-- ══════════ 一、序 ══════════ -->
   <section class="hero hero--exhibit">
     ${exhibitPhoto('home')}
-    <span class="hero-border" aria-hidden="true"></span>
     <div class="container hero-inner">
       <div class="hero-copy">
         <p class="hero-eyebrow">
@@ -114,23 +113,7 @@ export async function HomePage() {
           <a class="btn btn-ghost btn-lg" href="#/inheritors">寻访匠人</a>
           <a class="btn btn-ghost btn-lg" href="#/gallery">进入名录</a>
         </div>
-
-        <dl class="hero-facts">
-          <div>
-            <dt>代表性项目</dt>
-            <dd>${num(official.totalProjects || 1557)}<em>项</em></dd>
-          </div>
-          <div>
-            <dt>代表性传承人</dt>
-            <dd>${num(official.totalArtisans || 3998)}<em>位</em></dd>
-          </div>
-          <div>
-            <dt>人类非遗名录</dt>
-            <dd>${num(official.unescoItems || 45)}<em>项</em></dd>
-          </div>
-        </dl>
       </div>
-
     </div>
 
     <button type="button" class="hero-scroll" aria-controls="home-experiences">
@@ -138,6 +121,22 @@ export async function HomePage() {
       <span class="scroll-line" aria-hidden="true"></span>
     </button>
   </section>
+  <div class="home-index">
+    <dl class="container hero-facts">
+      <div>
+        <dt>代表性项目</dt>
+        <dd>${num(official.totalProjects || 1557)}<em>项</em></dd>
+      </div>
+      <div>
+        <dt>代表性传承人</dt>
+        <dd>${num(official.totalArtisans || 3998)}<em>位</em></dd>
+      </div>
+      <div>
+        <dt>人类非遗名录</dt>
+        <dd>${num(official.unescoItems || 45)}<em>项</em></dd>
+      </div>
+    </dl>
+  </div>
 
   <!-- ══════════ 五、技艺体验 ══════════ -->
   <section class="section section-dark" id="home-experiences" tabindex="-1" aria-label="技艺互动体验">

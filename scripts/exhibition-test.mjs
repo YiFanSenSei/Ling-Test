@@ -50,7 +50,18 @@ try {
       assert(await run('document.documentElement.scrollWidth <= innerWidth'), `${width}px ${route}`);
       assert(await run("document.querySelector('.exhibit-photo figcaption a').host === 'www.metmuseum.org'"));
       if (key === 'home') await wait("getComputedStyle(document.querySelector('.cat-card')).opacity === '1'");
-      else {
+      else if (key === 'gallery') {
+        const layout = await run(`(() => {
+          const masthead = document.querySelector('.gallery-masthead');
+          const figure = masthead.querySelector('figure').getBoundingClientRect();
+          const breadcrumb = masthead.querySelector('.breadcrumb').getBoundingClientRect();
+          const heading = document.querySelector('#gallery-content h1').getBoundingClientRect();
+          return { fullWidth:figure.width === document.documentElement.clientWidth,
+            stacked:figure.bottom <= breadcrumb.top && breadcrumb.bottom <= heading.top,
+            fit:getComputedStyle(masthead.querySelector('img')).objectFit };
+        })()`);
+        assert(layout.fullWidth && layout.stacked && layout.fit === 'cover', `${width}px 名录通栏画卷`);
+      } else {
         const layout = await run(`(() => {
           const copy = document.querySelector('.exhibit-copy').getBoundingClientRect();
           const figure = document.querySelector('.exhibit-spread figure').getBoundingClientRect();
@@ -59,13 +70,15 @@ try {
         })()`);
         assert(layout.equal && layout.fit === 'contain' && (width > 720 ? layout.beside : layout.stacked), `${width}px ${key} 图文布局`);
       }
-      if (width === 1440 && key !== 'home') await shot('exhibition-' + key + '-desktop', '.page-head--exhibit');
+      if (width === 1440) {
+        await shot('exhibition-' + key + '-desktop', ['home','gallery'].includes(key) ? undefined : '.page-head--exhibit');
+      }
       if (width === 390 && ['home','inheritors','gallery'].includes(key)) {
-        await shot('exhibition-' + key + '-mobile', key === 'home' ? '.hero' : '.page-head--exhibit');
+        await shot('exhibition-' + key + '-mobile', key === 'inheritors' ? '.page-head--exhibit' : undefined);
       }
     }
   }
-  console.log('✓ 五个栏目的图文等宽，窄屏上下排布，馆藏图完整显示，减弱动态时内容直接呈现');
+  console.log('✓ 名录通栏画卷和其余栏目等宽图文正常，减弱动态时内容直接呈现');
 
   for (const id of ['eight-words','split-silk','double-sided','stitch-families']) {
     await browser.go(base + '#/simulator?tool=embroidery', "document.querySelector('.knowledge-link')");

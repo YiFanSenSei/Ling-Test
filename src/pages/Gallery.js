@@ -1,5 +1,5 @@
 import { rememberGallery, galleryReturn } from '../browse-state.js';
-import { exhibitHeading } from '../components/exhibit-photo.js';
+import { exhibitPhoto } from '../components/exhibit-photo.js';
 /**
  * 名录页 —— 全量检索、筛选、分页
  *
@@ -105,11 +105,19 @@ export async function GalleryPage() {
   /* ---- 筛选栏 ---- */
   const filters = `
   <form class="filters${hasFilter ? ' has-selection' : ''}" id="gallery-filters" role="search">
-    <div class="filter-search">
-      <label class="sr-only" for="f-q">搜索项目名称</label>
-      <input id="f-q" name="q" type="search" placeholder="搜索项目名称、编号或申报地区…"
-             value="${esc(q)}" autocomplete="off">
-      <button type="submit" class="filter-search-btn" aria-label="搜索">查</button>
+    <div class="gallery-filter-top">
+      ${SectionTitle({
+        num: '贰',
+        level: 1,
+        title: '非遗名录',
+        sub: `收录国家级非物质文化遗产代表性项目按申报地区拆分的 ${num(meta.heritageCount || 0)} 条子项记录，可按门类、批次、地区检索。`,
+      })}
+      <div class="filter-search">
+        <label class="sr-only" for="f-q">搜索项目名称</label>
+        <input id="f-q" name="q" type="search" placeholder="搜索项目名称、编号或申报地区…"
+               value="${esc(q)}" autocomplete="off">
+        <button type="submit" class="filter-search-btn" aria-label="搜索">查</button>
+      </div>
     </div>
 
     <div class="filter-row">
@@ -189,21 +197,18 @@ export async function GalleryPage() {
       );
 
   return `
-  ${exhibitHeading('gallery', `
+  <div class="gallery-masthead">
+    ${exhibitPhoto('gallery')}
+    <div class="container">
       <nav class="breadcrumb" aria-label="面包屑导航">
         <a href="#/">首页</a>
         <span aria-hidden="true">/</span>
         <span aria-current="page">非遗名录</span>
       </nav>
-      ${SectionTitle({
-        num: '贰',
-        level: 1,
-        title: '非遗名录',
-        sub: `收录国家级非物质文化遗产代表性项目按申报地区拆分的 ${num(meta.heritageCount || 0)} 条子项记录，可按门类、批次、地区检索。`,
-      })}
-  `)}
+    </div>
+  </div>
 
-  <section class="section-tight">
+  <section class="section-tight gallery-section">
     <div class="container" id="gallery-content" data-path="${esc(canonical)}">
       ${filters}
 

@@ -9,18 +9,20 @@ const root=resolve(import.meta.dirname,'..'), base=pathToFileURL(join(root,'dist
 const b=await openTestBrowser();
 try {
   const {evaluate:run,wait,click,send}=b;
+  const waitForSearch = keyword => wait(`document.querySelector('[data-remove-filter="q"] span')?.textContent === ${JSON.stringify(keyword)}
+    && document.activeElement.id === 'f-q'`);
   await b.go(base+'#/gallery',"document.getElementById('f-q')");
   await run("document.getElementById('f-q').focus();window.scrollTo({top:200,behavior:'instant'})");
   await send('Input.insertText',{text:'苏绣'});
-  await wait("location.hash.includes('q=') && document.activeElement.id==='f-q'");
+  await waitForSearch('苏绣');
   assert.equal(await run("document.getElementById('f-q').selectionStart"),2);
   assert(Math.abs(await run('scrollY')-200)<2);
   await send('Input.insertText',{text:'制作'});
-  await wait("new URLSearchParams(location.hash.split('?')[1]).get('q')==='苏绣制作'");
+  await waitForSearch('苏绣制作');
   assert.equal(await run('document.activeElement.id'),'f-q');
   await run("document.getElementById('f-q').setSelectionRange(0,2)");
   await send('Input.insertText',{text:'宣纸'});
-  await wait("new URLSearchParams(location.hash.split('?')[1]).get('q')==='宣纸制作'");
+  await waitForSearch('宣纸制作');
   assert.equal(await run("document.getElementById('f-q').selectionStart"),2);
   console.log('✓ 自动搜索保留焦点、选区与滚动，真实连续输入和中途改字可完成');
 
