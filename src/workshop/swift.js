@@ -236,7 +236,7 @@ export function swiftWorkbench(draft, mode, reference) {
       <div class="ws-actions">
         <button type="button" data-command="swift-undo" ${draft.start || draft.marks.length ? '' : 'disabled'}>${draft.start ? '撤去当前起针' : '拆掉上一组针'}</button>
         ${practice ? '' : replica ? `<button type="button" data-command="finish-replica" ${draft.marks.length>=2 ? '' : 'disabled'}>收下近翅复样</button>` :
-        `<button type="button" data-command="finish-stitch" ${readySwift(draft.marks) ? '' : 'disabled'}>完成样片 · 12 元</button>`}
+        `<button type="button" data-command="finish-stitch" ${readySwift(draft.marks) ? '' : 'disabled'}>收下样片 · 3 小时、12 元</button>`}
         <button type="button" data-command="swift-back">放回工作台</button>
       </div>
     </div></div>

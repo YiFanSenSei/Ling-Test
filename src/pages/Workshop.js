@@ -1,28 +1,52 @@
 import { esc } from '../data.js';
-import { readLocal, writeLocal } from '../storage.js';
-import { applyAction, closeDay, freshWorkshop, loadWorkshop, placeFor, places, unavailable, workshopActions } from '../workshop/rules.js';
+import { applyAction, closeDay, freshWorkshop, placeFor, places, unavailable, workshopActions } from '../workshop/rules.js';
 import { beside, cameraAt, clickedPlace, directions, entryPoint, feet, gridPoint, pathTo, scale, scenePlaces, scenes, tile, viewHeight, viewWidth, walkable } from '../workshop/map.js';
 import { actorHeight, drawActor, portrait, profiles } from '../workshop/characters.js';
 import { advanceDialogue, chooseDialogue, currentDialogue, dialogueTopics, finishDialogue, startDialogue, storyEndings } from '../workshop/dialogue.js';
-import { blankFur, compareFur, furDisplay, furLesson, furTeaching, furWorkbench } from '../workshop/fur.js';
-import { freshSwiftDraft, hasSwift, swiftComparison, swiftParts, swiftPiece, swiftReview, swiftWorkbench } from '../workshop/swift.js';
+import { compareFur, furDisplay, furLesson, furTeaching, furWorkbench, loadFurDraft } from '../workshop/fur.js';
+import { freshSwiftDraft, hasSwift, swiftComparison, swiftParts, swiftPiece, swiftReview, swiftWorkbench, validSwift } from '../workshop/swift.js';
 import { bindSwiftInput } from '../workshop/swift-input.js';
 import { drawExhibit, makeScenery } from '../workshop/scenery.js';
 import { chapterDays, chapterEndings, chapterGroups, helpShop, incidentNames, rehearsalSteps, saveReplica, schedule, shopShift, shopShiftReason, takeChapterOption } from '../workshop/chapter.js';
 import { dailyCost, economyEnding, economyResult, exclusiveSample, lateFee, pendingDeposits, rentCost, rentOwed, replicaCost, shiftPay } from '../workshop/economy.js';
 import { archiveNotes } from '../workshop/archive-notes.js';
-import { readWorkshopSlot, workshopSlots, writeWorkshopSlot } from '../workshop/saves.js';
+import { formatWorkshopSaveTime, readWorkshopSlot, workshopSaveProgress, workshopSlots, writeWorkshopAutosave, writeWorkshopSlot } from '../workshop/saves.js';
+import { createWorkshopSound, workshopSoundCredits, workshopSoundSettings } from '../workshop/sound.js';
+import { mountWorkshopTitle } from './WorkshopTitle.js';
 import '../styles/workshop.css';
 
-const saveKey = 'jz-workshop-v1';
 const openingScene = 'studio';
 const openingLength = 1250;
-const saveTime = new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'short', hourCycle: 'h23' });
 const keys = { arrowup: 'up', w: 'up', arrowdown: 'down', s: 'down', arrowleft: 'left', a: 'left', arrowright: 'right', d: 'right' };
 export function WorkshopPage() {
+  return '<div id="workshop"></div>';
+}
+
+export function initWorkshop() {
+  const host = document.querySelector('#workshop');
+  const sound = createWorkshopSound(host);
+  let dispose;
+  function showTitle() {
+    dispose?.();
+    dispose = mountWorkshopTitle(host, play);
+    sound.syncControls();
+    sound.setScene();
+  }
+  function play(save) {
+    dispose?.();
+    host.innerHTML = workshopGame();
+    sound.syncControls();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    dispose = initWorkshopGame(host.firstElementChild, save, showTitle, sound);
+  }
+  showTitle();
+  return () => { dispose?.(); sound.dispose(); };
+}
+
+function workshopGame() {
   return `<section class="ws-page" aria-labelledby="ws-title">
     <header class="ws-top">
-      <div class="ws-brand"><a href="#/" aria-label="返回匠作展馆">←</a><div><p class="ws-kicker" id="ws-today">燕子过河</p><h1 id="ws-title">工坊还有三十天</h1></div></div>
+      <div class="ws-brand"><button type="button" data-command="title" aria-label="返回游戏标题" title="返回游戏标题">←</button><div><p class="ws-kicker" id="ws-today">燕子过河</p><h1 id="ws-title">工坊还有三十天</h1></div></div>
       <div class="ws-stats" id="ws-stats"></div>
     </header>
     <div class="ws-field">
@@ -35,7 +59,7 @@ export function WorkshopPage() {
     <footer class="ws-controls">
       <div class="ws-hint"><span id="ws-near" role="status">点击地图或使用方向键移动。</span><span class="ws-keys"><kbd>WASD</kbd> 移动 · <kbd>空格</kbd> 互动</span></div>
       <div class="ws-pad" aria-label="移动控制">${[['left','←','向左'],['up','↑','向上'],['down','↓','向下'],['right','→','向右']].map(([dir, arrow, label]) => `<button type="button" data-move="${dir}" aria-label="${label}">${arrow}</button>`).join('')}</div>
-      <div class="ws-toolbar"><button type="button" data-command="interact" id="ws-interact" aria-keyshortcuts="Space">互动 <kbd>空格</kbd></button><button type="button" data-command="calendar">日程</button><button type="button" data-command="log">账本</button><button type="button" data-command="saves">存档</button><button type="button" data-command="help" aria-label="玩法与素材来源">?</button><button type="button" data-command="close">收工</button><button type="button" class="ws-restart" data-command="restart" title="从第一天重新开始">重开本局</button></div>
+      <div class="ws-toolbar"><button type="button" data-command="interact" id="ws-interact" aria-keyshortcuts="Space">互动 <kbd>空格</kbd></button><button type="button" data-command="calendar">日程</button><button type="button" data-command="log">账本</button><button type="button" data-command="saves">存档</button>${workshopSoundSettings}<button type="button" data-command="help" aria-label="玩法与素材来源">?</button><button type="button" data-command="close">收工</button><button type="button" class="ws-restart" data-command="restart" title="从第一天重新开始">重开本局</button></div>
     </footer>
     <dialog class="ws-panel" id="ws-panel" aria-label="工坊行动"></dialog>
     </section>`;
@@ -129,8 +153,7 @@ function activityReceipt(before, after) {
   return lines.length ? `<div class="ws-receipt" role="status">${lines.map(line => `<span>${line}</span>`).join('')}</div>` : '';
 }
 
-export function initWorkshop() {
-  const root = document.querySelector('.ws-page');
+function initWorkshopGame(root, save, showTitle, sound) {
   const canvas = root.querySelector('#ws-map');
   const ctx = canvas.getContext('2d');
   ctx.scale(scale, scale);
@@ -141,26 +164,48 @@ export function initWorkshop() {
   const interactButton = root.querySelector('#ws-interact');
   const pins = root.querySelector('#ws-pins');
   const location = root.querySelector('#ws-location');
-  const rawSave=readLocal(saveKey);
-  const restored=loadWorkshop(rawSave);
-  let state = restored || freshWorkshop();
-  const normalized=JSON.stringify(state);
-  if(normalized!==rawSave) writeLocal(saveKey,normalized);
-  let active = state.story.encounter?.person || '';
-  let scene = active ? placeFor(active,state.day).scene : openingScene, targets = scenePlaces(scene,state.day);
+  let state, active, scene, targets, position, facing, camera, view, archiveDay;
   const sceneries = new Map();
-  let position = entryPoint(scene), facing = 'up', frame = 0;
-  let camera = cameraAt(position), scenePins = [];
-  let moving = false, queue = [], destination = '', view = active ? 'place' : state.done ? 'summary' : restored ? 'intro' : 'day-start';
+  let frame = 0, scenePins = [];
+  let moving = false, queue = [], destination = '';
   let swiftDraft, swiftMode='main', comparisonLight=1, chapterGroup='', rehearsal, cuedPin;
+  let swiftDrafts = {};
   let furDraft, furFocus = '', showingShared = false;
   let pendingSlot, saveNotice = '';
-  let openingTimer = 0, receipt = '', archiveDay = state.day;
+  let lastSavedState, lastSavedResume;
+  let openingTimer = 0, receipt = '';
   const held = new Set();
   let lastFrame = 0, gait = 0;
   const canWalk = (x, y) => walkable(scene, x, y, targets);
-  if (active) position = pathTo(position, point => beside(point, targets[active]), canWalk).at(-1) || position;
-  const swiftInput = bindSwiftInput(root, () => view === 'stitch' ? swiftDraft : null, () => renderPanel('[data-swift-board]'));
+  const swiftInput = bindSwiftInput(root, () => view === 'stitch' ? swiftDraft : null, placed => {
+    if (placed) {
+      if (state.day === 1 && swiftMode === 'main' && swiftDraft.marks.length === 1) {
+        swiftDraft.note = '第一组针绣好了。可以沿着羽线再落一组，或换一处试试。';
+      }
+      saveProgress();
+    }
+    renderPanel('[data-swift-board]');
+  });
+
+  function resumeData() {
+    const swift = Object.fromEntries(Object.entries(swiftDrafts)
+      .filter(([, draft]) => draft.marks.length)
+      .map(([mode, draft]) => [mode, draft.marks]));
+    return { spot: { scene, facing, ...position }, drafts: { swift, fur: furDraft?.sample } };
+  }
+
+  function saveProgress() {
+    const resume = resumeData();
+    const signature = JSON.stringify(resume);
+    if (lastSavedState === state && lastSavedResume === signature) return;
+    writeWorkshopAutosave(state, resume);
+    lastSavedState = state;
+    lastSavedResume = signature;
+  }
+
+  function updateSound() {
+    sound.setScene({ scene, day: state.day, view, topic: state.story.encounter?.topic });
+  }
 
   function renderScene() {
     location.innerHTML = `<strong>${scenes[scene].name}</strong><span>${scenes[scene].caption}</span>`;
@@ -172,12 +217,14 @@ export function initWorkshop() {
     });
     if (!sceneries.has(scene)) sceneries.set(scene, makeScenery(scene));
     paint(); hint();
+    updateSound();
   }
 
   function enterScene(next) {
     position = entryPoint(next, scene);
     scene = next; targets = scenePlaces(scene,state.day);
     facing = next === 'lane' ? 'down' : 'up';
+    saveProgress();
     renderScene();
     canvas.focus({ preventScroll: true });
   }
@@ -231,7 +278,12 @@ export function initWorkshop() {
   function hint(point = position) {
     const id = nearest(point), visible = Boolean(id && !panel.open);
     const name = id ? targets[id].name : '';
-    const message = id ? `身边 · ${name}` : '点地面走动，点名字前往。';
+    const firstStitch = state.day === 1 && !state.done && scene === 'studio' && !hasSwift(state) && !swiftDrafts.main?.marks.length && !panel.open;
+    const loom = pins.querySelector('[data-walk="loom"]');
+    loom?.toggleAttribute('data-first-stitch', firstStitch && !destination);
+    const message = destination ? destination === 'to-lane' ? '正在返回老街…' : `正在前往${targets[destination].name}…` :
+      firstStitch && id !== 'loom' ? '点绣案上的「试绣」，给雨燕落下第一针。' :
+      id ? `身边 · ${name}` : '点地面走动，点名字前往。';
     if (status.textContent !== message) status.textContent = message;
     interactButton.disabled = !visible;
     cue.hidden = !visible;
@@ -256,6 +308,7 @@ export function initWorkshop() {
   }
 
   function renderPanel(focus = '') {
+    updateSound();
     panel.classList.toggle('ws-panel-day', view === 'day-start');
     if (view === 'day-start') {
       panel.innerHTML = `<h2 tabindex="-1">第 ${state.day} 天</h2><p>青梧绣坊</p>`;
@@ -303,9 +356,10 @@ export function initWorkshop() {
     } else if (view === 'help') {
       panel.innerHTML = `<p class="ws-kicker">春汛老街</p><h2>工坊手记</h2><p>这十四天，绣坊要准备河集。点「日程」可以看今天有人在哪儿等你。</p>
         <p>每天回来找熟悉的人说说话，有些话题会接着上次聊下去。聊过的话题不会重来，离开页面后再进来，可以接着刚才那句。</p>
-        <p>方向键或 WASD 移动。头顶出现提示时按空格互动。对话中用 W/S 或 ↑↓ 选择，空格确认，Esc 返回。</p>
+        <p>方向键或 WASD 移动。头顶出现提示时按空格互动。对话中用 W/S 或 ↑↓ 选择，空格确认。按 Esc 可以暂停并回到标题，读取自动存档后接着聊。</p>
         <p>人物和经营情境为虚构。<a href="#/project/13978">查看苏绣档案 ↗</a></p>
         <p class="ws-credits">场景与行走角色为工坊原创二维绘制，对话立绘由 AI 辅助生成。</p>
+        ${workshopSoundCredits}
         <button type="button" data-command="back">回到工坊</button>`;
     } else if (view === 'stitch') {
       panel.innerHTML = swiftWorkbench(swiftDraft,swiftMode,state);
@@ -314,7 +368,7 @@ export function initWorkshop() {
     } else if (view === 'chapter') {
       const group=chapterGroups(state,active).find(item=>item.id===chapterGroup);
       panel.innerHTML = `<p class="ws-kicker">第 ${state.day} 天 · ${places[active].name}</p><h2>${group.title}</h2><p>${group.text}</p>
-        <div class="ws-actions">${group.choices.map(([value,label,,hours,reason])=>`<div><button type="button" data-chapter-choice="${value}" ${reason || state.hours<hours?'disabled':''}>${label}</button>${reason?`<small>${reason}</small>`:state.hours<hours?'<small>今天来不及了。</small>':''}</div>`).join('')}
+        <div class="ws-actions">${group.choices.map(([value,label,detail,hours,reason])=>`<div><button type="button" data-chapter-choice="${value}" ${reason || state.hours<hours?'disabled':''}>${label}</button><small>${reason || (state.hours<hours ? '今天来不及了。' : `${hours ? `用时 ${hours} 小时 · ` : ''}${detail}`)}</small></div>`).join('')}
         <button type="button" data-command="chapter-back">回到原处</button></div>`;
     } else if (view==='rehearsal') {
       const steps=rehearsalSteps[rehearsal.kind];
@@ -336,20 +390,26 @@ export function initWorkshop() {
       panel.innerHTML = furDisplay(state.fur, showingShared);
     } else if (view === 'summary') {
       const result=economyResult(state);
-      panel.innerHTML = `<p class="ws-kicker">第十四天 · 收工</p><h2 class="ws-summary-title" tabindex="-1">桥这边的灯</h2>${hasSwift(state) ? swiftPiece(state) : ''}
-        <dl class="ws-results">${ledgerRows(state)}<dt>小店早期订单</dt><dd>${state.sold ? '已交付' : state.order === 'missed' ? '已退定金' : '未接单'}</dd>
-        <dt>河集合作</dt><dd>${{full:'已核签交货',small:'缩小范围后交货',paused:'已退定金',self:'工坊自展'}[state.chapter.delivery] || '工坊自展'}</dd>
+      const endings = [...storyEndings(state), ...chapterEndings(state), economyEnding(state)];
+      const lead = state.story.reply ? endings.shift() : endings.pop();
+      const { contract, delivery } = state.chapter;
+      const cooperation = {full:'已核签交货',small:'缩小范围后交货',paused:'已退定金',self:'已安排工坊自展'}[delivery] ||
+        (contract === 'hand' || contract === 'split' ? '已接单，尚未交付' : '未达成商单合作');
+      panel.innerHTML = `<p class="ws-kicker">第十四天 · 收工</p><h2 class="ws-summary-title" tabindex="-1">桥这边的灯</h2>
+        <section class="ws-epilogue ws-ending-lead"><h3>${lead.title}</h3><p>${lead.text}</p>${hasSwift(state) ? swiftPiece(state) : ''}</section>
+        <section class="ws-epilogue" aria-label="这十四天之后"><p class="ws-kicker">这十四天之后 · 租约还剩十六天</p>${endings.map(ending => `<h3>${ending.title}</h3><p>${ending.text}</p>`).join('')}</section>
+        <details class="ws-ending-ledger"><summary>查看本局账目与展务</summary><dl class="ws-results">${ledgerRows(state)}<dt>小店早期订单</dt><dd>${state.sold ? '已交付' : state.order === 'missed' ? '已退定金' : '未接单'}</dd>
+        <dt>河集合作</dt><dd>${cooperation}</dd>
         <dt>河集安排</dt><dd>${{teach:'免费体验桌',paid:'收费体验桌',sales:'柜台卖货',apprentice:'阿禾署名展位'}[state.chapter.fair] || '未安排主展位'}${state.economy.lesson==='delegated'?' · 阿禾另带一场体验':''}</dd>
         ${state.fur.studied ? `<dt>猫毛试绣</dt><dd>${state.fur.shown ? '已展出对照试布' : state.fur.sample ? '已完成两块试布' : '看过作品资料'}${state.fur.shared ? ' · 阿禾完成跟练' : ''}</dd>` : ''}</dl>
         <section class="ws-epilogue"><h3>社会影响 · ${result.reach} / 6</h3>
-          <dl class="ws-results">${result.impact.map(([label, outcomes])=>`<dt>${label} · ${outcomes.length} / 2</dt><dd>${outcomes.join('') || '这次还没留下成果。'}</dd>`).join('')}</dl></section>
-        <section class="ws-epilogue" aria-label="这十四天之后"><p class="ws-kicker">这十四天之后 · 租约还剩十六天</p>${[economyEnding(state),...chapterEndings(state),...storyEndings(state)].map(ending => `<h3>${ending.title}</h3><p>${ending.text}</p>`).join('')}</section>
+          <dl class="ws-results">${result.impact.map(([label, outcomes])=>`<dt>${label} · ${outcomes.length} / 2</dt><dd>${outcomes.join('') || '这次还没留下成果。'}</dd>`).join('')}</dl></section></details>
         <div class="ws-actions"><button type="button" data-command="reset">再经营一局</button><button type="button" data-command="back">回到工坊</button></div>`;
     } else if (view === 'close' || view === 'reset') {
       const reset = view === 'reset';
       panel.innerHTML = `<p class="ws-kicker">${reset ? '新一轮' : '工坊账本'}</p><h2>${reset ? '从第一天重新开始？' : '今天收工？'}</h2>
         <p>${reset ? '会从第一天开始新的一局。手动存档仍可在「存档」中读取。' : `还剩 ${state.hours} 小时。收工结算 ${dailyCost} 元开支${state.day<chapterDays?'，明天再开门':'，然后看看这十四天留下了什么'}。${state.day>=6?rentNotice(state):''}`}</p>
-        <div class="ws-actions"><button type="button" data-command="${reset ? 'confirm-reset' : 'confirm-close'}">${reset ? '重新开局' : '结算今天'}</button><button type="button" data-command="back">返回工坊</button></div>`;
+        <div class="ws-actions"><button type="button" data-command="${reset ? 'confirm-reset' : 'confirm-close'}">${reset ? '重新开局' : '结算今天'}</button><button type="button" data-command="back">${reset ? '取消，返回工坊' : '返回工坊'}</button></div>`;
     } else if (view === 'place' && active) {
       const artwork = art ? `<div class="ws-portrait ws-portrait-${artId}" data-mood="${art.mood}" style="--portrait-width:${art.width}%;--portrait-center:${art.center}%;--portrait-offset:${art.offset}%;--portrait-ratio:${art.ratio}"><img src="${art.src}" alt="${artId === 'player' ? '主角' : places[artId].name}的立绘" draggable="false"></div>` : '';
       const topics = line ? [] : dialogueTopics(state, active);
@@ -361,6 +421,7 @@ export function initWorkshop() {
       panel.innerHTML = `<div class="ws-dialogue">${artwork}<div class="ws-dialogue-copy"><p class="ws-kicker">${scenes[scene].name}</p><h2>${speaker}</h2>
         ${spoken ? `<p tabindex="-1" class="ws-spoken${narration ? ' ws-aside' : ''}">${esc(spoken.text)}</p>` : `<p>${conversation(state, active)}</p>`}
         ${line?.gain ? `<div class="ws-affinity" role="status">${places[active].sign} · 好感 +${line.gain}</div>` : ''}
+        ${line?.choices.length && state.story.encounter.topic === 'verifySource' ? `<p class="ws-decision-note">按当前余额结算，${rentNotice(state)}</p>` : ''}
         ${receipt}
         ${!line && hasSwift(state) && ['loom','shop','exhibit'].includes(active) && !(sampleAtCounter&&active!=='shop') ? swiftPiece(state) : ''}
         ${!line && active === 'shop' && state.swift.length ? `<p>${swiftReview(state.swift)}</p>` : ''}
@@ -368,11 +429,16 @@ export function initWorkshop() {
           ${continuing ? '<button type="button" data-command="continue-dialogue">继续 <span aria-hidden="true">›</span></button>' : ''}
           ${topics.map(([id, label]) => `<button type="button" data-topic="${id}">${label}</button>`).join('')}
           ${!line && active==='desk' ? '<button type="button" data-command="archive-notes">翻阅今日收录的散页</button>' : ''}
-          ${line?.choices.map(({label,reason}, index) => `<div><button type="button" data-reply="${index}" ${reason?'disabled':''}>${label}</button>${reason?`<small>${reason}</small>`:''}</div>`).join('') || ''}
+          ${line?.choices.map(({label,reason,detail}, index) => {
+            const note = reason || detail;
+            const noteId = `ws-reply-note-${index}`;
+            return `<div><button type="button" data-reply="${index}" ${reason?'disabled':''} ${note ? `aria-describedby="${noteId}"` : ''}>${label}</button>${note ? `<small id="${noteId}">${note}</small>` : ''}</div>`;
+          }).join('') || ''}
           ${!line ? chapterGroups(state,active).filter(()=>!state.done).map(group=>`<button type="button" data-chapter-open="${group.id}">${group.title}</button>`).join('') : ''}
           ${actions.map(action => {
             const reason = unavailable(state, action);
-            return `<div><button type="button" data-action="${action.key}" ${reason ? 'disabled' : ''}>${action.label}</button>${reason ? `<small>${reason}</small>` : ''}</div>`;
+            const detail = reason || (action.key === 'stitch' ? `收下样片时结算 ${action.hours} 小时、${action.cost} 元。` : '');
+            return `<div><button type="button" data-action="${action.key}" ${reason ? 'disabled' : ''}>${action.label}</button>${detail ? `<small>${detail}</small>` : ''}</div>`;
           }).join('')}
           ${!line && active === 'master' && state.fur.studied ? '<button type="button" data-command="fur-reference">再看白猫绣片资料</button>' : ''}
           ${!line && active === 'loom' && hasSwift(state) ? '<button type="button" data-command="swift-practice">拿边角布练走针</button>' : ''}
@@ -381,11 +447,11 @@ export function initWorkshop() {
           ${!line && active==='shop' && shopShift(state) ? `<div><button type="button" data-command="chapter-help-shop" ${shiftNote?'disabled':''}>帮周岚分拣货样 · 收 ${shiftPay} 元</button>${shiftNote?`<small>${shiftNote}</small>`:''}</div>` : ''}
           ${!line && active === 'exhibit' && state.fur.shown ? '<button type="button" data-command="fur-placard">看看猫毛试布展签</button>' : ''}
           ${line && !continuing && !line.choices.length ? '<button type="button" data-command="finish-dialogue">结束对话</button>' : ''}
-          ${line ? '' : '<button type="button" data-command="back">继续走动</button>'}
+          ${line ? '<button type="button" class="ws-pause-story" data-command="pause-story">暂停并回标题</button>' : '<button type="button" data-command="back">继续走动</button>'}
         </div></div></div>`;
     }
     if (view !== 'place' && receipt) panel.insertAdjacentHTML('beforeend', receipt);
-    panel.insertAdjacentHTML('beforeend', `<div class="ws-dialogue-keys"><kbd>W</kbd> <kbd>S</kbd> 或 <kbd>↑↓</kbd> 选择 <kbd>空格</kbd> 确认${line ? '' : ' <kbd>Esc</kbd> 返回'}</div>`);
+    panel.insertAdjacentHTML('beforeend', `<div class="ws-dialogue-keys"><kbd>W</kbd> <kbd>S</kbd> 或 <kbd>↑↓</kbd> 选择 <kbd>空格</kbd> 确认 <kbd>Esc</kbd> ${line ? '暂停并回标题' : '返回'}</div>`);
     if (!panel.open) panel.showModal();
     hint();
     if (view === 'summary') panel.scrollTop = 0;
@@ -395,7 +461,7 @@ export function initWorkshop() {
   }
 
   function dialogOptions() {
-    return [...panel.querySelectorAll('button:not([disabled]), a[href], [data-swift-board]')];
+    return [...panel.querySelectorAll('button:not([disabled]), a[href], summary, [data-swift-board]')];
   }
 
   function savesPanel() {
@@ -409,11 +475,11 @@ export function initWorkshop() {
 
     const slots = workshopSlots.map(number => ({ number, ...readWorkshopSlot(number) }));
     return `<p class="ws-kicker">本地存档</p><h2>工坊存档</h2>
-      <p>保存已完成的行动、作品和对话选择。档位保存在当前浏览器。</p>
+      <p>保存当前地点、试绣草稿、已完成的行动和对话进度。档位保存在当前浏览器。</p>
       <ul class="ws-save-slots">${slots.map(({ number, kind, game, savedAt }) => `<li>
         <div><strong>存档 ${number}</strong>
-        <span>${game ? `第 ${game.day} 天 · ${game.done ? '已结算' : `剩余 ${game.hours} 小时`}` : { empty: '空档位', damaged: '存档损坏', unavailable: '本地存储不可用' }[kind]}</span>
-        ${game ? `<time datetime="${esc(savedAt)}">${saveTime.format(new Date(savedAt))}</time>` : ''}</div>
+        <span>${workshopSaveProgress({ game, kind })}</span>
+        ${game ? `<time datetime="${esc(savedAt)}">${formatWorkshopSaveTime(savedAt)}</time>` : ''}</div>
         <button type="button" data-slot="${number}" data-command="save-slot" aria-label="${kind === 'empty' ? '保存到' : '覆盖'}存档 ${number}" ${kind === 'unavailable' ? 'disabled' : ''}>${kind === 'empty' ? '保存' : '覆盖'}</button>
         <button type="button" data-slot="${number}" data-command="load-slot" aria-label="读取存档 ${number}" ${game ? '' : 'disabled'}>读取</button>
       </li>`).join('')}</ul>
@@ -432,10 +498,10 @@ export function initWorkshop() {
       renderPanel('[data-command="cancel-slot"]');
       return;
     } else if (loading) {
-      replaceWorkshop(slot.game, slot.spot);
+      replaceWorkshop(slot.game, slot);
       return;
     } else {
-      const saved = writeWorkshopSlot(number, state, { scene, facing, ...position });
+      const saved = writeWorkshopSlot(number, state, resumeData());
       saveNotice = saved ? `已保存到存档 ${number}。` : '保存失败。请检查浏览器是否允许本地存储，或存储空间是否已满。';
     }
     renderPanel(button);
@@ -447,12 +513,22 @@ export function initWorkshop() {
     renderPanel(`[data-command="${operation}"][data-slot="${number}"]`);
   }
 
-  function replaceWorkshop(next, spot, openDay = false) {
+  function replaceWorkshop(next, { spot, drafts } = {}, openDay = false) {
     held.clear(); queue = []; destination = '';
     cancelAnimationFrame(frame);
     frame = lastFrame = gait = 0; moving = false;
-    swiftDraft = furDraft = rehearsal = undefined;
+    swiftDraft = rehearsal = undefined;
+    swiftDrafts = {};
+    for (const mode of ['main', 'replica', 'practice']) {
+      const marks = drafts?.swift?.[mode];
+      if (validSwift(marks) && (mode !== 'replica' || marks.every(mark => mark.part === 0))) {
+        swiftDrafts[mode] = { ...freshSwiftDraft(), marks };
+      }
+    }
+    furDraft = Array.isArray(drafts?.fur) ? loadFurDraft(drafts.fur) : undefined;
     state = next;
+    archiveDay = state.day;
+    receipt = '';
     active = state.story.encounter?.person || '';
     scene = active ? placeFor(active, state.day).scene : openingScene;
     if (!active && typeof spot?.scene === 'string' && Object.hasOwn(scenes, spot.scene)) scene = spot.scene;
@@ -464,7 +540,7 @@ export function initWorkshop() {
     if (active && targets[active]) position = pathTo(position, point => beside(point, targets[active]), canWalk).at(-1) || position;
     facing = typeof spot?.facing === 'string' && Object.hasOwn(directions, spot.facing) ? spot.facing : 'up';
     view = openDay ? 'day-start' : active ? 'place' : state.done ? 'summary' : 'intro';
-    writeLocal(saveKey, JSON.stringify(state));
+    saveProgress();
     renderScene(); stats(); renderPanel();
     if (!panel.open) canvas.focus({ preventScroll: true });
   }
@@ -473,14 +549,16 @@ export function initWorkshop() {
     const newDay=state.day!==next.day;
     receipt = activityReceipt(state, next);
     state = next;
-    writeLocal(saveKey, JSON.stringify(state));
     stats();
     if(newDay) {
       active = '';
       gait = 0;
       view = 'day-start';
       enterScene(openingScene);
-    } else if (!moving) paint();
+    } else {
+      saveProgress();
+      if (!moving) paint();
+    }
     renderPanel(focus);
   }
 
@@ -492,6 +570,7 @@ export function initWorkshop() {
     if (place.to) { enterScene(place.to); return; }
     const dx = place.x - position.x, dy = place.y - position.y;
     facing = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+    saveProgress();
     paint();
     view = 'place'; active = id;
     renderPanel('button:not([disabled])');
@@ -507,6 +586,7 @@ export function initWorkshop() {
   function stopMotion() {
     cancelAnimationFrame(frame); frame = 0; lastFrame = 0; moving = false;
     paint(); hint();
+    saveProgress();
   }
 
   function tick(now) {
@@ -572,7 +652,8 @@ export function initWorkshop() {
   }
 
   function closePanel() {
-    if (state.story.encounter || openingTimer) return;
+    if (openingTimer) return;
+    if (state.story.encounter) { showTitle(); return; }
     if (view === 'saves' && pendingSlot) { cancelSlot(); return; }
     if (view === 'stitch') swiftDraft.start = null;
     receipt = '';
@@ -620,7 +701,13 @@ export function initWorkshop() {
 
   function goToPlace(id) {
     held.clear(); canvas.focus({ preventScroll: true });
-    move(pathTo(position, point => beside(point, targets[id]), canWalk), id);
+    const target = targets[id];
+    const steps = pathTo(position, point => beside(point, target), canWalk);
+    if (!steps.length && !beside(position, target)) {
+      status.textContent = '暂时走不到那里，试试先走到旁边的空地。';
+      return;
+    }
+    move(steps, id);
   }
 
   function pickSwiftSetting(button) {
@@ -645,7 +732,7 @@ export function initWorkshop() {
   }
 
   function openSwift(mode) {
-    if(!swiftDraft || swiftMode!==mode) swiftDraft=freshSwiftDraft();
+    swiftDraft = swiftDrafts[mode] ??= freshSwiftDraft();
     swiftMode=mode;
     if(mode==='replica') swiftDraft.zoom=2;
     view='stitch';
@@ -689,6 +776,7 @@ export function initWorkshop() {
     receipt = '';
     const { walk, move: dir, action, command, topic, reply } = button.dataset;
     if (state.story.encounter) {
+      if (command === 'pause-story') { showTitle(); return; }
       let next;
       if (reply !== undefined) next = chooseDialogue(state, Number(reply));
       else if (command === 'continue-dialogue') next = advanceDialogue(state);
@@ -737,7 +825,7 @@ export function initWorkshop() {
       if (action === 'stitch') openSwift('main');
       else if (action === 'fur-study') { view = 'fur-lesson'; renderPanel('[data-command="fur-study"]'); }
       else if (action === 'fur-sew') {
-        furDraft ??= { sample: blankFur(), zone: 0, layer: 0, values: [1, 1, 1], guide: true };
+        furDraft ??= loadFurDraft();
         view = 'fur-sew'; renderPanel('[data-fur-zone="0"]');
       } else if (action === 'fur-share') { furFocus = ''; view = 'fur-share'; renderPanel('[data-fur-teach]'); }
       else {
@@ -770,6 +858,7 @@ export function initWorkshop() {
       case 'fur-toggle-display': showingShared = !showingShared; renderPanel('[data-command="fur-toggle-display"]'); break;
       case 'fur-place':
         furDraft.sample[furDraft.layer * 3 + furDraft.zone] = [...furDraft.values];
+        saveProgress();
         renderPanel('[data-command="fur-place"]'); break;
       case 'fur-study': case 'fur-finish': case 'fur-save-teach': {
         const action = command === 'fur-finish' ? 'fur-sew' : command === 'fur-save-teach' ? 'fur-share' : 'fur-study';
@@ -794,17 +883,17 @@ export function initWorkshop() {
       case 'swift-back': swiftDraft.start = null; view = 'place'; renderPanel(); break;
       case 'swift-undo':
         if (swiftDraft.start) swiftDraft.start = null;
-        else swiftDraft.marks.pop();
+        else { swiftDraft.marks.pop(); saveProgress(); }
         swiftDraft.note = '';
         renderPanel('[data-swift-board]'); break;
       case 'finish-stitch': {
         const next = applyAction(state, 'loom', 'stitch', swiftDraft.marks);
-        if (next) { swiftDraft = undefined; view = 'place'; commit(next, '[data-command="back"]'); }
+        if (next) { delete swiftDrafts.main; swiftDraft = undefined; view = 'place'; commit(next, '[data-command="back"]'); }
         break;
       }
       case 'finish-replica': {
         const next=saveReplica(state,swiftDraft.marks);
-        if(next) {swiftDraft=undefined; comparisonLight=1; view='comparison';commit(next,'[data-swift-light="1"]');}
+        if(next) {delete swiftDrafts.replica; swiftDraft=undefined; comparisonLight=1; view='comparison';commit(next,'[data-swift-light="1"]');}
         break;
       }
       case 'log': case 'calendar': case 'saves': case 'help': case 'close':
@@ -828,14 +917,18 @@ export function initWorkshop() {
           useSlot(request.number, request.operation, request);
         }
         break;
-      case 'reset': view = 'reset'; renderPanel('[data-command="confirm-reset"]'); break;
+      case 'restart': case 'reset':
+        held.clear(); queue = []; destination = '';
+        stopMotion(); view = 'reset'; renderPanel('[data-command="back"]'); break;
       case 'confirm-close': {
         const next = closeDay(state);
+        if (next !== state) sound.closeLedger();
         view = next.done ? 'summary' : 'intro'; commit(next);
         break;
       }
-      case 'restart': case 'confirm-reset':
-        replaceWorkshop(freshWorkshop(), null, true); break;
+      case 'confirm-reset':
+        replaceWorkshop(freshWorkshop(), undefined, true); break;
+      case 'title': stopMotion(); showTitle(); break;
     }
   }
 
@@ -844,12 +937,12 @@ export function initWorkshop() {
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', clearKeys);
   panel.addEventListener('cancel', onCancel);
-  renderScene(); stats(); renderPanel();
-  if (!panel.open) canvas.focus({ preventScroll: true });
+  replaceWorkshop(save?.game ?? freshWorkshop(), save, !save);
   return () => {
     window.clearTimeout(openingTimer);
     swiftInput.dispose();
     cancelAnimationFrame(frame);
+    if (panel.open) panel.close();
     root.removeEventListener('click', onClick);
     root.removeEventListener('keydown', onKey);
     window.removeEventListener('keyup', onKeyUp);

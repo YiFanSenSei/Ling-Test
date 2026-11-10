@@ -18,6 +18,7 @@ export function bindSwiftInput(root, getDraft, refresh) {
   }
 
   function place(draft, end) {
+    let placed = false;
     if (draft.marks.length >= swiftLimit) {
       draft.note = '绣布上已经有很多针脚。可以拆掉上一组再试。';
     } else if (!draft.start) {
@@ -33,9 +34,10 @@ export function bindSwiftInput(root, getDraft, refresh) {
       if (mark) {
         draft.marks.push(mark);
         draft.start = null;
+        placed = true;
       }
     }
-    refresh();
+    refresh(placed);
   }
 
   function clothPoint(event, svg) {
