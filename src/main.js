@@ -11,6 +11,7 @@ import './styles/base.css';
 import './styles/layout.css';
 import './styles/components.css';
 import './styles/pages.css';
+import './styles/exhibition.css';
 // 大屏断点必须放在最后：它要覆盖前面各文件里定义的 --maxw 与栅格列数
 import './styles/wide.css';
 
@@ -21,10 +22,10 @@ import { getMeta } from './data.js';
 import { EmptyState } from './components/ui.js';
 import { initIntro } from './intro.js';
 
-import { HomePage } from './pages/Home.js';
+import { HomePage, initHome } from './pages/Home.js';
 import { GalleryPage, initGallery } from './pages/Gallery.js';
 import { ProjectPage, initProject } from './pages/Project.js';
-import { InheritorsPage, initInheritors, InheritorPage } from './pages/Inheritors.js';
+import { InheritorsPage, InheritorPage, EthnicitiesPage } from './pages/Inheritors.js';
 import { AgesPage } from './pages/Ages.js';
 import { SimulatorPage, initSimulator } from './pages/Simulator.js';
 import { AboutPage, initAbout } from './pages/About.js';
@@ -135,7 +136,7 @@ async function render(html, { title, init } = {}) {
 
 route('/', async ({ render }) => {
   const html = await HomePage();
-  await render(html);
+  await render(html, { init: initHome });
 });
 
 route('/gallery', async ({ render, fromPath }) => {
@@ -162,6 +163,10 @@ route('/simulator', async ({ render }) => {
 route('/inheritors', async ({ render, fromPath }) => {
   const { html, init } = await InheritorsPage();
   await render(html, { title: '传承人', init: () => init({ restore: fromPath.startsWith('/inheritor/') }) });
+});
+
+route('/inheritors/ethnicities', async ({ render }) => {
+  await render(await EthnicitiesPage(), { title: '传承人民族分布' });
 });
 
 route('/inheritor/:id', async ({ params, render }) => {

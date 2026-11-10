@@ -19,7 +19,7 @@ import { CATEGORY_ORDER } from '../icons.js';
 import { catalogCover } from '../components/catalog-art.js';
 import { CRAFTS } from '../crafts.js';
 import { CURATION } from '../curation.js';
-import { HeroArtwork } from '../heroArt.js';
+import { exhibitPhoto } from '../components/exhibit-photo.js';
 
 export async function HomePage() {
   const [meta, featured, inhStats] = await Promise.all([
@@ -90,7 +90,9 @@ export async function HomePage() {
 
   return `
   <!-- ══════════ 一、序 ══════════ -->
-  <section class="hero">
+  <section class="hero hero--exhibit">
+    ${exhibitPhoto('home')}
+    <span class="hero-border" aria-hidden="true"></span>
     <div class="container hero-inner">
       <div class="hero-copy">
         <p class="hero-eyebrow">
@@ -104,10 +106,7 @@ export async function HomePage() {
         </h1>
 
         <p class="hero-lede">
-          从缂丝的经纬到宣纸的帘纹，从榫卯的咬合到青瓷的釉色——
-          这些手艺曾是无数人一生的功课。<br>
-          本站以国家级非物质文化遗产代表性项目为内容，
-          建一座可以走进去的数字展馆，并让其中几门手艺，在屏幕上重新动起来。
+          从苏绣的针脚、宣纸的帘纹，到榫卯的咬合。沿着馆藏寻访匠人，也亲手做一遍手艺。
         </p>
 
         <div class="hero-actions">
@@ -132,23 +131,16 @@ export async function HomePage() {
         </dl>
       </div>
 
-      <div class="hero-visual">
-        ${HeroArtwork()}
-        <div class="seal-stack" aria-hidden="true">
-          <span class="seal seal-1">匠</span>
-          <span class="seal seal-2">作</span>
-        </div>
-      </div>
     </div>
 
-    <div class="hero-scroll" aria-hidden="true">
-      <span>向下</span>
-      <span class="scroll-line"></span>
-    </div>
+    <button type="button" class="hero-scroll" aria-controls="home-experiences">
+      <span>向下看展</span>
+      <span class="scroll-line" aria-hidden="true"></span>
+    </button>
   </section>
 
   <!-- ══════════ 五、技艺体验 ══════════ -->
-  <section class="section section-dark">
+  <section class="section section-dark" id="home-experiences" tabindex="-1" aria-label="技艺互动体验">
     <div class="container sim-promo">
       <div class="sim-promo-copy">
         <p class="sim-promo-eyebrow">技艺互动体验</p>
@@ -268,4 +260,36 @@ export async function HomePage() {
       <a class="btn btn-primary btn-lg" href="#/gallery">走进名录</a>
     </div>
   </section>`;
+}
+
+export function initHome() {
+  const main = document.getElementById('main');
+  const jump = main.querySelector('.hero-scroll');
+  const experiences = main.querySelector('#home-experiences');
+  const motion = matchMedia('(prefers-reduced-motion: reduce)');
+  const goDown = () => {
+    experiences.focus({ preventScroll: true });
+    experiences.scrollIntoView({ behavior: motion.matches ? 'instant' : 'smooth' });
+  };
+  jump.addEventListener('click', goDown);
+
+  const targets = [...main.querySelectorAll('.section-title, .sim-promo-copy, .sim-promo-list li, .stat, .cat-card, .pcard, .timeline, .region-list, .closing-inner')];
+  const observer = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      entry.target.classList.remove('reveal-pending');
+      observer.unobserve(entry.target);
+    }
+  }, { threshold: 0.08 }) : null;
+
+  if (observer && !motion.matches) {
+    targets.forEach(target => {
+      target.classList.add('home-reveal', 'reveal-pending');
+      observer.observe(target);
+    });
+  }
+  return () => {
+    jump.removeEventListener('click', goDown);
+    observer?.disconnect();
+  };
 }

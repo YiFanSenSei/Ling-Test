@@ -1,3 +1,5 @@
+import { embroideryGlossary } from './embroidery-terms.js';
+
 /** 原创原理图，采用简化几何解释操作，不充当实物照片或结构施工图。 */
 const threadLines = Array.from({ length: 17 }, (_, i) => `<path d="M${46 + i * 5} 26V96"/>`).join('');
 const fiberLines = Array.from({ length: 22 }, (_, i) => {
@@ -34,5 +36,6 @@ export function craftStudy(id) {
       <svg viewBox="0 0 180 120" fill="none" aria-hidden="true">${svg}</svg>
       <h3><span>0${i + 1}</span>${title}</h3><p>${description}</p>
     </li>`).join('')}</ol><p class="craft-study-note">本站绘制的原理示意，非真实比例。项目资料见下方官方介绍。</p>
+    ${id === '13978' ? embroideryGlossary() : ''}
   </section>`;
 }
