@@ -110,7 +110,7 @@ export async function HomePage() {
         </p>
 
         <div class="hero-actions">
-          <a class="btn btn-primary btn-lg" href="#/simulator?tool=embroidery">亲手绣一朵花</a>
+          <a class="btn btn-primary btn-lg" href="#/workshop">试玩苏绣工坊</a>
           <a class="btn btn-ghost btn-lg" href="#/inheritors">寻访匠人</a>
           <a class="btn btn-ghost btn-lg" href="#/gallery">进入名录</a>
         </div>
