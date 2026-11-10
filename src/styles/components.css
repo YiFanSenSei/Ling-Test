@@ -82,7 +82,7 @@
   border-radius: 3px;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
-  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), scale var(--dur) var(--ease);
 }
 .pcard:hover { color: inherit; border-color: #a96957; }
 .pcard-media {
@@ -371,12 +371,7 @@ a.page-btn:hover { border-color: var(--cinnabar); color: var(--cinnabar); backgr
   transition-duration: 80ms;
 }
 
-/*
- * ⚠️ .pcard 单独处理：它的悬停是 translateY(-3px)，
- *    会被上面那条通配的 translateY(1px) 覆盖掉，导致按下时卡片往下跳 4px。
- *    纸面上的卡片本来就不该「飘」，悬停改成只描朱边、不位移，
- *    按下去轻轻一沉，符合一张卡片的物理直觉。
- */
+/* 悬停缩放和按压位移分别使用 scale 与 transform。 */
 .pcard:hover {
   transform: none;
   box-shadow: var(--shadow-sm);
@@ -386,7 +381,6 @@ a.page-btn:hover { border-color: var(--cinnabar); color: var(--cinnabar); backgr
   transform: translateY(1px);
   box-shadow: none;
 }
-.pcard:hover .pcard-media svg { transform: scale(1.035); }
 
 /* 卡片类悬停加一圈极淡朱色内描边，而不是只换底色 */
 .cat-card:hover,

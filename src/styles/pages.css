@@ -273,10 +273,9 @@ strong { font-size: inherit; line-height: inherit; }
   border: 1px solid var(--rule);
   border-radius: 3px;
   overflow: hidden;
-  transition: border-color var(--dur) var(--ease);
+  transition: border-color var(--dur) var(--ease), scale var(--dur) var(--ease);
 }
 .cat-card:hover, .cat-card:focus-visible { border-color: var(--cinnabar); }
-.cat-card:hover .pcard-media svg { transform: scale(1.035); }
 .cat-card:hover .pcard-arrow, .cat-card:focus-visible .pcard-arrow {
   background: var(--cinnabar);
   border-color: var(--cinnabar);
@@ -379,7 +378,7 @@ strong { font-size: inherit; line-height: inherit; }
   padding: 24px;
   text-decoration: none;
   color: var(--paper);
-  transition: background var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease), scale var(--dur) var(--ease);
 }
 .craft-entry:hover { background: rgba(245, 241, 232, .08); }
 .craft-entry:focus-visible { outline-color: var(--gold); outline-offset: -4px; }
@@ -2355,7 +2354,7 @@ a.sibling:hover { border-color: var(--cinnabar); transform: translateY(-2px); }
   background: var(--paper-light);
   text-decoration: none;
   color: inherit;
-  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), scale var(--dur) var(--ease);
 }
 .inh-card:hover,
 .inh-card:focus-visible { border-color: var(--cinnabar); }

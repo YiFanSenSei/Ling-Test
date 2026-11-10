@@ -19,7 +19,7 @@ const shot = async (name, selector) => {
 };
 const routes = [
   ['home', '#/'], ['gallery', '#/gallery'], ['inheritors', '#/inheritors'],
-  ['simulator', '#/simulator?tool=embroidery'], ['works', '#/works'], ['about', '#/about'],
+  ['simulator', '#/simulator'], ['works', '#/works'], ['about', '#/about'],
 ];
 const readyPhoto = key => `document.querySelector('.exhibit-photo--${key} img')?.naturalWidth > 0`;
 
@@ -40,9 +40,24 @@ try {
       ?.effect.getKeyframes()[0].translate.split(' ').map(parseFloat))`);
   assert(starts[0]?.[0] < 0 && starts[1]?.[1] > 0 && starts[2]?.[0] > 0);
   assert(await run('document.documentElement.scrollWidth <= innerWidth'));
-  console.log('✓ 向下入口可操作，图录卡片从左、下、右入场且无横向溢出');
+  await run(`window.firstEntrance = document.querySelector('.cat-card').getAnimations()
+    .find(animation => animation.animationName === 'home-enter');
+    scrollTo({top:0, behavior:'instant'})`);
+  await wait("document.querySelector('.cat-card').classList.contains('reveal-pending')");
+  await run("document.querySelector('.cat-card').scrollIntoView({behavior:'instant',block:'center'})");
+  await wait(`document.querySelector('.cat-card').getAnimations().some(animation =>
+    animation.animationName === 'home-enter' && animation !== window.firstEntrance)`);
+  await run("Promise.all(document.querySelector('.cat-card').getAnimations().map(animation=>animation.finished))");
+  const point = await run(`(() => {
+    const card = document.querySelector('.cat-card').getBoundingClientRect();
+    return { x:card.left + card.width / 2, y:card.top + card.height / 2 };
+  })()`);
+  await send('Input.dispatchMouseEvent', { type:'mouseMoved', ...point });
+  await wait("parseFloat(getComputedStyle(document.querySelector('.cat-card')).scale) > 1.01");
+  console.log('✓ 卡片多方向入场，离开后重新滚入会回放，鼠标悬停有放大反馈');
 
   await send('Emulation.setEmulatedMedia', { features: [{ name:'prefers-reduced-motion', value:'reduce' }] });
+  await wait("getComputedStyle(document.querySelector('.cat-card')).scale === 'none'");
   for (const width of [1920, 1440, 720, 390, 320]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height:900, deviceScaleFactor:1, mobile:width<=720 });
     for (const [key, route] of routes) {
@@ -53,19 +68,21 @@ try {
       else {
         const layout = await run(`(() => {
           const copy = document.querySelector('.exhibit-copy').getBoundingClientRect();
-          const figure = document.querySelector('.exhibit-spread figure').getBoundingClientRect();
-          return { equal:Math.abs(copy.width - figure.width) < 1, beside:figure.left > copy.right,
-            stacked:figure.top > copy.bottom, fit:getComputedStyle(document.querySelector('.exhibit-spread img')).objectFit };
+          const photo = document.querySelector('.page-head--exhibit .exhibit-photo');
+          const figure = photo.getBoundingClientRect();
+          return { full:Math.abs(figure.width - document.documentElement.clientWidth) < 1,
+            half:Math.abs(figure.height - innerHeight / 2) < 2, stacked:copy.top >= figure.bottom,
+            fit:getComputedStyle(photo.querySelector('img')).objectFit };
         })()`);
-        assert(layout.equal && layout.fit === 'contain' && (width > 720 ? layout.beside : layout.stacked), `${width}px ${key} 图文布局`);
+        assert(layout.full && layout.half && layout.stacked && layout.fit === 'cover', `${width}px ${key} 通栏布局`);
       }
-      if (width === 1440 && key !== 'home') await shot('exhibition-' + key + '-desktop', '.page-head--exhibit');
+      if (width === 1440 && key !== 'home') await shot('exhibition-' + key + '-desktop');
       if (width === 390 && ['home','inheritors','gallery'].includes(key)) {
         await shot('exhibition-' + key + '-mobile', key === 'home' ? '.hero' : '.page-head--exhibit');
       }
     }
   }
-  console.log('✓ 五个栏目的图文等宽，窄屏上下排布，馆藏图完整显示，减弱动态时内容直接呈现');
+  console.log('✓ 五个栏目在五种屏宽下均为上方半屏通栏图、下方正文，减弱动态时内容直接呈现');
 
   for (const id of ['eight-words','split-silk','double-sided','stitch-families']) {
     await browser.go(base + '#/simulator?tool=embroidery', "document.querySelector('.knowledge-link')");
